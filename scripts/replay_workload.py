@@ -10,21 +10,30 @@ SRC = ROOT / "src"
 if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
-from llmbench import load_workload, simulate_fifo, summarize_traces
+from llmbench import KVCacheConfig, load_kv_cache_config, load_workload, simulate_fifo, summarize_traces
 
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="Replay an LLM inference workload.")
     parser.add_argument("workload", type=Path, help="Path to workload JSON")
+    parser.add_argument(
+        "--model-config",
+        type=Path,
+        default=None,
+        help="Path to model KV-cache config JSON",
+    )
     args = parser.parse_args()
 
+    kv_cache = load_kv_cache_config(args.model_config) if args.model_config else KVCacheConfig()
     workload = load_workload(args.workload)
-    traces = simulate_fifo(workload)
+    traces = simulate_fifo(workload, kv_cache=kv_cache)
     summary = summarize_traces(traces)
 
     print(f"workload: {workload.name}")
     if workload.description:
         print(f"description: {workload.description}")
+    print(f"model_config: {kv_cache.name}")
+    print(f"kv_bytes_per_token: {kv_cache.bytes_per_token}")
     print()
     print(
         "request_id                 arrival   queue    ttft     total    "

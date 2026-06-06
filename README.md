@@ -32,12 +32,15 @@ The initial code provides:
 - A deterministic FIFO request lifecycle simulator
 - Per-stage traces for queueing, tokenization, prefill, decode, and streaming
 - Per-request KV-cache footprint estimates
-- Summary metrics for end-to-end latency and queue wait
+- Active KV-cache timeline metrics
+- Summary metrics for end-to-end latency, queue wait, throughput, and memory
+  pressure
 
 Run the starter workload:
 
 ```bash
-python3 scripts/replay_workload.py workloads/week01_mixed_requests.json
+python3 scripts/replay_workload.py workloads/week01_mixed_requests.json \
+  --model-config configs/models/llama-7b-gqa-fp16.json
 ```
 
 Run tests:
@@ -64,3 +67,6 @@ TensorRT-LLM, Triton kernels, or real GPUs.
 
 The research focus is documented in
 [`docs/research-focus-kv-cache.md`](docs/research-focus-kv-cache.md).
+
+The first KV-cache pressure baseline is documented in
+[`docs/baseline-kv-pressure.md`](docs/baseline-kv-pressure.md).

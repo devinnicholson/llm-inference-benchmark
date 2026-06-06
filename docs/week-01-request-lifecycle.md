@@ -39,7 +39,7 @@ The code in `src/llmbench` creates a deterministic FIFO baseline:
 
 - `workload.py` loads and validates request specs.
 - `kv_cache.py` estimates per-token and per-request KV-cache memory.
-- `simulate.py` estimates per-stage timings.
+- `simulate.py` estimates per-stage timings and active KV-cache timelines.
 - `scripts/replay_workload.py` prints traces and summary metrics.
 - `tests/test_workload.py` checks validation and metric behavior.
 
@@ -68,5 +68,16 @@ request_bytes = (prompt_tokens + output_tokens) * bytes_per_token
 ```
 
 It is enough to make long-context memory pressure visible in every trace. Later
-weeks should add active-memory accounting, paged allocation, fragmentation, and
-cache-aware scheduling.
+weeks should add paged allocation, fragmentation, and cache-aware scheduling.
+
+## Active Timeline
+
+The baseline now tracks active KV cache over time:
+
+1. prompt KV allocation at prefill start
+2. output-token KV growth during decode
+3. full release at request completion
+
+The summary reports peak active KV cache, p95 active KV cache, and duration near
+the run's peak memory pressure. The first baseline writeup lives in
+`docs/baseline-kv-pressure.md`.

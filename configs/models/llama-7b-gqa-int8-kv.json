@@ -1,0 +1,7 @@
+{
+  "name": "llama-7b-gqa-int8-kv",
+  "layers": 32,
+  "kv_heads": 8,
+  "head_dim": 128,
+  "bytes_per_element": 1
+}

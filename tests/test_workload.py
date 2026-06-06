@@ -11,7 +11,15 @@ SRC = ROOT / "src"
 if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
-from llmbench import KVCacheConfig, LatencyModel, load_workload, simulate_fifo, summarize_traces
+from llmbench import (
+    KVCacheConfig,
+    LatencyModel,
+    build_kv_cache_timeline,
+    load_kv_cache_config,
+    load_workload,
+    simulate_fifo,
+    summarize_traces,
+)
 
 
 class WorkloadTests(unittest.TestCase):
@@ -112,6 +120,7 @@ class WorkloadTests(unittest.TestCase):
         self.assertEqual(summary["requests"], 1.0)
         self.assertEqual(summary["output_tokens"], 5.0)
         self.assertGreater(summary["p95_latency_ms"], 0)
+        self.assertGreater(summary["peak_active_kv_cache_mib"], 0)
         self.assertGreater(summary["output_tokens_per_second"], 0)
 
     def test_kv_cache_estimate_is_attached_to_traces(self) -> None:
@@ -136,8 +145,57 @@ class WorkloadTests(unittest.TestCase):
         self.assertEqual(traces[0].kv_cache_bytes, 15 * 2 * 2 * 4 * 8 * 2)
         self.assertGreater(traces[0].kv_cache_mib, 0)
 
+    def test_loads_kv_cache_config(self) -> None:
+        path = _write_json(
+            {
+                "name": "tiny",
+                "layers": 2,
+                "kv_heads": 4,
+                "head_dim": 8,
+                "bytes_per_element": 2,
+            }
+        )
+
+        config = load_kv_cache_config(path)
+
+        self.assertEqual(config.name, "tiny")
+        self.assertEqual(config.bytes_per_token, 2 * 2 * 4 * 8 * 2)
+
+    def test_active_kv_cache_timeline_tracks_growth_and_release(self) -> None:
+        workload = load_workload(
+            _write_workload(
+                {
+                    "requests": [
+                        {
+                            "id": "a",
+                            "arrival_ms": 0,
+                            "prompt_tokens": 2,
+                            "output_tokens": 2,
+                        }
+                    ]
+                }
+            )
+        )
+        model = LatencyModel(
+            scheduler_overhead_ms=0,
+            tokenize_ms_per_prompt_token=0,
+            prefill_ms_per_prompt_token=0.5,
+            decode_ms_per_output_token=1,
+            stream_ms_per_output_token=0.5,
+        )
+        kv_cache = KVCacheConfig(layers=1, kv_heads=1, head_dim=1, bytes_per_element=1)
+
+        timeline = build_kv_cache_timeline(simulate_fifo(workload, model, kv_cache))
+
+        self.assertEqual([point.active_bytes for point in timeline], [4, 6, 8, 0])
+        self.assertEqual(max(point.active_bytes for point in timeline), 8)
+
 
 def _write_workload(payload: dict) -> Path:
+    return _write_json(payload)
+
+
+def _write_json(payload: dict) -> Path:
     handle = tempfile.NamedTemporaryFile("w", suffix=".json", delete=False)
     with handle:
         json.dump(payload, handle)

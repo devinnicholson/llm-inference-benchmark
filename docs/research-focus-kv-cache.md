@@ -72,7 +72,7 @@ Without those pieces, it is just a well-implemented class project.
 
 ## Initial Implementation Direction
 
-The current Week 1 simulator now estimates per-request KV-cache footprint using:
+The current Week 1 simulator estimates per-request KV-cache footprint using:
 
 ```text
 bytes_per_token = 2 * layers * kv_heads * head_dim * bytes_per_element
@@ -80,16 +80,18 @@ request_bytes = (prompt_tokens + output_tokens) * bytes_per_token
 ```
 
 The default config approximates a 32-layer, 32-KV-head, 128-head-dim, FP16
-decoder model. Later experiments should expose this as workload/model config so
-we can compare MHA, GQA, MQA, and quantized KV-cache settings.
+decoder model. Model configs now live in `configs/models` so we can compare MHA,
+GQA, MQA, and quantized KV-cache settings.
+
+The simulator also builds an active KV-cache timeline with prompt allocation at
+prefill start, decode-time KV growth, and request-level release at completion.
 
 ## Near-Term Milestones
 
-1. Add model config files for several KV-cache shapes.
-2. Add active-memory accounting for concurrent requests.
+1. Add active-memory accounting for concurrent requests.
+2. Add GPU capacity configs and capacity-relative pressure metrics.
 3. Implement FIFO, priority, shortest-prefill, and cache-aware schedulers.
 4. Add workload generators for short chat, long-context RAG, coding, and batch.
 5. Plot p95/p99 latency versus peak active KV-cache memory.
 6. Write a short negative-results section for policies that look good only on
    unrealistic workloads.
-
