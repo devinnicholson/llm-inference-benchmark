@@ -85,13 +85,14 @@ GQA, MQA, and quantized KV-cache settings.
 
 The simulator also builds an active KV-cache timeline with prompt allocation at
 prefill start, decode-time KV growth, and request-level release at completion.
+It can now run FIFO with configurable concurrent request slots, which makes
+active KV-cache overlap visible.
 
 ## Near-Term Milestones
 
-1. Add active-memory accounting for concurrent requests.
-2. Add GPU capacity configs and capacity-relative pressure metrics.
-3. Implement FIFO, priority, shortest-prefill, and cache-aware schedulers.
-4. Add workload generators for short chat, long-context RAG, coding, and batch.
-5. Plot p95/p99 latency versus peak active KV-cache memory.
-6. Write a short negative-results section for policies that look good only on
+1. Add GPU capacity configs and capacity-relative pressure metrics.
+2. Implement FIFO, priority, shortest-prefill, and cache-aware schedulers.
+3. Extend workload generators with documented long-context and adversarial mixes.
+4. Plot p95/p99 latency versus peak active KV-cache memory.
+5. Write a short negative-results section for policies that look good only on
    unrealistic workloads.

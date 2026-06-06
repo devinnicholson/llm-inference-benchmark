@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import heapq
 from dataclasses import dataclass
 from math import ceil
 
@@ -92,16 +93,24 @@ def simulate_fifo(
     workload: Workload,
     model: LatencyModel | None = None,
     kv_cache: KVCacheConfig | None = None,
+    max_concurrent_requests: int = 1,
 ) -> list[RequestTrace]:
+    if max_concurrent_requests <= 0:
+        raise ValueError("max_concurrent_requests must be positive")
+
     latency_model = model or LatencyModel()
     kv_cache_config = kv_cache or KVCacheConfig()
     traces: list[RequestTrace] = []
-    worker_available_ms = 0.0
+    worker_available_heap: list[float] = []
 
     for request in workload.requests:
+        worker_available_ms = request.arrival_ms
+        if len(worker_available_heap) >= max_concurrent_requests:
+            worker_available_ms = heapq.heappop(worker_available_heap)
+
         trace = _simulate_request(request, worker_available_ms, latency_model, kv_cache_config)
         traces.append(trace)
-        worker_available_ms = trace.end_ms
+        heapq.heappush(worker_available_heap, trace.end_ms)
 
     return traces
 

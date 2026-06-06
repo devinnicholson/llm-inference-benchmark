@@ -22,11 +22,21 @@ def main() -> int:
         default=None,
         help="Path to model KV-cache config JSON",
     )
+    parser.add_argument(
+        "--max-concurrent-requests",
+        type=int,
+        default=1,
+        help="Maximum concurrent requests in the FIFO baseline",
+    )
     args = parser.parse_args()
 
     kv_cache = load_kv_cache_config(args.model_config) if args.model_config else KVCacheConfig()
     workload = load_workload(args.workload)
-    traces = simulate_fifo(workload, kv_cache=kv_cache)
+    traces = simulate_fifo(
+        workload,
+        kv_cache=kv_cache,
+        max_concurrent_requests=args.max_concurrent_requests,
+    )
     summary = summarize_traces(traces)
 
     print(f"workload: {workload.name}")
@@ -34,6 +44,7 @@ def main() -> int:
         print(f"description: {workload.description}")
     print(f"model_config: {kv_cache.name}")
     print(f"kv_bytes_per_token: {kv_cache.bytes_per_token}")
+    print(f"max_concurrent_requests: {args.max_concurrent_requests}")
     print()
     print(
         "request_id                 arrival   queue    ttft     total    "

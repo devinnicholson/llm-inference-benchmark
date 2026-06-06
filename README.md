@@ -43,6 +43,23 @@ python3 scripts/replay_workload.py workloads/week01_mixed_requests.json \
   --model-config configs/models/llama-7b-gqa-fp16.json
 ```
 
+Generate a deterministic bursty workload:
+
+```bash
+python3 scripts/generate_workload.py mixed_bursty \
+  --requests 32 \
+  --seed 568 \
+  --output workloads/generated/mixed_bursty_32_seed568.json
+```
+
+Replay it with overlapping FIFO request slots:
+
+```bash
+python3 scripts/replay_workload.py workloads/generated/mixed_bursty_32_seed568.json \
+  --model-config configs/models/llama-7b-gqa-fp16.json \
+  --max-concurrent-requests 4
+```
+
 Run tests:
 
 ```bash
@@ -70,3 +87,6 @@ The research focus is documented in
 
 The first KV-cache pressure baseline is documented in
 [`docs/baseline-kv-pressure.md`](docs/baseline-kv-pressure.md).
+
+Workload generation is documented in
+[`docs/workload-generation.md`](docs/workload-generation.md).

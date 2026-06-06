@@ -15,10 +15,12 @@ from llmbench import (
     KVCacheConfig,
     LatencyModel,
     build_kv_cache_timeline,
+    generate_workload,
     load_kv_cache_config,
     load_workload,
     simulate_fifo,
     summarize_traces,
+    workload_to_dict,
 )
 
 
@@ -189,6 +191,74 @@ class WorkloadTests(unittest.TestCase):
 
         self.assertEqual([point.active_bytes for point in timeline], [4, 6, 8, 0])
         self.assertEqual(max(point.active_bytes for point in timeline), 8)
+
+    def test_concurrent_fifo_reduces_queue_wait_and_overlaps_kv_cache(self) -> None:
+        workload = load_workload(
+            _write_workload(
+                {
+                    "requests": [
+                        {
+                            "id": "a",
+                            "arrival_ms": 0,
+                            "prompt_tokens": 2,
+                            "output_tokens": 1,
+                        },
+                        {
+                            "id": "b",
+                            "arrival_ms": 0,
+                            "prompt_tokens": 2,
+                            "output_tokens": 1,
+                        },
+                    ]
+                }
+            )
+        )
+        model = LatencyModel(
+            scheduler_overhead_ms=0,
+            tokenize_ms_per_prompt_token=0,
+            prefill_ms_per_prompt_token=0.5,
+            decode_ms_per_output_token=1,
+            stream_ms_per_output_token=0.5,
+        )
+        kv_cache = KVCacheConfig(layers=1, kv_heads=1, head_dim=1, bytes_per_element=1)
+
+        serial = simulate_fifo(workload, model, kv_cache, max_concurrent_requests=1)
+        concurrent = simulate_fifo(workload, model, kv_cache, max_concurrent_requests=2)
+        concurrent_timeline = build_kv_cache_timeline(concurrent)
+
+        self.assertGreater(serial[1].queue_wait_ms, 0)
+        self.assertEqual(concurrent[1].queue_wait_ms, 0)
+        self.assertEqual(max(point.active_bytes for point in concurrent_timeline), 12)
+
+    def test_rejects_invalid_concurrency(self) -> None:
+        workload = load_workload(
+            _write_workload(
+                {
+                    "requests": [
+                        {
+                            "id": "a",
+                            "arrival_ms": 0,
+                            "prompt_tokens": 2,
+                            "output_tokens": 1,
+                        }
+                    ]
+                }
+            )
+        )
+
+        with self.assertRaisesRegex(ValueError, "max_concurrent_requests"):
+            simulate_fifo(workload, max_concurrent_requests=0)
+
+    def test_workload_generation_is_deterministic(self) -> None:
+        first = generate_workload("mixed_bursty", requests=5, seed=11)
+        second = generate_workload("mixed_bursty", requests=5, seed=11)
+
+        self.assertEqual(workload_to_dict(first), workload_to_dict(second))
+        self.assertEqual(len(first.requests), 5)
+
+    def test_workload_generation_rejects_unknown_profile(self) -> None:
+        with self.assertRaisesRegex(ValueError, "unknown profile"):
+            generate_workload("unknown", requests=1, seed=0)
 
 
 def _write_workload(payload: dict) -> Path:

@@ -26,8 +26,8 @@ The simulator uses this active-memory model:
 
 The current FIFO baseline processes one request at a time, so active KV cache
 does not overlap across requests. That is an intentional starting point. The
-timeline implementation already supports overlapping traces, which will matter
-when we add batching and multi-worker policies.
+timeline implementation also supports overlapping traces, which is used by the
+concurrent FIFO baseline later in this document.
 
 ## Model Configs
 
@@ -92,10 +92,35 @@ The baseline says three useful things:
 The third point is the next research opening. We need overlapping active-memory
 timelines before scheduler claims become meaningful.
 
+## Concurrency Baseline
+
+The simulator now supports FIFO with configurable concurrent request slots:
+
+```bash
+python3 scripts/replay_workload.py workloads/generated/mixed_bursty_32_seed568.json \
+  --model-config configs/models/llama-7b-gqa-fp16.json \
+  --max-concurrent-requests 4
+```
+
+On `mixed_bursty_32_seed568`, four concurrent FIFO slots reduce tail latency but
+increase peak active KV cache:
+
+| Metric | Serial FIFO | 4-slot FIFO |
+| --- | ---: | ---: |
+| `p95_latency_ms` | 16325.779 | 3972.368 |
+| `p99_latency_ms` | 16599.393 | 4025.487 |
+| `p95_queue_wait_ms` | 16153.883 | 3118.553 |
+| `peak_active_kv_cache_mib` | 577.625 | 1425.375 |
+| `p95_active_kv_cache_mib` | 512.125 | 1377.750 |
+| `output_tokens_per_second` | 407.220 | 1517.186 |
+
+That is the first concrete tradeoff this repo can show: concurrency improves
+queueing and throughput, but it creates overlapping KV-cache residency. This is
+where cache-aware scheduling becomes meaningful.
+
 ## Next Step
 
-Add workload generators and a concurrent/batched scheduler model so active KV
-cache can overlap across requests. Then compare FIFO against policies such as:
+Add a scheduler interface so we can compare FIFO against policies such as:
 
 - shortest-prefill first
 - shortest-cache-footprint first

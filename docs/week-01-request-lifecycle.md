@@ -81,3 +81,11 @@ The baseline now tracks active KV cache over time:
 The summary reports peak active KV cache, p95 active KV cache, and duration near
 the run's peak memory pressure. The first baseline writeup lives in
 `docs/baseline-kv-pressure.md`.
+
+The replay CLI also supports concurrent FIFO slots:
+
+```bash
+python3 scripts/replay_workload.py workloads/generated/mixed_bursty_32_seed568.json \
+  --model-config configs/models/llama-7b-gqa-fp16.json \
+  --max-concurrent-requests 4
+```

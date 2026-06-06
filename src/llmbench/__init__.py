@@ -1,5 +1,6 @@
 """Utilities for the 568 LLM inference benchmark lab."""
 
+from llmbench.generate import PROFILES, generate_workload, workload_to_dict, write_workload
 from llmbench.kv_cache import KVCacheConfig, KVCachePoint, bytes_to_mib, load_kv_cache_config
 from llmbench.simulate import (
     LatencyModel,
@@ -14,13 +15,17 @@ __all__ = [
     "KVCacheConfig",
     "KVCachePoint",
     "LatencyModel",
+    "PROFILES",
     "RequestSpec",
     "RequestTrace",
     "Workload",
     "build_kv_cache_timeline",
     "bytes_to_mib",
+    "generate_workload",
     "load_kv_cache_config",
     "load_workload",
     "simulate_fifo",
     "summarize_traces",
+    "workload_to_dict",
+    "write_workload",
 ]

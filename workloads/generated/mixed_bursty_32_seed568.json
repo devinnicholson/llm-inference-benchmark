@@ -1,0 +1,230 @@
+{
+  "name": "mixed_bursty_32_seed568",
+  "description": "Generated mixed_bursty workload with 32 requests using seed 568. Token ranges are synthetic and intended for scheduler and KV-cache studies.",
+  "requests": [
+    {
+      "id": "mixed_bursty-0001",
+      "arrival_ms": 0.0,
+      "prompt_tokens": 1795,
+      "output_tokens": 458,
+      "priority": "interactive"
+    },
+    {
+      "id": "mixed_bursty-0002",
+      "arrival_ms": 4.202,
+      "prompt_tokens": 2318,
+      "output_tokens": 353,
+      "priority": "interactive"
+    },
+    {
+      "id": "mixed_bursty-0003",
+      "arrival_ms": 7.822,
+      "prompt_tokens": 4434,
+      "output_tokens": 187,
+      "priority": "interactive"
+    },
+    {
+      "id": "mixed_bursty-0004",
+      "arrival_ms": 11.945,
+      "prompt_tokens": 215,
+      "output_tokens": 73,
+      "priority": "interactive"
+    },
+    {
+      "id": "mixed_bursty-0005",
+      "arrival_ms": 14.393,
+      "prompt_tokens": 227,
+      "output_tokens": 91,
+      "priority": "interactive"
+    },
+    {
+      "id": "mixed_bursty-0006",
+      "arrival_ms": 19.916,
+      "prompt_tokens": 863,
+      "output_tokens": 335,
+      "priority": "interactive"
+    },
+    {
+      "id": "mixed_bursty-0007",
+      "arrival_ms": 27.204,
+      "prompt_tokens": 2239,
+      "output_tokens": 269,
+      "priority": "interactive"
+    },
+    {
+      "id": "mixed_bursty-0008",
+      "arrival_ms": 32.166,
+      "prompt_tokens": 1802,
+      "output_tokens": 159,
+      "priority": "interactive"
+    },
+    {
+      "id": "mixed_bursty-0009",
+      "arrival_ms": 36.198,
+      "prompt_tokens": 70,
+      "output_tokens": 142,
+      "priority": "interactive"
+    },
+    {
+      "id": "mixed_bursty-0010",
+      "arrival_ms": 39.164,
+      "prompt_tokens": 135,
+      "output_tokens": 159,
+      "priority": "interactive"
+    },
+    {
+      "id": "mixed_bursty-0011",
+      "arrival_ms": 42.803,
+      "prompt_tokens": 99,
+      "output_tokens": 147,
+      "priority": "interactive"
+    },
+    {
+      "id": "mixed_bursty-0012",
+      "arrival_ms": 47.902,
+      "prompt_tokens": 153,
+      "output_tokens": 32,
+      "priority": "interactive"
+    },
+    {
+      "id": "mixed_bursty-0013",
+      "arrival_ms": 272.189,
+      "prompt_tokens": 149,
+      "output_tokens": 42,
+      "priority": "interactive"
+    },
+    {
+      "id": "mixed_bursty-0014",
+      "arrival_ms": 280.695,
+      "prompt_tokens": 2276,
+      "output_tokens": 526,
+      "priority": "interactive"
+    },
+    {
+      "id": "mixed_bursty-0015",
+      "arrival_ms": 287.532,
+      "prompt_tokens": 154,
+      "output_tokens": 129,
+      "priority": "interactive"
+    },
+    {
+      "id": "mixed_bursty-0016",
+      "arrival_ms": 290.717,
+      "prompt_tokens": 3274,
+      "output_tokens": 360,
+      "priority": "interactive"
+    },
+    {
+      "id": "mixed_bursty-0017",
+      "arrival_ms": 297.951,
+      "prompt_tokens": 309,
+      "output_tokens": 147,
+      "priority": "interactive"
+    },
+    {
+      "id": "mixed_bursty-0018",
+      "arrival_ms": 302.234,
+      "prompt_tokens": 2274,
+      "output_tokens": 541,
+      "priority": "interactive"
+    },
+    {
+      "id": "mixed_bursty-0019",
+      "arrival_ms": 304.212,
+      "prompt_tokens": 213,
+      "output_tokens": 154,
+      "priority": "interactive"
+    },
+    {
+      "id": "mixed_bursty-0020",
+      "arrival_ms": 308.703,
+      "prompt_tokens": 1604,
+      "output_tokens": 603,
+      "priority": "interactive"
+    },
+    {
+      "id": "mixed_bursty-0021",
+      "arrival_ms": 310.443,
+      "prompt_tokens": 173,
+      "output_tokens": 109,
+      "priority": "interactive"
+    },
+    {
+      "id": "mixed_bursty-0022",
+      "arrival_ms": 313.509,
+      "prompt_tokens": 2370,
+      "output_tokens": 190,
+      "priority": "batch"
+    },
+    {
+      "id": "mixed_bursty-0023",
+      "arrival_ms": 319.434,
+      "prompt_tokens": 93,
+      "output_tokens": 146,
+      "priority": "interactive"
+    },
+    {
+      "id": "mixed_bursty-0024",
+      "arrival_ms": 320.702,
+      "prompt_tokens": 291,
+      "output_tokens": 37,
+      "priority": "interactive"
+    },
+    {
+      "id": "mixed_bursty-0025",
+      "arrival_ms": 575.041,
+      "prompt_tokens": 3052,
+      "output_tokens": 88,
+      "priority": "batch"
+    },
+    {
+      "id": "mixed_bursty-0026",
+      "arrival_ms": 576.414,
+      "prompt_tokens": 107,
+      "output_tokens": 113,
+      "priority": "interactive"
+    },
+    {
+      "id": "mixed_bursty-0027",
+      "arrival_ms": 578.367,
+      "prompt_tokens": 130,
+      "output_tokens": 51,
+      "priority": "interactive"
+    },
+    {
+      "id": "mixed_bursty-0028",
+      "arrival_ms": 583.564,
+      "prompt_tokens": 1786,
+      "output_tokens": 223,
+      "priority": "interactive"
+    },
+    {
+      "id": "mixed_bursty-0029",
+      "arrival_ms": 588.712,
+      "prompt_tokens": 3765,
+      "output_tokens": 466,
+      "priority": "interactive"
+    },
+    {
+      "id": "mixed_bursty-0030",
+      "arrival_ms": 591.614,
+      "prompt_tokens": 3316,
+      "output_tokens": 483,
+      "priority": "interactive"
+    },
+    {
+      "id": "mixed_bursty-0031",
+      "arrival_ms": 598.821,
+      "prompt_tokens": 264,
+      "output_tokens": 72,
+      "priority": "interactive"
+    },
+    {
+      "id": "mixed_bursty-0032",
+      "arrival_ms": 602.591,
+      "prompt_tokens": 176,
+      "output_tokens": 120,
+      "priority": "interactive"
+    }
+  ]
+}
