@@ -1,0 +1,42 @@
+{
+  "name": "week01_mixed_requests",
+  "description": "Small mixed workload for request lifecycle simulation.",
+  "requests": [
+    {
+      "id": "chat-short-001",
+      "arrival_ms": 0,
+      "prompt_tokens": 128,
+      "output_tokens": 64,
+      "priority": "normal"
+    },
+    {
+      "id": "coding-long-001",
+      "arrival_ms": 4,
+      "prompt_tokens": 1800,
+      "output_tokens": 320,
+      "priority": "normal"
+    },
+    {
+      "id": "rag-medium-001",
+      "arrival_ms": 8,
+      "prompt_tokens": 900,
+      "output_tokens": 160,
+      "priority": "normal"
+    },
+    {
+      "id": "chat-short-002",
+      "arrival_ms": 12,
+      "prompt_tokens": 96,
+      "output_tokens": 48,
+      "priority": "normal"
+    },
+    {
+      "id": "summary-batch-001",
+      "arrival_ms": 20,
+      "prompt_tokens": 2400,
+      "output_tokens": 220,
+      "priority": "batch"
+    }
+  ]
+}
+

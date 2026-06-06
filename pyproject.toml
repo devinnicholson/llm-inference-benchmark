@@ -1,0 +1,10 @@
+[project]
+name = "llm-inference-benchmark-lab"
+version = "0.1.0"
+description = "568 Systems and Machine Learning portfolio repo for LLM inference benchmarking."
+requires-python = ">=3.11"
+dependencies = []
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+

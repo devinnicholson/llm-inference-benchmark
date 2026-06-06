@@ -1,0 +1,66 @@
+# llm-inference-benchmark-lab
+
+Research-grade learning repo for **568 Systems and Machine Learning**.
+
+The project is now centered on **KV-cache behavior in LLM serving**. The goal is
+to build an ML inference systems artifact that can survive an ML infra interview:
+clear workload definitions, request lifecycle traces, benchmark methodology,
+scheduler experiments, KV-cache pressure studies, and eventually backend
+comparisons against real inference engines.
+
+## Course Track
+
+This repo starts with the 568 path:
+
+1. Request lifecycle, KV-cache accounting, and measurement vocabulary
+2. Profiling and trace discipline
+3. Triton primitives for inference hot paths
+4. KV cache, batching, and scheduling policies
+5. Quantization and decoding tradeoffs
+6. Serving APIs, streaming, cancellation, and metrics
+7. Distributed inference and placement policies
+8. Trace-driven workload realism
+9. Artifact report and reproducibility package
+
+## Week 1 Artifact
+
+Week 1 defines the basic serving lifecycle before any real model backend exists.
+The initial code provides:
+
+- A workload schema for inference requests
+- Validation for prompt/output token counts and arrival times
+- A deterministic FIFO request lifecycle simulator
+- Per-stage traces for queueing, tokenization, prefill, decode, and streaming
+- Per-request KV-cache footprint estimates
+- Summary metrics for end-to-end latency and queue wait
+
+Run the starter workload:
+
+```bash
+python3 scripts/replay_workload.py workloads/week01_mixed_requests.json
+```
+
+Run tests:
+
+```bash
+python3 -m unittest discover -s tests
+```
+
+## Interview Narrative
+
+This repo should let us answer questions like:
+
+- What happens to a request from ingress to final token?
+- Which latency metric are we optimizing: TTFT, TPOT, p95, p99, or throughput?
+- How do prompt length, output length, and arrival burstiness change queueing?
+- What does a benchmark disclose so someone else can reproduce it?
+- Where does a microbenchmark result appear, or fail to appear, end to end?
+
+## Current Status
+
+The repo is at Week 1. The simulator is intentionally simple. Its purpose is to
+make the measurement model explicit before we attach PyTorch, vLLM, SGLang,
+TensorRT-LLM, Triton kernels, or real GPUs.
+
+The research focus is documented in
+[`docs/research-focus-kv-cache.md`](docs/research-focus-kv-cache.md).
