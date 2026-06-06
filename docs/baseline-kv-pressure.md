@@ -107,12 +107,12 @@ increase peak active KV cache:
 
 | Metric | Serial FIFO | 4-slot FIFO |
 | --- | ---: | ---: |
-| `p95_latency_ms` | 16325.779 | 3972.368 |
-| `p99_latency_ms` | 16599.393 | 4025.487 |
-| `p95_queue_wait_ms` | 16153.883 | 3118.553 |
-| `peak_active_kv_cache_mib` | 577.625 | 1425.375 |
-| `p95_active_kv_cache_mib` | 512.125 | 1377.750 |
-| `output_tokens_per_second` | 407.220 | 1517.186 |
+| `p95_latency_ms` | 14714.226 | 3576.177 |
+| `p99_latency_ms` | 15048.952 | 3943.293 |
+| `p95_queue_wait_ms` | 14607.838 | 2857.689 |
+| `peak_active_kv_cache_mib` | 438.500 | 1148.250 |
+| `p95_active_kv_cache_mib` | 378.125 | 1046.250 |
+| `output_tokens_per_second` | 416.837 | 1459.600 |
 
 That is the first concrete tradeoff this repo can show: concurrency improves
 queueing and throughput, but it creates overlapping KV-cache residency. This is
@@ -120,7 +120,8 @@ where cache-aware scheduling becomes meaningful.
 
 ## Next Step
 
-Add a scheduler interface so we can compare FIFO against policies such as:
+Use the scheduler interface in `docs/scheduler-policies.md` to compare FIFO
+against policies such as:
 
 - shortest-prefill first
 - shortest-cache-footprint first

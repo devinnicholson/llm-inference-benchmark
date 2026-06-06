@@ -19,6 +19,7 @@ from llmbench import (
     load_kv_cache_config,
     load_workload,
     simulate_fifo,
+    simulate_scheduler,
     summarize_traces,
     workload_to_dict,
 )
@@ -259,6 +260,128 @@ class WorkloadTests(unittest.TestCase):
     def test_workload_generation_rejects_unknown_profile(self) -> None:
         with self.assertRaisesRegex(ValueError, "unknown profile"):
             generate_workload("unknown", requests=1, seed=0)
+
+    def test_shortest_cache_policy_selects_smaller_waiting_request(self) -> None:
+        workload = load_workload(
+            _write_workload(
+                {
+                    "requests": [
+                        {
+                            "id": "running",
+                            "arrival_ms": 0,
+                            "prompt_tokens": 100,
+                            "output_tokens": 100,
+                        },
+                        {
+                            "id": "large-waiting",
+                            "arrival_ms": 1,
+                            "prompt_tokens": 100,
+                            "output_tokens": 1,
+                        },
+                        {
+                            "id": "small-waiting",
+                            "arrival_ms": 2,
+                            "prompt_tokens": 1,
+                            "output_tokens": 1,
+                        },
+                    ]
+                }
+            )
+        )
+        model = LatencyModel(
+            scheduler_overhead_ms=0,
+            tokenize_ms_per_prompt_token=0,
+            prefill_ms_per_prompt_token=0,
+            decode_ms_per_output_token=1,
+            stream_ms_per_output_token=0,
+        )
+
+        fifo = simulate_scheduler(
+            workload,
+            model=model,
+            max_concurrent_requests=1,
+            scheduling_policy="fifo",
+        )
+        shortest_cache = simulate_scheduler(
+            workload,
+            model=model,
+            max_concurrent_requests=1,
+            scheduling_policy="shortest-cache",
+        )
+
+        self.assertEqual([trace.request_id for trace in fifo], ["running", "large-waiting", "small-waiting"])
+        self.assertEqual(
+            [trace.request_id for trace in shortest_cache],
+            ["running", "small-waiting", "large-waiting"],
+        )
+
+    def test_deadline_policy_selects_earliest_deadline(self) -> None:
+        workload = load_workload(
+            _write_workload(
+                {
+                    "requests": [
+                        {
+                            "id": "running",
+                            "arrival_ms": 0,
+                            "prompt_tokens": 100,
+                            "output_tokens": 100,
+                        },
+                        {
+                            "id": "loose-deadline",
+                            "arrival_ms": 1,
+                            "prompt_tokens": 1,
+                            "output_tokens": 1,
+                            "deadline_ms": 1000,
+                        },
+                        {
+                            "id": "tight-deadline",
+                            "arrival_ms": 2,
+                            "prompt_tokens": 1,
+                            "output_tokens": 1,
+                            "deadline_ms": 50,
+                        },
+                    ]
+                }
+            )
+        )
+        model = LatencyModel(
+            scheduler_overhead_ms=0,
+            tokenize_ms_per_prompt_token=0,
+            prefill_ms_per_prompt_token=0,
+            decode_ms_per_output_token=1,
+            stream_ms_per_output_token=0,
+        )
+
+        traces = simulate_scheduler(
+            workload,
+            model=model,
+            max_concurrent_requests=1,
+            scheduling_policy="deadline",
+        )
+
+        self.assertEqual(
+            [trace.request_id for trace in traces],
+            ["running", "tight-deadline", "loose-deadline"],
+        )
+
+    def test_rejects_unknown_scheduler_policy(self) -> None:
+        workload = load_workload(
+            _write_workload(
+                {
+                    "requests": [
+                        {
+                            "id": "a",
+                            "arrival_ms": 0,
+                            "prompt_tokens": 1,
+                            "output_tokens": 1,
+                        }
+                    ]
+                }
+            )
+        )
+
+        with self.assertRaisesRegex(ValueError, "unknown scheduling_policy"):
+            simulate_scheduler(workload, scheduling_policy="bad-policy")
 
 
 def _write_workload(payload: dict) -> Path:

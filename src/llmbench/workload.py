@@ -13,6 +13,7 @@ class RequestSpec:
     prompt_tokens: int
     output_tokens: int
     priority: str = "normal"
+    deadline_ms: float | None = None
 
 
 @dataclass(frozen=True)
@@ -53,9 +54,12 @@ def _parse_request(item: Any, index: int) -> RequestSpec:
     priority = item.get("priority", "normal")
     if not isinstance(priority, str) or not priority:
         raise ValueError(f"request {request_id} priority must be a non-empty string")
+    deadline_ms = _optional_number(item, "deadline_ms", request_id)
 
     if arrival_ms < 0:
         raise ValueError(f"request {request_id} arrival_ms must be non-negative")
+    if deadline_ms is not None and deadline_ms <= 0:
+        raise ValueError(f"request {request_id} deadline_ms must be positive")
 
     return RequestSpec(
         id=request_id,
@@ -63,6 +67,7 @@ def _parse_request(item: Any, index: int) -> RequestSpec:
         prompt_tokens=prompt_tokens,
         output_tokens=output_tokens,
         priority=priority,
+        deadline_ms=deadline_ms,
     )
 
 
@@ -73,9 +78,19 @@ def _number(item: dict[str, Any], field: str, request_id: str) -> float:
     return float(value)
 
 
+def _optional_number(item: dict[str, Any], field: str, request_id: str) -> float | None:
+    if field not in item:
+        return None
+    value = item.get(field)
+    if value is None:
+        return None
+    if not isinstance(value, int | float):
+        raise ValueError(f"request {request_id} {field} must be numeric")
+    return float(value)
+
+
 def _positive_int(item: dict[str, Any], field: str, request_id: str) -> int:
     value = item.get(field)
     if not isinstance(value, int) or value <= 0:
         raise ValueError(f"request {request_id} {field} must be a positive integer")
     return value
-

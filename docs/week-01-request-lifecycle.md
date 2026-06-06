@@ -87,5 +87,6 @@ The replay CLI also supports concurrent FIFO slots:
 ```bash
 python3 scripts/replay_workload.py workloads/generated/mixed_bursty_32_seed568.json \
   --model-config configs/models/llama-7b-gqa-fp16.json \
-  --max-concurrent-requests 4
+  --max-concurrent-requests 4 \
+  --scheduler-policy fifo
 ```

@@ -1,8 +1,7 @@
 from __future__ import annotations
 
-import json
 import random
-from dataclasses import asdict
+import json
 from pathlib import Path
 from typing import Any
 
@@ -30,7 +29,7 @@ def generate_workload(profile: str, requests: int, seed: int = 0) -> Workload:
     specs: list[RequestSpec] = []
 
     for index in range(requests):
-        prompt_tokens, output_tokens, priority, interarrival_ms = _sample_request(
+        prompt_tokens, output_tokens, priority, interarrival_ms, deadline_ms = _sample_request(
             profile,
             index,
             rng,
@@ -45,6 +44,7 @@ def generate_workload(profile: str, requests: int, seed: int = 0) -> Workload:
                 prompt_tokens=prompt_tokens,
                 output_tokens=output_tokens,
                 priority=priority,
+                deadline_ms=deadline_ms,
             )
         )
 
@@ -66,7 +66,7 @@ def workload_to_dict(workload: Workload) -> dict[str, Any]:
     return {
         "name": workload.name,
         "description": workload.description,
-        "requests": [asdict(request) for request in workload.requests],
+        "requests": [_request_to_dict(request) for request in workload.requests],
     }
 
 
@@ -74,39 +74,63 @@ def _sample_request(
     profile: str,
     index: int,
     rng: random.Random,
-) -> tuple[int, int, str, float]:
+) -> tuple[int, int, str, float, float]:
     if profile == "short_chat":
-        return rng.randint(64, 256), rng.randint(32, 128), "interactive", rng.uniform(8, 28)
+        return (
+            rng.randint(64, 256),
+            rng.randint(32, 128),
+            "interactive",
+            rng.uniform(8, 28),
+            rng.uniform(800, 1600),
+        )
 
     if profile == "long_rag":
-        return rng.randint(1800, 6400), rng.randint(128, 480), "interactive", rng.uniform(35, 130)
+        return (
+            rng.randint(1800, 6400),
+            rng.randint(128, 480),
+            "interactive",
+            rng.uniform(35, 130),
+            rng.uniform(3500, 8500),
+        )
 
     if profile == "coding":
-        return rng.randint(700, 2600), rng.randint(256, 900), "interactive", rng.uniform(18, 75)
+        return (
+            rng.randint(700, 2600),
+            rng.randint(256, 900),
+            "interactive",
+            rng.uniform(18, 75),
+            rng.uniform(2500, 9000),
+        )
 
     if profile == "batch_summary":
-        return rng.randint(1600, 5200), rng.randint(80, 320), "batch", rng.uniform(5, 20)
+        return (
+            rng.randint(1600, 5200),
+            rng.randint(80, 320),
+            "batch",
+            rng.uniform(5, 20),
+            rng.uniform(12000, 30000),
+        )
 
     if profile == "mixed_bursty":
         if index > 0 and index % 12 == 0:
             interarrival_ms = rng.uniform(120, 260)
         else:
             interarrival_ms = rng.uniform(1, 9)
-        prompt_tokens, output_tokens, priority = _sample_mixed_shape(rng)
-        return prompt_tokens, output_tokens, priority, interarrival_ms
+        prompt_tokens, output_tokens, priority, deadline_ms = _sample_mixed_shape(rng)
+        return prompt_tokens, output_tokens, priority, interarrival_ms, deadline_ms
 
     raise AssertionError(f"unhandled profile {profile}")
 
 
-def _sample_mixed_shape(rng: random.Random) -> tuple[int, int, str]:
+def _sample_mixed_shape(rng: random.Random) -> tuple[int, int, str, float]:
     draw = rng.random()
     if draw < 0.45:
-        return rng.randint(64, 320), rng.randint(32, 160), "interactive"
+        return rng.randint(64, 320), rng.randint(32, 160), "interactive", rng.uniform(900, 1800)
     if draw < 0.70:
-        return rng.randint(800, 2400), rng.randint(180, 700), "interactive"
+        return rng.randint(800, 2400), rng.randint(180, 700), "interactive", rng.uniform(2500, 7500)
     if draw < 0.90:
-        return rng.randint(1800, 6400), rng.randint(128, 520), "interactive"
-    return rng.randint(2000, 5600), rng.randint(80, 320), "batch"
+        return rng.randint(1800, 6400), rng.randint(128, 520), "interactive", rng.uniform(3500, 9000)
+    return rng.randint(2000, 5600), rng.randint(80, 320), "batch", rng.uniform(12000, 30000)
 
 
 def _description(profile: str, requests: int, seed: int) -> str:
@@ -115,3 +139,15 @@ def _description(profile: str, requests: int, seed: int) -> str:
         "Token ranges are synthetic and intended for scheduler and KV-cache studies."
     )
 
+
+def _request_to_dict(request: RequestSpec) -> dict[str, Any]:
+    payload: dict[str, Any] = {
+        "id": request.id,
+        "arrival_ms": request.arrival_ms,
+        "prompt_tokens": request.prompt_tokens,
+        "output_tokens": request.output_tokens,
+        "priority": request.priority,
+    }
+    if request.deadline_ms is not None:
+        payload["deadline_ms"] = round(request.deadline_ms, 3)
+    return payload

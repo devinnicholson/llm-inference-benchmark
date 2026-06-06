@@ -91,7 +91,8 @@ active KV-cache overlap visible.
 ## Near-Term Milestones
 
 1. Add GPU capacity configs and capacity-relative pressure metrics.
-2. Implement FIFO, priority, shortest-prefill, and cache-aware schedulers.
+2. Extend cache-aware schedulers to use actual memory headroom, not just request
+   footprint.
 3. Extend workload generators with documented long-context and adversarial mixes.
 4. Plot p95/p99 latency versus peak active KV-cache memory.
 5. Write a short negative-results section for policies that look good only on

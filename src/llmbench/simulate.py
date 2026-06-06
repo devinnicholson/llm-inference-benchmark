@@ -12,6 +12,14 @@ from llmbench.kv_cache import (
 )
 from llmbench.workload import RequestSpec, Workload
 
+SCHEDULING_POLICIES = (
+    "fifo",
+    "shortest-prefill",
+    "shortest-cache",
+    "shortest-service",
+    "deadline",
+)
+
 
 @dataclass(frozen=True)
 class LatencyModel:
@@ -36,6 +44,7 @@ class RequestTrace:
     stream_ms: float
     prompt_tokens: int
     output_tokens: int
+    deadline_ms: float | None
     kv_cache_bytes_per_token: int
     kv_cache_bytes: int
 
@@ -63,6 +72,19 @@ class RequestTrace:
     @property
     def kv_cache_mib(self) -> float:
         return bytes_to_mib(self.kv_cache_bytes)
+
+    @property
+    def absolute_deadline_ms(self) -> float | None:
+        if self.deadline_ms is None:
+            return None
+        return self.arrival_ms + self.deadline_ms
+
+    @property
+    def deadline_lateness_ms(self) -> float | None:
+        absolute_deadline = self.absolute_deadline_ms
+        if absolute_deadline is None:
+            return None
+        return max(0.0, self.end_ms - absolute_deadline)
 
     @property
     def scheduler_end_ms(self) -> float:
@@ -95,22 +117,75 @@ def simulate_fifo(
     kv_cache: KVCacheConfig | None = None,
     max_concurrent_requests: int = 1,
 ) -> list[RequestTrace]:
+    return simulate_scheduler(
+        workload,
+        model=model,
+        kv_cache=kv_cache,
+        max_concurrent_requests=max_concurrent_requests,
+        scheduling_policy="fifo",
+    )
+
+
+def simulate_scheduler(
+    workload: Workload,
+    model: LatencyModel | None = None,
+    kv_cache: KVCacheConfig | None = None,
+    max_concurrent_requests: int = 1,
+    scheduling_policy: str = "fifo",
+) -> list[RequestTrace]:
     if max_concurrent_requests <= 0:
         raise ValueError("max_concurrent_requests must be positive")
+    if scheduling_policy not in SCHEDULING_POLICIES:
+        policies = ", ".join(SCHEDULING_POLICIES)
+        raise ValueError(f"unknown scheduling_policy {scheduling_policy!r}; expected one of: {policies}")
 
     latency_model = model or LatencyModel()
     kv_cache_config = kv_cache or KVCacheConfig()
+    requests = list(workload.requests)
+    if not requests:
+        return []
+
     traces: list[RequestTrace] = []
-    worker_available_heap: list[float] = []
+    running: list[float] = []
+    waiting: list[tuple[int, RequestSpec]] = []
+    next_request_index = 0
+    now_ms = requests[0].arrival_ms
 
-    for request in workload.requests:
-        worker_available_ms = request.arrival_ms
-        if len(worker_available_heap) >= max_concurrent_requests:
-            worker_available_ms = heapq.heappop(worker_available_heap)
+    while next_request_index < len(requests) or waiting or running:
+        while next_request_index < len(requests) and requests[next_request_index].arrival_ms <= now_ms:
+            waiting.append((next_request_index, requests[next_request_index]))
+            next_request_index += 1
 
-        trace = _simulate_request(request, worker_available_ms, latency_model, kv_cache_config)
-        traces.append(trace)
-        heapq.heappush(worker_available_heap, trace.end_ms)
+        while running and running[0] <= now_ms:
+            heapq.heappop(running)
+
+        while waiting and len(running) < max_concurrent_requests:
+            _, request = _pop_next_request(
+                waiting,
+                scheduling_policy,
+                latency_model,
+                kv_cache_config,
+            )
+            trace = _simulate_request(request, now_ms, latency_model, kv_cache_config)
+            traces.append(trace)
+            heapq.heappush(running, trace.end_ms)
+
+        next_arrival_ms = (
+            requests[next_request_index].arrival_ms
+            if next_request_index < len(requests)
+            else None
+        )
+        next_completion_ms = running[0] if running else None
+        next_time_ms = _next_event_time(
+            now_ms,
+            next_arrival_ms,
+            next_completion_ms,
+            waiting=bool(waiting),
+            at_capacity=len(running) >= max_concurrent_requests,
+        )
+        if next_time_ms is None:
+            break
+        now_ms = next_time_ms
 
     return traces
 
@@ -121,6 +196,11 @@ def summarize_traces(traces: list[RequestTrace]) -> dict[str, float]:
 
     latencies = sorted(trace.latency_ms for trace in traces)
     queue_waits = sorted(trace.queue_wait_ms for trace in traces)
+    deadline_lateness = sorted(
+        lateness
+        for trace in traces
+        if (lateness := trace.deadline_lateness_ms) is not None
+    )
     total_output_tokens = sum(trace.output_tokens for trace in traces)
     kv_cache_sizes = sorted(trace.kv_cache_mib for trace in traces)
     timeline = build_kv_cache_timeline(traces)
@@ -129,7 +209,7 @@ def summarize_traces(traces: list[RequestTrace]) -> dict[str, float]:
     end_ms = max(trace.end_ms for trace in traces)
     elapsed_s = max((end_ms - start_ms) / 1000.0, 1e-9)
 
-    return {
+    summary = {
         "requests": float(len(traces)),
         "output_tokens": float(total_output_tokens),
         "p50_latency_ms": _percentile(latencies, 50),
@@ -142,6 +222,18 @@ def summarize_traces(traces: list[RequestTrace]) -> dict[str, float]:
         "requests_per_second": len(traces) / elapsed_s,
         "output_tokens_per_second": total_output_tokens / elapsed_s,
     }
+
+    if deadline_lateness:
+        misses = sum(1 for value in deadline_lateness if value > 0)
+        summary.update(
+            {
+                "deadline_tracked_requests": float(len(deadline_lateness)),
+                "deadline_miss_rate": misses / len(deadline_lateness),
+                "p95_deadline_lateness_ms": _percentile(deadline_lateness, 95),
+            }
+        )
+
+    return summary
 
 
 def build_kv_cache_timeline(traces: list[RequestTrace]) -> list[KVCachePoint]:
@@ -217,9 +309,87 @@ def _simulate_request(
         stream_ms=stream_ms,
         prompt_tokens=request.prompt_tokens,
         output_tokens=request.output_tokens,
+        deadline_ms=request.deadline_ms,
         kv_cache_bytes_per_token=kv_cache_bytes_per_token,
         kv_cache_bytes=kv_cache_bytes,
     )
+
+
+def _pop_next_request(
+    waiting: list[tuple[int, RequestSpec]],
+    scheduling_policy: str,
+    model: LatencyModel,
+    kv_cache: KVCacheConfig,
+) -> tuple[int, RequestSpec]:
+    best_index = min(
+        range(len(waiting)),
+        key=lambda index: _scheduler_key(
+            waiting[index][0],
+            waiting[index][1],
+            scheduling_policy,
+            model,
+            kv_cache,
+        ),
+    )
+    return waiting.pop(best_index)
+
+
+def _scheduler_key(
+    arrival_order: int,
+    request: RequestSpec,
+    scheduling_policy: str,
+    model: LatencyModel,
+    kv_cache: KVCacheConfig,
+) -> tuple[float, ...]:
+    if scheduling_policy == "fifo":
+        return (arrival_order,)
+    if scheduling_policy == "shortest-prefill":
+        return (request.prompt_tokens, request.arrival_ms, arrival_order)
+    if scheduling_policy == "shortest-cache":
+        return (
+            kv_cache.request_bytes(request.prompt_tokens, request.output_tokens),
+            request.arrival_ms,
+            arrival_order,
+        )
+    if scheduling_policy == "shortest-service":
+        return (_service_time_ms(request, model), request.arrival_ms, arrival_order)
+    if scheduling_policy == "deadline":
+        deadline = (
+            request.arrival_ms + request.deadline_ms
+            if request.deadline_ms is not None
+            else float("inf")
+        )
+        return (deadline, request.arrival_ms, arrival_order)
+    raise AssertionError(f"unhandled scheduling policy {scheduling_policy}")
+
+
+def _service_time_ms(request: RequestSpec, model: LatencyModel) -> float:
+    return (
+        model.scheduler_overhead_ms
+        + request.prompt_tokens * model.tokenize_ms_per_prompt_token
+        + request.prompt_tokens * model.prefill_ms_per_prompt_token
+        + request.output_tokens * model.decode_ms_per_output_token
+        + request.output_tokens * model.stream_ms_per_output_token
+    )
+
+
+def _next_event_time(
+    now_ms: float,
+    next_arrival_ms: float | None,
+    next_completion_ms: float | None,
+    *,
+    waiting: bool,
+    at_capacity: bool,
+) -> float | None:
+    if waiting and at_capacity:
+        return next_completion_ms
+    if next_arrival_ms is None:
+        return next_completion_ms
+    if not at_capacity:
+        return max(now_ms, next_arrival_ms)
+    if next_completion_ms is None:
+        return next_arrival_ms
+    return min(next_arrival_ms, next_completion_ms)
 
 
 def _add_event(events: dict[float, list[int]], time_ms: float, delta_bytes: int) -> None:

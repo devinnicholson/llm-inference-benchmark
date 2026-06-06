@@ -26,6 +26,10 @@ The ranges are synthetic. They are not intended to reproduce a private
 production trace. Their value is that the assumptions are explicit and
 repeatable.
 
+Generated requests also include `deadline_ms`, a synthetic relative latency
+target used by the `deadline` scheduler policy. These deadlines are useful for
+policy experiments, but they should not be interpreted as production SLOs.
+
 ## Reproducibility Rule
 
 Every generated workload should include the profile, request count, and seed in
@@ -37,4 +41,3 @@ workloads/generated/{profile}_{requests}_seed{seed}.json
 
 That makes benchmark commands readable and avoids silently changing workloads
 between runs.
-

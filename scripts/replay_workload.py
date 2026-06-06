@@ -10,7 +10,14 @@ SRC = ROOT / "src"
 if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
-from llmbench import KVCacheConfig, load_kv_cache_config, load_workload, simulate_fifo, summarize_traces
+from llmbench import (
+    KVCacheConfig,
+    SCHEDULING_POLICIES,
+    load_kv_cache_config,
+    load_workload,
+    simulate_scheduler,
+    summarize_traces,
+)
 
 
 def main() -> int:
@@ -26,16 +33,23 @@ def main() -> int:
         "--max-concurrent-requests",
         type=int,
         default=1,
-        help="Maximum concurrent requests in the FIFO baseline",
+        help="Maximum concurrent requests in the simulated serving baseline",
+    )
+    parser.add_argument(
+        "--scheduler-policy",
+        choices=SCHEDULING_POLICIES,
+        default="fifo",
+        help="Request selection policy when requests are waiting",
     )
     args = parser.parse_args()
 
     kv_cache = load_kv_cache_config(args.model_config) if args.model_config else KVCacheConfig()
     workload = load_workload(args.workload)
-    traces = simulate_fifo(
+    traces = simulate_scheduler(
         workload,
         kv_cache=kv_cache,
         max_concurrent_requests=args.max_concurrent_requests,
+        scheduling_policy=args.scheduler_policy,
     )
     summary = summarize_traces(traces)
 
@@ -45,6 +59,7 @@ def main() -> int:
     print(f"model_config: {kv_cache.name}")
     print(f"kv_bytes_per_token: {kv_cache.bytes_per_token}")
     print(f"max_concurrent_requests: {args.max_concurrent_requests}")
+    print(f"scheduler_policy: {args.scheduler_policy}")
     print()
     print(
         "request_id                 arrival   queue    ttft     total    "

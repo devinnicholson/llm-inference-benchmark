@@ -57,7 +57,17 @@ Replay it with overlapping FIFO request slots:
 ```bash
 python3 scripts/replay_workload.py workloads/generated/mixed_bursty_32_seed568.json \
   --model-config configs/models/llama-7b-gqa-fp16.json \
-  --max-concurrent-requests 4
+  --max-concurrent-requests 4 \
+  --scheduler-policy fifo
+```
+
+Compare a scheduler policy:
+
+```bash
+python3 scripts/replay_workload.py workloads/generated/mixed_bursty_32_seed568.json \
+  --model-config configs/models/llama-7b-gqa-fp16.json \
+  --max-concurrent-requests 4 \
+  --scheduler-policy shortest-cache
 ```
 
 Run tests:
@@ -90,3 +100,6 @@ The first KV-cache pressure baseline is documented in
 
 Workload generation is documented in
 [`docs/workload-generation.md`](docs/workload-generation.md).
+
+Scheduler policies are documented in
+[`docs/scheduler-policies.md`](docs/scheduler-policies.md).

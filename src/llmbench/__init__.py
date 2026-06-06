@@ -5,8 +5,10 @@ from llmbench.kv_cache import KVCacheConfig, KVCachePoint, bytes_to_mib, load_kv
 from llmbench.simulate import (
     LatencyModel,
     RequestTrace,
+    SCHEDULING_POLICIES,
     build_kv_cache_timeline,
     simulate_fifo,
+    simulate_scheduler,
     summarize_traces,
 )
 from llmbench.workload import RequestSpec, Workload, load_workload
@@ -18,6 +20,7 @@ __all__ = [
     "PROFILES",
     "RequestSpec",
     "RequestTrace",
+    "SCHEDULING_POLICIES",
     "Workload",
     "build_kv_cache_timeline",
     "bytes_to_mib",
@@ -25,6 +28,7 @@ __all__ = [
     "load_kv_cache_config",
     "load_workload",
     "simulate_fifo",
+    "simulate_scheduler",
     "summarize_traces",
     "workload_to_dict",
     "write_workload",
