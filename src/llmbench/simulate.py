@@ -4,6 +4,7 @@ import heapq
 from dataclasses import dataclass
 from math import ceil
 
+from llmbench.capacity import ServingCapacityConfig, summarize_capacity_timeline
 from llmbench.kv_cache import (
     KVCacheConfig,
     KVCachePoint,
@@ -18,6 +19,7 @@ SCHEDULING_POLICIES = (
     "shortest-cache",
     "shortest-service",
     "deadline",
+    "memory-aware-deadline",
 )
 
 
@@ -116,6 +118,7 @@ def simulate_fifo(
     model: LatencyModel | None = None,
     kv_cache: KVCacheConfig | None = None,
     max_concurrent_requests: int = 1,
+    capacity: ServingCapacityConfig | None = None,
 ) -> list[RequestTrace]:
     return simulate_scheduler(
         workload,
@@ -123,6 +126,7 @@ def simulate_fifo(
         kv_cache=kv_cache,
         max_concurrent_requests=max_concurrent_requests,
         scheduling_policy="fifo",
+        capacity=capacity,
     )
 
 
@@ -132,12 +136,15 @@ def simulate_scheduler(
     kv_cache: KVCacheConfig | None = None,
     max_concurrent_requests: int = 1,
     scheduling_policy: str = "fifo",
+    capacity: ServingCapacityConfig | None = None,
 ) -> list[RequestTrace]:
     if max_concurrent_requests <= 0:
         raise ValueError("max_concurrent_requests must be positive")
     if scheduling_policy not in SCHEDULING_POLICIES:
         policies = ", ".join(SCHEDULING_POLICIES)
         raise ValueError(f"unknown scheduling_policy {scheduling_policy!r}; expected one of: {policies}")
+    if scheduling_policy == "memory-aware-deadline" and capacity is None:
+        raise ValueError("memory-aware-deadline requires a capacity config")
 
     latency_model = model or LatencyModel()
     kv_cache_config = kv_cache or KVCacheConfig()
@@ -146,42 +153,57 @@ def simulate_scheduler(
         return []
 
     traces: list[RequestTrace] = []
-    running: list[float] = []
+    running: list[tuple[float, int, RequestTrace]] = []
     waiting: list[tuple[int, RequestSpec]] = []
     next_request_index = 0
     now_ms = requests[0].arrival_ms
+    trace_sequence = 0
 
     while next_request_index < len(requests) or waiting or running:
         while next_request_index < len(requests) and requests[next_request_index].arrival_ms <= now_ms:
             waiting.append((next_request_index, requests[next_request_index]))
             next_request_index += 1
 
-        while running and running[0] <= now_ms:
+        while running and running[0][0] <= now_ms:
             heapq.heappop(running)
 
+        blocked_by_memory = False
         while waiting and len(running) < max_concurrent_requests:
-            _, request = _pop_next_request(
+            running_traces = [trace for _, _, trace in running]
+            next_request = _pop_next_request(
                 waiting,
                 scheduling_policy,
                 latency_model,
                 kv_cache_config,
+                capacity,
+                running_traces,
+                now_ms,
             )
+            if next_request is None:
+                blocked_by_memory = True
+                break
+            _, request = next_request
             trace = _simulate_request(request, now_ms, latency_model, kv_cache_config)
             traces.append(trace)
-            heapq.heappush(running, trace.end_ms)
+            heapq.heappush(running, (trace.end_ms, trace_sequence, trace))
+            trace_sequence += 1
+
+        if blocked_by_memory and not running and next_request_index >= len(requests):
+            raise ValueError("no waiting request fits the KV-cache budget")
 
         next_arrival_ms = (
             requests[next_request_index].arrival_ms
             if next_request_index < len(requests)
             else None
         )
-        next_completion_ms = running[0] if running else None
+        next_completion_ms = running[0][0] if running else None
         next_time_ms = _next_event_time(
             now_ms,
             next_arrival_ms,
             next_completion_ms,
             waiting=bool(waiting),
             at_capacity=len(running) >= max_concurrent_requests,
+            blocked_by_memory=blocked_by_memory,
         )
         if next_time_ms is None:
             break
@@ -190,7 +212,10 @@ def simulate_scheduler(
     return traces
 
 
-def summarize_traces(traces: list[RequestTrace]) -> dict[str, float]:
+def summarize_traces(
+    traces: list[RequestTrace],
+    capacity: ServingCapacityConfig | None = None,
+) -> dict[str, float]:
     if not traces:
         return {}
 
@@ -205,6 +230,7 @@ def summarize_traces(traces: list[RequestTrace]) -> dict[str, float]:
     kv_cache_sizes = sorted(trace.kv_cache_mib for trace in traces)
     timeline = build_kv_cache_timeline(traces)
     timeline_summary = summarize_kv_cache_timeline(timeline)
+    capacity_summary = summarize_capacity_timeline(timeline, capacity) if capacity else {}
     start_ms = min(trace.arrival_ms for trace in traces)
     end_ms = max(trace.end_ms for trace in traces)
     elapsed_s = max((end_ms - start_ms) / 1000.0, 1e-9)
@@ -219,6 +245,7 @@ def summarize_traces(traces: list[RequestTrace]) -> dict[str, float]:
         "max_request_kv_cache_mib": max(kv_cache_sizes),
         "total_request_kv_cache_mib": sum(kv_cache_sizes),
         **timeline_summary,
+        **capacity_summary,
         "requests_per_second": len(traces) / elapsed_s,
         "output_tokens_per_second": total_output_tokens / elapsed_s,
     }
@@ -234,6 +261,10 @@ def summarize_traces(traces: list[RequestTrace]) -> dict[str, float]:
         )
 
     return summary
+
+
+def active_kv_cache_bytes_at(traces: list[RequestTrace], time_ms: float) -> int:
+    return sum(_active_kv_cache_bytes_for_trace(trace, time_ms) for trace in traces)
 
 
 def build_kv_cache_timeline(traces: list[RequestTrace]) -> list[KVCachePoint]:
@@ -320,7 +351,39 @@ def _pop_next_request(
     scheduling_policy: str,
     model: LatencyModel,
     kv_cache: KVCacheConfig,
-) -> tuple[int, RequestSpec]:
+    capacity: ServingCapacityConfig | None,
+    running_traces: list[RequestTrace],
+    now_ms: float,
+) -> tuple[int, RequestSpec] | None:
+    if scheduling_policy == "memory-aware-deadline":
+        if capacity is None:
+            raise ValueError("memory-aware-deadline requires a capacity config")
+        fit_indexes = [
+            index
+            for index in range(len(waiting))
+            if _request_fits_prompt_kv_budget(
+                waiting[index][1],
+                now_ms,
+                model,
+                kv_cache,
+                capacity,
+                running_traces,
+            )
+        ]
+        if not fit_indexes:
+            return None
+        best_index = min(
+            fit_indexes,
+            key=lambda index: _scheduler_key(
+                waiting[index][0],
+                waiting[index][1],
+                "deadline",
+                model,
+                kv_cache,
+            ),
+        )
+        return waiting.pop(best_index)
+
     best_index = min(
         range(len(waiting)),
         key=lambda index: _scheduler_key(
@@ -373,6 +436,38 @@ def _service_time_ms(request: RequestSpec, model: LatencyModel) -> float:
     )
 
 
+def _request_fits_prompt_kv_budget(
+    request: RequestSpec,
+    now_ms: float,
+    model: LatencyModel,
+    kv_cache: KVCacheConfig,
+    capacity: ServingCapacityConfig,
+    running_traces: list[RequestTrace],
+) -> bool:
+    prompt_allocation_time_ms = (
+        now_ms
+        + model.scheduler_overhead_ms
+        + request.prompt_tokens * model.tokenize_ms_per_prompt_token
+    )
+    active_bytes = active_kv_cache_bytes_at(running_traces, prompt_allocation_time_ms)
+    prompt_bytes = request.prompt_tokens * kv_cache.bytes_per_token
+    return active_bytes + prompt_bytes <= capacity.kv_cache_budget_bytes
+
+
+def _active_kv_cache_bytes_for_trace(trace: RequestTrace, time_ms: float) -> int:
+    if time_ms < trace.prefill_start_ms or time_ms >= trace.end_ms:
+        return 0
+    prompt_bytes = trace.prompt_tokens * trace.kv_cache_bytes_per_token
+    if time_ms < trace.decode_start_ms:
+        return prompt_bytes
+    if trace.output_tokens <= 0:
+        return prompt_bytes
+    decode_step_ms = trace.decode_ms / trace.output_tokens
+    completed_decode_tokens = int((time_ms - trace.decode_start_ms) // decode_step_ms)
+    completed_decode_tokens = min(max(completed_decode_tokens, 0), trace.output_tokens)
+    return prompt_bytes + completed_decode_tokens * trace.kv_cache_bytes_per_token
+
+
 def _next_event_time(
     now_ms: float,
     next_arrival_ms: float | None,
@@ -380,7 +475,15 @@ def _next_event_time(
     *,
     waiting: bool,
     at_capacity: bool,
+    blocked_by_memory: bool = False,
 ) -> float | None:
+    if blocked_by_memory:
+        candidates = [
+            time_ms
+            for time_ms in (next_arrival_ms, next_completion_ms)
+            if time_ms is not None and time_ms > now_ms
+        ]
+        return min(candidates) if candidates else None
     if waiting and at_capacity:
         return next_completion_ms
     if next_arrival_ms is None:

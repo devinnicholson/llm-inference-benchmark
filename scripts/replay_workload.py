@@ -14,6 +14,7 @@ from llmbench import (
     KVCacheConfig,
     SCHEDULING_POLICIES,
     load_kv_cache_config,
+    load_capacity_config,
     load_workload,
     simulate_scheduler,
     summarize_traces,
@@ -30,6 +31,12 @@ def main() -> int:
         help="Path to model KV-cache config JSON",
     )
     parser.add_argument(
+        "--capacity-config",
+        type=Path,
+        default=None,
+        help="Path to serving capacity config JSON",
+    )
+    parser.add_argument(
         "--max-concurrent-requests",
         type=int,
         default=1,
@@ -44,20 +51,25 @@ def main() -> int:
     args = parser.parse_args()
 
     kv_cache = load_kv_cache_config(args.model_config) if args.model_config else KVCacheConfig()
+    capacity = load_capacity_config(args.capacity_config) if args.capacity_config else None
     workload = load_workload(args.workload)
     traces = simulate_scheduler(
         workload,
         kv_cache=kv_cache,
         max_concurrent_requests=args.max_concurrent_requests,
         scheduling_policy=args.scheduler_policy,
+        capacity=capacity,
     )
-    summary = summarize_traces(traces)
+    summary = summarize_traces(traces, capacity=capacity)
 
     print(f"workload: {workload.name}")
     if workload.description:
         print(f"description: {workload.description}")
     print(f"model_config: {kv_cache.name}")
     print(f"kv_bytes_per_token: {kv_cache.bytes_per_token}")
+    if capacity:
+        print(f"capacity_config: {capacity.name}")
+        print(f"kv_cache_budget_mib: {capacity.effective_kv_cache_budget_mib}")
     print(f"max_concurrent_requests: {args.max_concurrent_requests}")
     print(f"scheduler_policy: {args.scheduler_policy}")
     print()

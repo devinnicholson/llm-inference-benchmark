@@ -18,6 +18,7 @@ workload.
 | `shortest-cache` | Smallest total KV-cache footprint first. | Prioritizes requests with lower memory residency. |
 | `shortest-service` | Lowest estimated service time first. | Classic latency-oriented queueing heuristic. |
 | `deadline` | Earliest absolute deadline first. | Directly optimizes synthetic SLO misses. |
+| `memory-aware-deadline` | Earliest deadline among requests whose prompt KV fits capacity. | Adds memory-headroom admission control. |
 
 Generated workloads include `deadline_ms` as a relative latency target. The
 absolute deadline is:
@@ -64,7 +65,6 @@ The result is already useful because no policy dominates every metric:
    scheduling because this simulator still uses slot concurrency rather than a
    true memory-capacity scheduler.
 
-The next research step is to add GPU capacity configs and make memory pressure
-capacity-relative. Then cache-aware scheduling can reject, defer, or reorder
-work based on actual memory headroom instead of total request footprint alone.
-
+The follow-on capacity-aware baseline adds GPU capacity configs and
+budget-relative memory metrics. That work is documented in
+[`capacity-aware-scheduling.md`](capacity-aware-scheduling.md).

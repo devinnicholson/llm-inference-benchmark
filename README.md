@@ -70,6 +70,16 @@ python3 scripts/replay_workload.py workloads/generated/mixed_bursty_32_seed568.j
   --scheduler-policy shortest-cache
 ```
 
+Replay with a constrained KV-cache budget:
+
+```bash
+python3 scripts/replay_workload.py workloads/generated/mixed_bursty_32_seed568.json \
+  --model-config configs/models/llama-7b-gqa-fp16.json \
+  --capacity-config configs/capacity/tight-1gb-kv.json \
+  --max-concurrent-requests 4 \
+  --scheduler-policy memory-aware-deadline
+```
+
 Run tests:
 
 ```bash
@@ -103,3 +113,6 @@ Workload generation is documented in
 
 Scheduler policies are documented in
 [`docs/scheduler-policies.md`](docs/scheduler-policies.md).
+
+Capacity-aware scheduling is documented in
+[`docs/capacity-aware-scheduling.md`](docs/capacity-aware-scheduling.md).

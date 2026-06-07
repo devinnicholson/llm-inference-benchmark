@@ -1,0 +1,7 @@
+{
+  "name": "tight-1gb-kv",
+  "total_memory_mib": 24576,
+  "model_weights_mib": 21000,
+  "runtime_reserved_mib": 2552,
+  "kv_cache_budget_mib": 1024
+}

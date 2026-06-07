@@ -1,0 +1,7 @@
+{
+  "name": "a10g-24gb-7b-gqa",
+  "total_memory_mib": 24576,
+  "model_weights_mib": 14000,
+  "runtime_reserved_mib": 2500,
+  "kv_cache_budget_mib": 8076
+}

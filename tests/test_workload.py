@@ -14,8 +14,10 @@ if str(SRC) not in sys.path:
 from llmbench import (
     KVCacheConfig,
     LatencyModel,
+    ServingCapacityConfig,
     build_kv_cache_timeline,
     generate_workload,
+    load_capacity_config,
     load_kv_cache_config,
     load_workload,
     simulate_fifo,
@@ -164,6 +166,22 @@ class WorkloadTests(unittest.TestCase):
         self.assertEqual(config.name, "tiny")
         self.assertEqual(config.bytes_per_token, 2 * 2 * 4 * 8 * 2)
 
+    def test_loads_capacity_config(self) -> None:
+        path = _write_json(
+            {
+                "name": "tiny-capacity",
+                "total_memory_mib": 100,
+                "model_weights_mib": 70,
+                "runtime_reserved_mib": 10,
+                "kv_cache_budget_mib": 20,
+            }
+        )
+
+        config = load_capacity_config(path)
+
+        self.assertEqual(config.name, "tiny-capacity")
+        self.assertEqual(config.effective_kv_cache_budget_mib, 20)
+
     def test_active_kv_cache_timeline_tracks_growth_and_release(self) -> None:
         workload = load_workload(
             _write_workload(
@@ -230,6 +248,45 @@ class WorkloadTests(unittest.TestCase):
         self.assertGreater(serial[1].queue_wait_ms, 0)
         self.assertEqual(concurrent[1].queue_wait_ms, 0)
         self.assertEqual(max(point.active_bytes for point in concurrent_timeline), 12)
+
+    def test_summary_reports_capacity_relative_metrics(self) -> None:
+        workload = load_workload(
+            _write_workload(
+                {
+                    "requests": [
+                        {
+                            "id": "a",
+                            "arrival_ms": 0,
+                            "prompt_tokens": 2,
+                            "output_tokens": 2,
+                        }
+                    ]
+                }
+            )
+        )
+        model = LatencyModel(
+            scheduler_overhead_ms=0,
+            tokenize_ms_per_prompt_token=0,
+            prefill_ms_per_prompt_token=0.5,
+            decode_ms_per_output_token=1,
+            stream_ms_per_output_token=0.5,
+        )
+        kv_cache = KVCacheConfig(layers=1, kv_heads=1, head_dim=1, bytes_per_element=1)
+        capacity = ServingCapacityConfig(
+            name="tiny-capacity",
+            total_memory_mib=1,
+            model_weights_mib=0,
+            runtime_reserved_mib=0,
+            kv_cache_budget_mib=8 / (1024 * 1024),
+        )
+
+        summary = summarize_traces(
+            simulate_fifo(workload, model, kv_cache),
+            capacity=capacity,
+        )
+
+        self.assertEqual(summary["kv_cache_budget_mib"], 8 / (1024 * 1024))
+        self.assertEqual(summary["peak_kv_budget_utilization"], 1.0)
 
     def test_rejects_invalid_concurrency(self) -> None:
         workload = load_workload(
@@ -363,6 +420,84 @@ class WorkloadTests(unittest.TestCase):
             [trace.request_id for trace in traces],
             ["running", "tight-deadline", "loose-deadline"],
         )
+
+    def test_memory_aware_deadline_skips_request_that_does_not_fit(self) -> None:
+        workload = load_workload(
+            _write_workload(
+                {
+                    "requests": [
+                        {
+                            "id": "running",
+                            "arrival_ms": 0,
+                            "prompt_tokens": 2,
+                            "output_tokens": 10,
+                        },
+                        {
+                            "id": "early-large",
+                            "arrival_ms": 1,
+                            "prompt_tokens": 2,
+                            "output_tokens": 1,
+                            "deadline_ms": 10,
+                        },
+                        {
+                            "id": "later-small",
+                            "arrival_ms": 2,
+                            "prompt_tokens": 1,
+                            "output_tokens": 1,
+                            "deadline_ms": 100,
+                        },
+                    ]
+                }
+            )
+        )
+        model = LatencyModel(
+            scheduler_overhead_ms=0,
+            tokenize_ms_per_prompt_token=0,
+            prefill_ms_per_prompt_token=100,
+            decode_ms_per_output_token=1,
+            stream_ms_per_output_token=0,
+        )
+        kv_cache = KVCacheConfig(layers=1, kv_heads=1, head_dim=1, bytes_per_element=1)
+        capacity = ServingCapacityConfig(
+            name="six-byte-kv",
+            total_memory_mib=1,
+            model_weights_mib=0,
+            runtime_reserved_mib=0,
+            kv_cache_budget_mib=6 / (1024 * 1024),
+        )
+
+        traces = simulate_scheduler(
+            workload,
+            model=model,
+            kv_cache=kv_cache,
+            max_concurrent_requests=2,
+            scheduling_policy="memory-aware-deadline",
+            capacity=capacity,
+        )
+
+        self.assertEqual(
+            [trace.request_id for trace in traces],
+            ["running", "later-small", "early-large"],
+        )
+
+    def test_memory_aware_deadline_requires_capacity(self) -> None:
+        workload = load_workload(
+            _write_workload(
+                {
+                    "requests": [
+                        {
+                            "id": "a",
+                            "arrival_ms": 0,
+                            "prompt_tokens": 1,
+                            "output_tokens": 1,
+                        }
+                    ]
+                }
+            )
+        )
+
+        with self.assertRaisesRegex(ValueError, "requires a capacity config"):
+            simulate_scheduler(workload, scheduling_policy="memory-aware-deadline")
 
     def test_rejects_unknown_scheduler_policy(self) -> None:
         workload = load_workload(

@@ -87,13 +87,17 @@ The simulator also builds an active KV-cache timeline with prompt allocation at
 prefill start, decode-time KV growth, and request-level release at completion.
 It can now run FIFO with configurable concurrent request slots, which makes
 active KV-cache overlap visible.
+It also supports capacity configs and a `memory-aware-deadline` scheduler that
+filters waiting requests by prompt KV headroom.
 
 ## Near-Term Milestones
 
-1. Add GPU capacity configs and capacity-relative pressure metrics.
-2. Extend cache-aware schedulers to use actual memory headroom, not just request
-   footprint.
-3. Extend workload generators with documented long-context and adversarial mixes.
-4. Plot p95/p99 latency versus peak active KV-cache memory.
+1. Extend cache-aware schedulers to use full-lifetime KV growth, not just prompt
+   admission.
+2. Add chunked prefill/decode so long requests do not grow KV cache in one
+   uninterrupted run.
+3. Plot p95/p99 latency versus peak active KV-cache memory across capacity
+   budgets.
+4. Extend workload generators with documented long-context and adversarial mixes.
 5. Write a short negative-results section for policies that look good only on
    unrealistic workloads.
