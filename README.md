@@ -80,6 +80,17 @@ python3 scripts/replay_workload.py workloads/generated/mixed_bursty_32_seed568.j
   --scheduler-policy memory-aware-deadline
 ```
 
+Run the first reproducible capacity sweep:
+
+```bash
+python3 scripts/run_sweep.py
+```
+
+The sweep writes JSON and CSV results to
+[`results/experiment-001-capacity-sweep`](results/experiment-001-capacity-sweep)
+and is documented in
+[`docs/experiment-001-capacity-sweep.md`](docs/experiment-001-capacity-sweep.md).
+
 Run tests:
 
 ```bash
@@ -116,3 +127,6 @@ Scheduler policies are documented in
 
 Capacity-aware scheduling is documented in
 [`docs/capacity-aware-scheduling.md`](docs/capacity-aware-scheduling.md).
+
+The first capacity sweep is documented in
+[`docs/experiment-001-capacity-sweep.md`](docs/experiment-001-capacity-sweep.md).

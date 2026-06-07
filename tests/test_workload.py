@@ -20,10 +20,13 @@ from llmbench import (
     load_capacity_config,
     load_kv_cache_config,
     load_workload,
+    run_sweep,
     simulate_fifo,
     simulate_scheduler,
     summarize_traces,
     workload_to_dict,
+    write_sweep_csv,
+    write_sweep_json,
 )
 
 
@@ -517,6 +520,93 @@ class WorkloadTests(unittest.TestCase):
 
         with self.assertRaisesRegex(ValueError, "unknown scheduling_policy"):
             simulate_scheduler(workload, scheduling_policy="bad-policy")
+
+    def test_run_sweep_returns_one_record_per_valid_case(self) -> None:
+        workload_path = _write_workload(
+            {
+                "name": "sweep-unit",
+                "requests": [
+                    {
+                        "id": "a",
+                        "arrival_ms": 0,
+                        "prompt_tokens": 2,
+                        "output_tokens": 2,
+                        "deadline_ms": 20,
+                    }
+                ],
+            }
+        )
+        model_path = _write_json(
+            {
+                "name": "tiny-model",
+                "layers": 1,
+                "kv_heads": 1,
+                "head_dim": 1,
+                "bytes_per_element": 1,
+            }
+        )
+        capacity_path = _write_json(
+            {
+                "name": "tiny-capacity",
+                "total_memory_mib": 1,
+                "model_weights_mib": 0,
+                "runtime_reserved_mib": 0,
+                "kv_cache_budget_mib": 1,
+            }
+        )
+
+        results = run_sweep(
+            workload_paths=[workload_path],
+            model_config_paths=[model_path],
+            capacity_config_paths=[None, capacity_path],
+            max_concurrent_requests_values=[1, 2],
+            scheduler_policies=["fifo", "memory-aware-deadline"],
+        )
+
+        self.assertEqual(len(results), 6)
+        self.assertEqual(results[0].workload_name, "sweep-unit")
+        self.assertEqual(results[0].model_config, "tiny-model")
+        self.assertIn("p95_latency_ms", results[0].summary)
+        self.assertNotIn(
+            ("unbounded", "memory-aware-deadline"),
+            {(result.capacity_config, result.scheduler_policy) for result in results},
+        )
+
+    def test_writes_sweep_json_and_csv(self) -> None:
+        workload_path = _write_workload(
+            {
+                "name": "sweep-output-unit",
+                "requests": [
+                    {
+                        "id": "a",
+                        "arrival_ms": 0,
+                        "prompt_tokens": 2,
+                        "output_tokens": 2,
+                    }
+                ],
+            }
+        )
+        results = run_sweep(
+            workload_paths=[workload_path],
+            model_config_paths=[None],
+            capacity_config_paths=[None],
+            max_concurrent_requests_values=[1],
+            scheduler_policies=["fifo"],
+        )
+
+        with tempfile.TemporaryDirectory() as directory:
+            json_path = Path(directory) / "results.json"
+            csv_path = Path(directory) / "results.csv"
+            write_sweep_json(json_path, results)
+            write_sweep_csv(csv_path, results)
+
+            payload = json.loads(json_path.read_text(encoding="utf-8"))
+            csv_text = csv_path.read_text(encoding="utf-8")
+
+        self.assertEqual(payload["schema_version"], 1)
+        self.assertEqual(payload["results"][0]["scheduler_policy"], "fifo")
+        self.assertIn("scheduler_policy", csv_text.splitlines()[0])
+        self.assertIn("fifo", csv_text)
 
 
 def _write_workload(payload: dict) -> Path:
