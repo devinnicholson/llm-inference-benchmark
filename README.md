@@ -265,6 +265,30 @@ modal run modal_app.py --mode vllm-prefix-cache-compare \
   --output-dir results/modal-vllm-shared-prefix-cache-compare
 ```
 
+Run the paired same-worker prefix-cache control:
+
+```bash
+modal run modal_app.py --mode vllm-prefix-cache-paired \
+  --prompt-profiles shared_prefix \
+  --output-tokens 32 \
+  --request-counts 1,2,4,8 \
+  --repeats 3 \
+  --warmup-runs 1 \
+  --scenario-seed 568 \
+  --phase-order cold_first
+
+modal run modal_app.py --mode vllm-prefix-cache-paired \
+  --prompt-profiles shared_prefix \
+  --output-tokens 32 \
+  --request-counts 1,2,4,8 \
+  --repeats 3 \
+  --warmup-runs 1 \
+  --scenario-seed 568 \
+  --phase-order cache_first
+
+modal run modal_app.py --mode vllm-prefix-cache-phase-order-compare
+```
+
 Modal training is documented in
 [`docs/modal-training.md`](docs/modal-training.md).
 

@@ -2175,7 +2175,119 @@ Modal run and a separate cached Modal run are not enough.
 
 ## Next Step
 
-Training 023 should add a same-worker paired prefix-cache benchmark. Run cold
-and cached `AsyncLLM` engines in both phase orders, write paired rows by
-`scenario_id` and `repeat_index`, then compare `cold_first` against
+Training 023 adds a same-worker paired prefix-cache benchmark. It runs cold and
+cached `AsyncLLM` engines in both phase orders, writes paired rows by
+`scenario_id` and `repeat_index`, then compares `cold_first` against
 `cache_first`.
+
+# Modal Training 023: Paired Prefix-Cache Phase-Order Control
+
+## Goal
+
+Replace the separate-run Training 022 pilot with a same-worker paired benchmark.
+Each Modal job loads two `AsyncLLM` engines in one worker, runs the same seeded
+scenario plan through both engines, and pairs rows by `scenario_id` and
+`repeat_index`.
+
+This controls the biggest weakness in the prior prefix-cache artifacts:
+comparing one cold Modal run against a separate cached Modal run.
+
+## Commands
+
+```bash
+modal run modal_app.py --mode vllm-prefix-cache-paired \
+  --prompt-profiles shared_prefix \
+  --output-tokens 32 \
+  --request-counts 1,2,4,8 \
+  --repeats 3 \
+  --warmup-runs 1 \
+  --scenario-seed 568 \
+  --phase-order cold_first
+```
+
+```bash
+modal run modal_app.py --mode vllm-prefix-cache-paired \
+  --prompt-profiles shared_prefix \
+  --output-tokens 32 \
+  --request-counts 1,2,4,8 \
+  --repeats 3 \
+  --warmup-runs 1 \
+  --scenario-seed 568 \
+  --phase-order cache_first
+```
+
+```bash
+modal run modal_app.py --mode vllm-prefix-cache-phase-order-compare
+```
+
+## Artifacts
+
+```text
+results/modal-vllm-prefix-cache-paired/paired-prefix-cache.json
+results/modal-vllm-prefix-cache-paired/paired-prefix-cache-summary.csv
+results/modal-vllm-prefix-cache-paired/paired-prefix-cache-runs.csv
+results/modal-vllm-prefix-cache-paired-cache-first/paired-prefix-cache.json
+results/modal-vllm-prefix-cache-paired-cache-first/paired-prefix-cache-summary.csv
+results/modal-vllm-prefix-cache-paired-cache-first/paired-prefix-cache-runs.csv
+results/modal-vllm-prefix-cache-phase-order-compare/prefix-cache-phase-order-compare.json
+results/modal-vllm-prefix-cache-phase-order-compare/prefix-cache-phase-order-compare.csv
+```
+
+## Runtime Observations
+
+The first engine in each Modal worker paid the full vLLM initialization cost.
+The second engine initialized much faster after CUDA and process state were
+already warm:
+
+| Phase order | Cold engine load | Cache engine load | Paired runs |
+| --- | ---: | ---: | ---: |
+| `cold_first` | `224443.487 ms` | `45792.795 ms` | 12 |
+| `cache_first` | `20086.412 ms` | `152320.607 ms` | 12 |
+
+Both runs used `shared_prefix_out32_n{1,2,4,8}`, `3` paired repeats,
+`warmup_runs=1`, and seed `568`.
+
+## Result
+
+Ratios compare prefix caching on against prefix caching off. Throughput ratios
+above `1.0` are better. First-event, latency, and TPOT ratios below `1.0` are
+better.
+
+Mean paired-run ratios:
+
+| Phase order | Throughput ratio | First-event ratio | p95 latency ratio | TPOT ratio |
+| --- | ---: | ---: | ---: | ---: |
+| `cold_first` | 1.131 | 1.083 | 0.923 | 0.900 |
+| `cache_first` | 1.133 | 0.865 | 0.910 | 0.916 |
+
+Scenario median ratios:
+
+| Requests | Cold-first throughput | Cache-first throughput | Cold-first p95 latency | Cache-first p95 latency | Cold-first TPOT | Cache-first TPOT |
+| ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| 1 | 0.997 | 1.218 | 1.007 | 0.821 | 1.013 | 0.830 |
+| 2 | 1.143 | 1.072 | 0.873 | 0.933 | 0.869 | 0.937 |
+| 4 | 1.059 | 1.106 | 0.941 | 0.902 | 0.917 | 0.909 |
+| 8 | 1.027 | 1.195 | 0.972 | 0.839 | 0.920 | 0.854 |
+
+## Interpretation
+
+This is the first strong KV-cache result in the benchmark. The paired control
+shows prefix caching improves throughput and p95 end-to-end latency in both
+phase orders. The result contradicts the separate-run Training 022 pilot, which
+is exactly why the paired harness matters.
+
+First-event latency remains more order-sensitive. In `cold_first`, the mean
+first-event ratio is above `1.0`; in `cache_first`, it is below `1.0`. The
+throughput, p95 latency, and TPOT results are more stable and support a
+cache-benefit claim for this shared-prefix workload.
+
+The important artifact is not just the speedup. It is the method: same worker,
+same scenario plan, paired rows, and phase-order comparison. That is the level
+of rigor the KV-cache thread needs if we want research merit rather than a
+single noisy benchmark table.
+
+## Next Step
+
+Training 024 should stress the cache mechanism directly: increase shared-prefix
+length and add a no-shared-prefix control with matched token counts. The goal is
+to separate true prefix reuse from warm-engine and shape effects.

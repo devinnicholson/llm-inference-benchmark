@@ -50,6 +50,13 @@ DEFAULT_VLLM_SERVER_ASYNC_WORKLOAD_COMPARE_OUTPUT = (
 )
 DEFAULT_VLLM_PREFIX_CACHE_SWEEP_OUTPUT = "results/modal-vllm-prefix-cache-sweep"
 DEFAULT_VLLM_PREFIX_CACHE_COMPARE_OUTPUT = "results/modal-vllm-prefix-cache-compare"
+DEFAULT_VLLM_PREFIX_CACHE_PAIRED_OUTPUT = "results/modal-vllm-prefix-cache-paired"
+DEFAULT_VLLM_PREFIX_CACHE_PAIRED_CACHE_FIRST_OUTPUT = (
+    "results/modal-vllm-prefix-cache-paired-cache-first"
+)
+DEFAULT_VLLM_PREFIX_CACHE_PHASE_ORDER_COMPARE_OUTPUT = (
+    "results/modal-vllm-prefix-cache-phase-order-compare"
+)
 DEFAULT_VLLM_SWEEP_REQUEST_COUNTS = "1,2,4,8"
 DEFAULT_VLLM_SWEEP_PROMPT_PROFILES = "short,long"
 DEFAULT_VLLM_SWEEP_OUTPUT_TOKENS = "16,32"
@@ -303,6 +310,397 @@ def run_tiny_inference_remote(
         "tpot_ms": decode_ms / decode_tokens if decode_tokens else 0.0,
         "output_tokens_per_second": generated_tokens / max(total_generation_ms / 1000, 1e-9),
         "peak_memory_allocated_mib": peak_memory_allocated_mib,
+    }
+
+
+@app.function(
+    image=vllm_image,
+    gpu="T4",
+    timeout=1800,
+    volumes={HF_CACHE_PATH: hf_cache_volume, VLLM_CACHE_PATH: vllm_cache_volume},
+)
+def run_vllm_prefix_cache_paired_remote(
+    hf_model: str = DEFAULT_HF_MODEL,
+    request_counts: str = DEFAULT_VLLM_SWEEP_REQUEST_COUNTS,
+    prompt_profiles: str = DEFAULT_VLLM_SWEEP_PROMPT_PROFILES,
+    output_tokens: str = DEFAULT_VLLM_SWEEP_OUTPUT_TOKENS,
+    repeats: int = DEFAULT_VLLM_SWEEP_REPEATS,
+    scenario_seed: int = DEFAULT_VLLM_SWEEP_SEED,
+    warmup_runs: int = 1,
+    phase_order: str = "cold_first",
+) -> dict[str, Any]:
+    import asyncio
+    import gc
+    import platform
+    import random
+    import time
+
+    import torch
+    from transformers import AutoTokenizer
+    from vllm import SamplingParams
+    from vllm.engine.arg_utils import AsyncEngineArgs
+    from vllm.sampling_params import RequestOutputKind
+    from vllm.v1.engine.async_llm import AsyncLLM
+
+    request_count_values = _split_positive_int_csv(request_counts, "request_counts")
+    prompt_profile_values = [
+        profile.lower().replace("-", "_")
+        for profile in _split_csv(prompt_profiles)
+    ]
+    output_token_values = _split_positive_int_csv(output_tokens, "output_tokens")
+    if repeats <= 0:
+        raise ValueError("repeats must be positive")
+    if warmup_runs < 0:
+        raise ValueError("warmup_runs must be non-negative")
+    phase_order = phase_order.lower().replace("-", "_")
+    if phase_order not in {"cold_first", "cache_first"}:
+        raise ValueError("phase_order must be cold_first or cache_first")
+    for profile in prompt_profile_values:
+        if profile not in {"short", "long", "mixed", "shared_prefix"}:
+            raise ValueError(
+                "prompt_profiles must contain only short, long, mixed, or shared_prefix"
+            )
+
+    import vllm
+
+    nvidia_smi_before = _run_command(
+        [
+            "nvidia-smi",
+            "--query-gpu=name,memory.total,memory.free,driver_version",
+            "--format=csv,noheader,nounits",
+        ]
+    )
+
+    started = time.perf_counter()
+    tokenizer = AutoTokenizer.from_pretrained(hf_model)
+    tokenizer_load_ms = (time.perf_counter() - started) * 1000
+
+    scenario_specs = []
+    prompt_format_started = time.perf_counter()
+    for prompt_profile in prompt_profile_values:
+        for max_new_tokens in output_token_values:
+            for request_count in request_count_values:
+                prompt_records = []
+                prompts = _select_sweep_prompts(request_count, prompt_profile)
+                for index, prompt in enumerate(prompts):
+                    formatted_prompt, prompt_format = _format_prompt_for_generation(tokenizer, prompt)
+                    prompt_records.append(
+                        {
+                            "request_id": (
+                                f"{prompt_profile}-out{max_new_tokens}-n{request_count}-"
+                                f"{index:02d}"
+                            ),
+                            "prompt": prompt,
+                            "formatted_prompt": formatted_prompt,
+                            "prompt_format": prompt_format,
+                            "prompt_tokens": len(tokenizer.encode(formatted_prompt)),
+                        }
+                    )
+                prompt_tokens = [record["prompt_tokens"] for record in prompt_records]
+                scenario_specs.append(
+                    {
+                        "scenario_id": f"{prompt_profile}_out{max_new_tokens}_n{request_count}",
+                        "prompt_profile": prompt_profile,
+                        "request_count": request_count,
+                        "max_new_tokens": max_new_tokens,
+                        "prompt_format": prompt_records[0]["prompt_format"],
+                        "prompt_tokens_min": min(prompt_tokens),
+                        "prompt_tokens_max": max(prompt_tokens),
+                        "prompt_tokens_mean": sum(prompt_tokens) / len(prompt_tokens),
+                        "total_prompt_tokens": sum(prompt_tokens),
+                        "prompt_records": prompt_records,
+                    }
+                )
+    prompt_format_ms = (time.perf_counter() - prompt_format_started) * 1000
+
+    max_request_count = max(request_count_values)
+    max_output_tokens = max(output_token_values)
+    max_prompt_tokens = max(spec["prompt_tokens_max"] for spec in scenario_specs)
+    max_model_len = max(1024, max_prompt_tokens + max_output_tokens + 32)
+    max_num_batched_tokens = max(2048, max_request_count * max_model_len)
+    scenario_plan = []
+    for repeat_index in range(repeats):
+        for spec in scenario_specs:
+            scenario_plan.append((repeat_index, spec))
+    random.Random(scenario_seed).shuffle(scenario_plan)
+    plan_summary = [
+        {
+            "run_order": run_order,
+            "repeat_index": repeat_index,
+            "scenario_id": spec["scenario_id"],
+        }
+        for run_order, (repeat_index, spec) in enumerate(scenario_plan)
+    ]
+
+    async def run_engine_phase(
+        *,
+        enable_prefix_caching: bool,
+        phase_label: str,
+    ) -> dict[str, Any]:
+        started = time.perf_counter()
+        engine_args = AsyncEngineArgs(
+            model=hf_model,
+            dtype="half",
+            max_model_len=max_model_len,
+            max_num_batched_tokens=max_num_batched_tokens,
+            max_num_seqs=max_request_count,
+            gpu_memory_utilization=0.50,
+            enable_prefix_caching=enable_prefix_caching,
+            enforce_eager=True,
+            trust_remote_code=False,
+        )
+        engine = AsyncLLM.from_engine_args(engine_args)
+        engine_load_ms = (time.perf_counter() - started) * 1000
+
+        async def stream_one(
+            run_id: str,
+            record: dict[str, Any],
+            sampling_params: Any,
+            batch_started: float,
+        ) -> dict[str, Any]:
+            request_started = time.perf_counter()
+            first_chunk_ms: float | None = None
+            finished_ms: float | None = None
+            generated_text_parts = []
+            generated_tokens = 0
+            chunk_count = 0
+
+            async for output in engine.generate(
+                request_id=f"{phase_label}-{run_id}-{record['request_id']}",
+                prompt=record["formatted_prompt"],
+                sampling_params=sampling_params,
+            ):
+                now = time.perf_counter()
+                elapsed_ms = (now - request_started) * 1000
+                chunk_count += 1
+                for completion in output.outputs:
+                    text = completion.text
+                    token_ids = list(completion.token_ids or [])
+                    if first_chunk_ms is None and (text or token_ids):
+                        first_chunk_ms = elapsed_ms
+                    if text:
+                        generated_text_parts.append(text)
+                    generated_tokens += len(token_ids)
+                if output.finished:
+                    finished_ms = elapsed_ms
+                    break
+
+            stream_wall_ms = finished_ms or ((time.perf_counter() - request_started) * 1000)
+            decode_tokens_after_first = max(generated_tokens - 1, 0)
+            decode_after_first_ms = (
+                stream_wall_ms - first_chunk_ms
+                if first_chunk_ms is not None
+                else None
+            )
+            return {
+                "request_id": record["request_id"],
+                "prompt_tokens": record["prompt_tokens"],
+                "first_chunk_ms": first_chunk_ms,
+                "stream_wall_ms": stream_wall_ms,
+                "decode_after_first_ms": decode_after_first_ms,
+                "stream_tpot_ms": (
+                    decode_after_first_ms / decode_tokens_after_first
+                    if decode_after_first_ms is not None and decode_tokens_after_first
+                    else None
+                ),
+                "generated_tokens": generated_tokens,
+                "total_sequence_tokens": record["prompt_tokens"] + generated_tokens,
+                "chunk_count": chunk_count,
+                "batch_finished_ms": (time.perf_counter() - batch_started) * 1000,
+                "generated_text": "".join(generated_text_parts),
+            }
+
+        async def run_scenario(
+            spec: dict[str, Any],
+            repeat_index: int,
+            run_order: int,
+            max_tokens_override: int | None = None,
+        ) -> dict[str, Any]:
+            max_tokens = max_tokens_override or spec["max_new_tokens"]
+            sampling_params = SamplingParams(
+                max_tokens=max_tokens,
+                temperature=0.0,
+                output_kind=RequestOutputKind.DELTA,
+            )
+            run_id = f"rep{repeat_index:02d}-run{run_order:03d}"
+            batch_started = time.perf_counter()
+            request_results = await asyncio.gather(
+                *(
+                    stream_one(
+                        run_id,
+                        record,
+                        sampling_params,
+                        batch_started,
+                    )
+                    for record in spec["prompt_records"]
+                )
+            )
+            batch_wall_ms = (time.perf_counter() - batch_started) * 1000
+            summary = _summarize_stream_requests(request_results, batch_wall_ms)
+            return {
+                "run_id": run_id,
+                "repeat_index": repeat_index,
+                "run_order": run_order,
+                "scenario_id": spec["scenario_id"],
+                "prompt_profile": spec["prompt_profile"],
+                "request_count": spec["request_count"],
+                "max_new_tokens": max_tokens,
+                "prompt_format": spec["prompt_format"],
+                "prompt_tokens_min": spec["prompt_tokens_min"],
+                "prompt_tokens_max": spec["prompt_tokens_max"],
+                "prompt_tokens_mean": spec["prompt_tokens_mean"],
+                "total_prompt_tokens": spec["total_prompt_tokens"],
+                "estimated_peak_sequence_tokens": sum(
+                    request["total_sequence_tokens"] for request in request_results
+                ),
+                **summary,
+                "requests": request_results,
+            }
+
+        async def run_warmups() -> dict[str, Any]:
+            started = time.perf_counter()
+            warmup_summaries = []
+            run_order = 0
+            for warmup_index in range(warmup_runs):
+                for spec in scenario_specs:
+                    result = await run_scenario(
+                        spec,
+                        repeat_index=-(warmup_index + 1),
+                        run_order=run_order,
+                        max_tokens_override=1,
+                    )
+                    warmup_summaries.append(
+                        {
+                            "warmup_index": warmup_index,
+                            "scenario_id": spec["scenario_id"],
+                            "request_count": spec["request_count"],
+                            "batch_wall_ms": result["batch_wall_ms"],
+                            "total_output_tokens": result["total_output_tokens"],
+                        }
+                    )
+                    run_order += 1
+            return {
+                "warmup_runs": warmup_runs,
+                "warmup_scenario_runs": len(warmup_summaries),
+                "warmup_wall_ms": (time.perf_counter() - started) * 1000,
+                "total_output_tokens": sum(row["total_output_tokens"] for row in warmup_summaries),
+                "summaries": warmup_summaries,
+            }
+
+        try:
+            warmup_result = await run_warmups()
+            scenario_runs = []
+            for run_order, (repeat_index, spec) in enumerate(scenario_plan):
+                scenario_runs.append(
+                    await run_scenario(
+                        spec,
+                        repeat_index=repeat_index,
+                        run_order=run_order,
+                    )
+                )
+        finally:
+            engine.shutdown()
+
+        return {
+            "phase_label": phase_label,
+            "enable_prefix_caching": enable_prefix_caching,
+            "engine_load_ms": engine_load_ms,
+            "warmup": warmup_result,
+            "scenario_runs": scenario_runs,
+        }
+
+    def release_cuda_memory() -> None:
+        gc.collect()
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+            torch.cuda.synchronize()
+        time.sleep(2.0)
+
+    if phase_order == "cold_first":
+        cold_result = asyncio.run(
+            run_engine_phase(enable_prefix_caching=False, phase_label="cold")
+        )
+        release_cuda_memory()
+        cache_result = asyncio.run(
+            run_engine_phase(enable_prefix_caching=True, phase_label="cache")
+        )
+    else:
+        cache_result = asyncio.run(
+            run_engine_phase(enable_prefix_caching=True, phase_label="cache")
+        )
+        release_cuda_memory()
+        cold_result = asyncio.run(
+            run_engine_phase(enable_prefix_caching=False, phase_label="cold")
+        )
+
+    hf_cache_volume.commit()
+    vllm_cache_volume.commit()
+    nvidia_smi_after = _run_command(
+        [
+            "nvidia-smi",
+            "--query-gpu=name,memory.total,memory.free,driver_version",
+            "--format=csv,noheader,nounits",
+        ]
+    )
+
+    paired_runs = _make_vllm_prefix_cache_paired_rows(
+        cold_result["scenario_runs"],
+        cache_result["scenario_runs"],
+    )
+    paired_scenarios = _aggregate_vllm_prefix_cache_paired_scenarios(paired_runs)
+    return {
+        "schema_version": 1,
+        "execution": "modal",
+        "mode": "vllm-prefix-cache-paired",
+        "backend": "vllm-paired-prefix-cache",
+        "model_id": hf_model,
+        "request_counts": request_count_values,
+        "prompt_profiles": prompt_profile_values,
+        "output_tokens": output_token_values,
+        "repeats": int(repeats),
+        "scenario_seed": int(scenario_seed),
+        "warmup_runs": int(warmup_runs),
+        "phase_order": phase_order,
+        "scenario_count": len(paired_scenarios),
+        "paired_run_count": len(paired_runs),
+        "max_model_len": max_model_len,
+        "max_num_batched_tokens": max_num_batched_tokens,
+        "max_num_seqs": max_request_count,
+        "gpu_memory_utilization": 0.50,
+        "tokenizer_load_ms": tokenizer_load_ms,
+        "prompt_format_ms": prompt_format_ms,
+        "cold_engine_load_ms": cold_result["engine_load_ms"],
+        "cache_engine_load_ms": cache_result["engine_load_ms"],
+        "cold_warmup": cold_result["warmup"],
+        "cache_warmup": cache_result["warmup"],
+        "scenario_plan": plan_summary,
+        "summary": _vllm_prefix_cache_paired_summary_rows(paired_scenarios),
+        "paired_runs": paired_runs,
+        "paired_scenarios": paired_scenarios,
+        "cold_scenario_runs": cold_result["scenario_runs"],
+        "cache_scenario_runs": cache_result["scenario_runs"],
+        "vllm_version": str(vllm.__version__),
+        "platform": platform.platform(),
+        "python_version": platform.python_version(),
+        "nvidia_smi_before": nvidia_smi_before,
+        "nvidia_smi_after": nvidia_smi_after,
+        "mean_cache_to_cold_throughput_ratio": _mean_present(
+            row["cache_to_cold_output_tokens_per_second_ratio"] for row in paired_runs
+        ),
+        "mean_cache_to_cold_first_event_ratio": _mean_present(
+            row["cache_to_cold_p95_first_event_ms_ratio"] for row in paired_runs
+        ),
+        "mean_cache_to_cold_latency_ratio": _mean_present(
+            row["cache_to_cold_p95_latency_ms_ratio"] for row in paired_runs
+        ),
+        "mean_cache_to_cold_tpot_ratio": _mean_present(
+            row["cache_to_cold_p95_stream_tpot_ms_ratio"] for row in paired_runs
+        ),
+        "note": (
+            "One Modal worker runs two in-process AsyncLLM engines with prefix "
+            f"caching off and on in phase order {phase_order}. Paired rows "
+            "compare matching scenario_id and repeat_index."
+        ),
     }
 
 
@@ -2810,6 +3208,8 @@ def main(
     phase_order_compare_dirs: str = DEFAULT_VLLM_SERVER_ASYNC_PHASE_ORDER_COMPARE_DIRS,
     short_multitrial_dir: str = DEFAULT_VLLM_SERVER_ASYNC_MULTITRIAL_OUTPUT,
     long_phase_order_compare_dir: str = DEFAULT_VLLM_SERVER_ASYNC_LONG_PHASE_ORDER_COMPARE_OUTPUT,
+    prefix_cache_cold_first_paired_dir: str = DEFAULT_VLLM_PREFIX_CACHE_PAIRED_OUTPUT,
+    prefix_cache_cache_first_paired_dir: str = DEFAULT_VLLM_PREFIX_CACHE_PAIRED_CACHE_FIRST_OUTPUT,
     output_dir: str = "",
 ) -> None:
     if mode == "gpu-probe":
@@ -3177,6 +3577,51 @@ def main(
         print(f"runs_csv: {run_csv_path}")
         return
 
+    if mode == "vllm-prefix-cache-paired":
+        payload = run_vllm_prefix_cache_paired_remote.remote(
+            hf_model=hf_model,
+            request_counts=request_counts,
+            prompt_profiles=prompt_profiles,
+            output_tokens=output_tokens,
+            repeats=repeats,
+            scenario_seed=scenario_seed,
+            warmup_runs=warmup_runs,
+            phase_order=phase_order,
+        )
+        phase_order_slug = payload["phase_order"].lower().replace("_", "-")
+        default_output = (
+            DEFAULT_VLLM_PREFIX_CACHE_PAIRED_OUTPUT
+            if phase_order_slug == "cold-first"
+            else f"{DEFAULT_VLLM_PREFIX_CACHE_PAIRED_OUTPUT}-{phase_order_slug}"
+        )
+        output_path = Path(output_dir or default_output)
+        output_path.mkdir(parents=True, exist_ok=True)
+        json_path = output_path / "paired-prefix-cache.json"
+        summary_csv_path = output_path / "paired-prefix-cache-summary.csv"
+        run_csv_path = output_path / "paired-prefix-cache-runs.csv"
+        json_path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+        _write_records_csv(summary_csv_path, payload["summary"])
+        _write_records_csv(run_csv_path, payload["paired_runs"])
+
+        print(f"model: {payload['model_id']}")
+        print(f"scenarios: {payload['scenario_count']}")
+        print(f"paired_runs: {payload['paired_run_count']}")
+        print(f"repeats: {payload['repeats']}")
+        print(f"warmup_runs: {payload['warmup_runs']}")
+        print(f"phase_order: {payload['phase_order']}")
+        print(
+            "mean_cache_to_cold_throughput_ratio: "
+            f"{payload['mean_cache_to_cold_throughput_ratio']:.3f}"
+        )
+        print(
+            "mean_cache_to_cold_latency_ratio: "
+            f"{payload['mean_cache_to_cold_latency_ratio']:.3f}"
+        )
+        print(f"json: {json_path}")
+        print(f"summary_csv: {summary_csv_path}")
+        print(f"runs_csv: {run_csv_path}")
+        return
+
     if mode == "vllm-prefix-cache-compare":
         payload = _compare_vllm_sweep_csvs(
             cold_csv=Path(cold_sweep_dir) / "vllm-sweep.csv",
@@ -3196,6 +3641,39 @@ def main(
         print(f"csv: {csv_path}")
         return
 
+    if mode == "vllm-prefix-cache-phase-order-compare":
+        payload = _compare_vllm_prefix_cache_phase_orders(
+            cold_first_dir=Path(prefix_cache_cold_first_paired_dir),
+            cache_first_dir=Path(prefix_cache_cache_first_paired_dir),
+        )
+        output_path = Path(output_dir or DEFAULT_VLLM_PREFIX_CACHE_PHASE_ORDER_COMPARE_OUTPUT)
+        output_path.mkdir(parents=True, exist_ok=True)
+        json_path = output_path / "prefix-cache-phase-order-compare.json"
+        csv_path = output_path / "prefix-cache-phase-order-compare.csv"
+        json_path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+        _write_records_csv(csv_path, payload["rows"])
+
+        print(f"scenarios: {payload['scenario_count']}")
+        print(
+            "cold_first_mean_cache_to_cold_throughput_ratio: "
+            f"{payload['cold_first']['mean_cache_to_cold_throughput_ratio']:.3f}"
+        )
+        print(
+            "cache_first_mean_cache_to_cold_throughput_ratio: "
+            f"{payload['cache_first']['mean_cache_to_cold_throughput_ratio']:.3f}"
+        )
+        print(
+            "cold_first_mean_cache_to_cold_latency_ratio: "
+            f"{payload['cold_first']['mean_cache_to_cold_latency_ratio']:.3f}"
+        )
+        print(
+            "cache_first_mean_cache_to_cold_latency_ratio: "
+            f"{payload['cache_first']['mean_cache_to_cold_latency_ratio']:.3f}"
+        )
+        print(f"json: {json_path}")
+        print(f"csv: {csv_path}")
+        return
+
     if mode != "sweep":
         raise ValueError(
             "mode must be 'sweep', 'gpu-probe', 'tiny-inference', "
@@ -3206,7 +3684,8 @@ def main(
             "'vllm-server-async-phase-order-compare', "
             "'vllm-server-async-multitrial-aggregate', "
             "'vllm-server-async-workload-compare', 'vllm-sweep', or "
-            "'vllm-prefix-cache-compare'"
+            "'vllm-prefix-cache-paired', 'vllm-prefix-cache-compare', or "
+            "'vllm-prefix-cache-phase-order-compare'"
         )
 
     payload = run_capacity_sweep_remote.remote(
@@ -4346,6 +4825,286 @@ def _vllm_server_async_paired_summary_rows(
         {field: scenario.get(field) for field in row_fields}
         for scenario in paired_scenarios
     ]
+
+
+def _make_vllm_prefix_cache_paired_rows(
+    cold_runs: list[dict[str, Any]],
+    cache_runs: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    cold_by_key = {
+        (run["scenario_id"], run["repeat_index"]): run
+        for run in cold_runs
+    }
+    cache_by_key = {
+        (run["scenario_id"], run["repeat_index"]): run
+        for run in cache_runs
+    }
+    keys = sorted(
+        set(cold_by_key) & set(cache_by_key),
+        key=lambda key: (key[0], key[1]),
+    )
+    if not keys:
+        raise ValueError("No matching paired prefix-cache runs found")
+
+    paired_rows = []
+    for scenario_id, repeat_index in keys:
+        cold_run = cold_by_key[(scenario_id, repeat_index)]
+        cache_run = cache_by_key[(scenario_id, repeat_index)]
+        cold_throughput = cold_run.get("aggregate_output_tokens_per_second")
+        cache_throughput = cache_run.get("aggregate_output_tokens_per_second")
+        cold_first_event = cold_run.get("p95_first_chunk_ms")
+        cache_first_event = cache_run.get("p95_first_chunk_ms")
+        cold_latency = cold_run.get("p95_latency_ms")
+        cache_latency = cache_run.get("p95_latency_ms")
+        cold_tpot = cold_run.get("p95_stream_tpot_ms")
+        cache_tpot = cache_run.get("p95_stream_tpot_ms")
+        cold_batch_wall = cold_run.get("batch_wall_ms")
+        cache_batch_wall = cache_run.get("batch_wall_ms")
+        paired_rows.append(
+            {
+                "pair_id": f"{scenario_id}_rep{repeat_index:02d}",
+                "scenario_id": scenario_id,
+                "prompt_profile": cold_run["prompt_profile"],
+                "request_count": cold_run["request_count"],
+                "max_new_tokens": cold_run["max_new_tokens"],
+                "repeat_index": repeat_index,
+                "cold_run_order": cold_run["run_order"],
+                "cache_run_order": cache_run["run_order"],
+                "prompt_tokens_mean": cold_run["prompt_tokens_mean"],
+                "estimated_peak_sequence_tokens_cold": cold_run.get(
+                    "estimated_peak_sequence_tokens"
+                ),
+                "estimated_peak_sequence_tokens_cache": cache_run.get(
+                    "estimated_peak_sequence_tokens"
+                ),
+                "cold_output_tokens_per_second": cold_throughput,
+                "cache_output_tokens_per_second": cache_throughput,
+                "cache_to_cold_output_tokens_per_second_delta": _delta(
+                    cache_throughput,
+                    cold_throughput,
+                ),
+                "cache_to_cold_output_tokens_per_second_ratio": _ratio(
+                    cache_throughput,
+                    cold_throughput,
+                ),
+                "cold_p95_first_event_ms": cold_first_event,
+                "cache_p95_first_event_ms": cache_first_event,
+                "cache_to_cold_p95_first_event_ms_delta": _delta(
+                    cache_first_event,
+                    cold_first_event,
+                ),
+                "cache_to_cold_p95_first_event_ms_ratio": _ratio(
+                    cache_first_event,
+                    cold_first_event,
+                ),
+                "cold_p95_latency_ms": cold_latency,
+                "cache_p95_latency_ms": cache_latency,
+                "cache_to_cold_p95_latency_ms_delta": _delta(
+                    cache_latency,
+                    cold_latency,
+                ),
+                "cache_to_cold_p95_latency_ms_ratio": _ratio(
+                    cache_latency,
+                    cold_latency,
+                ),
+                "cold_p95_stream_tpot_ms": cold_tpot,
+                "cache_p95_stream_tpot_ms": cache_tpot,
+                "cache_to_cold_p95_stream_tpot_ms_delta": _delta(
+                    cache_tpot,
+                    cold_tpot,
+                ),
+                "cache_to_cold_p95_stream_tpot_ms_ratio": _ratio(
+                    cache_tpot,
+                    cold_tpot,
+                ),
+                "cold_batch_wall_ms": cold_batch_wall,
+                "cache_batch_wall_ms": cache_batch_wall,
+                "cache_to_cold_batch_wall_ms_delta": _delta(
+                    cache_batch_wall,
+                    cold_batch_wall,
+                ),
+                "cache_to_cold_batch_wall_ms_ratio": _ratio(
+                    cache_batch_wall,
+                    cold_batch_wall,
+                ),
+            }
+        )
+    return paired_rows
+
+
+def _aggregate_vllm_prefix_cache_paired_scenarios(
+    paired_runs: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    pairs_by_scenario: dict[str, list[dict[str, Any]]] = {}
+    for row in paired_runs:
+        pairs_by_scenario.setdefault(row["scenario_id"], []).append(row)
+
+    scenarios = []
+    for scenario_id, pairs in sorted(pairs_by_scenario.items()):
+        first = pairs[0]
+        scenario: dict[str, Any] = {
+            "scenario_id": scenario_id,
+            "prompt_profile": first["prompt_profile"],
+            "request_count": first["request_count"],
+            "max_new_tokens": first["max_new_tokens"],
+            "pairs": len(pairs),
+            "prompt_tokens_mean": first["prompt_tokens_mean"],
+        }
+        for field in (
+            "cache_to_cold_output_tokens_per_second_ratio",
+            "cache_to_cold_output_tokens_per_second_delta",
+            "cache_to_cold_p95_first_event_ms_ratio",
+            "cache_to_cold_p95_first_event_ms_delta",
+            "cache_to_cold_p95_latency_ms_ratio",
+            "cache_to_cold_p95_latency_ms_delta",
+            "cache_to_cold_p95_stream_tpot_ms_ratio",
+            "cache_to_cold_p95_stream_tpot_ms_delta",
+            "cache_to_cold_batch_wall_ms_ratio",
+            "cache_to_cold_batch_wall_ms_delta",
+            "cold_output_tokens_per_second",
+            "cache_output_tokens_per_second",
+            "cold_p95_first_event_ms",
+            "cache_p95_first_event_ms",
+            "cold_p95_latency_ms",
+            "cache_p95_latency_ms",
+            "cold_p95_stream_tpot_ms",
+            "cache_p95_stream_tpot_ms",
+        ):
+            scenario.update(_metric_distribution(pairs, field))
+        scenarios.append(scenario)
+    return scenarios
+
+
+def _vllm_prefix_cache_paired_summary_rows(
+    paired_scenarios: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    row_fields = (
+        "scenario_id",
+        "prompt_profile",
+        "request_count",
+        "max_new_tokens",
+        "pairs",
+        "prompt_tokens_mean",
+        "cache_to_cold_output_tokens_per_second_ratio_median",
+        "cache_to_cold_output_tokens_per_second_ratio_p95",
+        "cache_to_cold_p95_first_event_ms_ratio_median",
+        "cache_to_cold_p95_first_event_ms_ratio_p95",
+        "cache_to_cold_p95_latency_ms_ratio_median",
+        "cache_to_cold_p95_latency_ms_ratio_p95",
+        "cache_to_cold_p95_stream_tpot_ms_ratio_median",
+        "cache_to_cold_p95_stream_tpot_ms_ratio_p95",
+        "cache_to_cold_batch_wall_ms_ratio_median",
+        "cache_to_cold_batch_wall_ms_ratio_p95",
+        "cold_output_tokens_per_second_median",
+        "cache_output_tokens_per_second_median",
+        "cold_p95_first_event_ms_median",
+        "cache_p95_first_event_ms_median",
+        "cold_p95_latency_ms_median",
+        "cache_p95_latency_ms_median",
+        "cold_p95_stream_tpot_ms_median",
+        "cache_p95_stream_tpot_ms_median",
+    )
+    return [
+        {field: scenario.get(field) for field in row_fields}
+        for scenario in paired_scenarios
+    ]
+
+
+def _compare_vllm_prefix_cache_phase_orders(
+    cold_first_dir: Path,
+    cache_first_dir: Path,
+) -> dict[str, Any]:
+    cold_first_json = cold_first_dir / "paired-prefix-cache.json"
+    cache_first_json = cache_first_dir / "paired-prefix-cache.json"
+    cold_first_csv = cold_first_dir / "paired-prefix-cache-summary.csv"
+    cache_first_csv = cache_first_dir / "paired-prefix-cache-summary.csv"
+
+    cold_first_payload = json.loads(cold_first_json.read_text(encoding="utf-8"))
+    cache_first_payload = json.loads(cache_first_json.read_text(encoding="utf-8"))
+    cold_first_rows = _read_csv_by_key(cold_first_csv, "scenario_id")
+    cache_first_rows = _read_csv_by_key(cache_first_csv, "scenario_id")
+    scenario_ids = sorted(set(cold_first_rows) & set(cache_first_rows))
+    if not scenario_ids:
+        raise ValueError("No matching scenario_id values found for prefix-cache phase comparison")
+
+    ratio_fields = (
+        "cache_to_cold_output_tokens_per_second_ratio_median",
+        "cache_to_cold_p95_first_event_ms_ratio_median",
+        "cache_to_cold_p95_latency_ms_ratio_median",
+        "cache_to_cold_p95_stream_tpot_ms_ratio_median",
+        "cache_to_cold_batch_wall_ms_ratio_median",
+    )
+    rows = []
+    for scenario_id in scenario_ids:
+        cold_first = cold_first_rows[scenario_id]
+        cache_first = cache_first_rows[scenario_id]
+        row: dict[str, Any] = {
+            "scenario_id": scenario_id,
+            "prompt_profile": cold_first["prompt_profile"],
+            "request_count": int(cold_first["request_count"]),
+            "max_new_tokens": int(cold_first["max_new_tokens"]),
+            "pairs": int(cold_first["pairs"]),
+        }
+        for field in ratio_fields:
+            cold_first_value = _float_field(cold_first, field)
+            cache_first_value = _float_field(cache_first, field)
+            short_field = field.removeprefix("cache_to_cold_").removesuffix("_median")
+            row[f"cold_first_{short_field}"] = cold_first_value
+            row[f"cache_first_{short_field}"] = cache_first_value
+            row[f"cache_first_minus_cold_first_{short_field}"] = _delta(
+                cache_first_value,
+                cold_first_value,
+            )
+        rows.append(row)
+
+    return {
+        "schema_version": 1,
+        "mode": "vllm-prefix-cache-phase-order-compare",
+        "cold_first_dir": str(cold_first_dir),
+        "cache_first_dir": str(cache_first_dir),
+        "cold_first_json": str(cold_first_json),
+        "cache_first_json": str(cache_first_json),
+        "cold_first_csv": str(cold_first_csv),
+        "cache_first_csv": str(cache_first_csv),
+        "scenario_count": len(rows),
+        "cold_first": {
+            "phase_order": cold_first_payload.get("phase_order", "cold_first"),
+            "paired_run_count": cold_first_payload["paired_run_count"],
+            "cold_engine_load_ms": cold_first_payload["cold_engine_load_ms"],
+            "cache_engine_load_ms": cold_first_payload["cache_engine_load_ms"],
+            "mean_cache_to_cold_throughput_ratio": cold_first_payload[
+                "mean_cache_to_cold_throughput_ratio"
+            ],
+            "mean_cache_to_cold_first_event_ratio": cold_first_payload[
+                "mean_cache_to_cold_first_event_ratio"
+            ],
+            "mean_cache_to_cold_latency_ratio": cold_first_payload[
+                "mean_cache_to_cold_latency_ratio"
+            ],
+            "mean_cache_to_cold_tpot_ratio": cold_first_payload[
+                "mean_cache_to_cold_tpot_ratio"
+            ],
+        },
+        "cache_first": {
+            "phase_order": cache_first_payload.get("phase_order", "cache_first"),
+            "paired_run_count": cache_first_payload["paired_run_count"],
+            "cold_engine_load_ms": cache_first_payload["cold_engine_load_ms"],
+            "cache_engine_load_ms": cache_first_payload["cache_engine_load_ms"],
+            "mean_cache_to_cold_throughput_ratio": cache_first_payload[
+                "mean_cache_to_cold_throughput_ratio"
+            ],
+            "mean_cache_to_cold_first_event_ratio": cache_first_payload[
+                "mean_cache_to_cold_first_event_ratio"
+            ],
+            "mean_cache_to_cold_latency_ratio": cache_first_payload[
+                "mean_cache_to_cold_latency_ratio"
+            ],
+            "mean_cache_to_cold_tpot_ratio": cache_first_payload[
+                "mean_cache_to_cold_tpot_ratio"
+            ],
+        },
+        "rows": rows,
+    }
 
 
 def _compare_vllm_sweep_csvs(
