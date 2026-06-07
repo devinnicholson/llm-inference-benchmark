@@ -5,6 +5,8 @@ description = "568 Systems and Machine Learning portfolio repo for LLM inference
 requires-python = ">=3.11"
 dependencies = []
 
+[project.optional-dependencies]
+modal = ["modal>=1.4,<2"]
+
 [tool.pytest.ini_options]
 pythonpath = ["src"]
-

@@ -91,6 +91,15 @@ The sweep writes JSON and CSV results to
 and is documented in
 [`docs/experiment-001-capacity-sweep.md`](docs/experiment-001-capacity-sweep.md).
 
+Run the first Modal remote sweep:
+
+```bash
+modal run modal_app.py
+```
+
+Modal training is documented in
+[`docs/modal-training.md`](docs/modal-training.md).
+
 Run tests:
 
 ```bash
@@ -130,3 +139,6 @@ Capacity-aware scheduling is documented in
 
 The first capacity sweep is documented in
 [`docs/experiment-001-capacity-sweep.md`](docs/experiment-001-capacity-sweep.md).
+
+The first Modal remote execution path is documented in
+[`docs/modal-training.md`](docs/modal-training.md).
