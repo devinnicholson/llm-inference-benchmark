@@ -170,6 +170,12 @@ modal run modal_app.py --mode vllm-server-async-paired \
   --warmup-runs 1
 ```
 
+Compare paired phase orders:
+
+```bash
+modal run modal_app.py --mode vllm-server-async-phase-order-compare
+```
+
 Run the first Modal vLLM concurrent workload:
 
 ```bash

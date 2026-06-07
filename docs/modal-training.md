@@ -1590,7 +1590,61 @@ to argue about API transport overhead.
 
 ## Next Step
 
-Add a compact phase-order comparison artifact that reads the `async_first` and
-`server_first` paired outputs and writes one machine-readable summary table.
-After that, run more independent repetitions of both orders so we can estimate
-whether the order effect is stable across fresh Modal workers.
+Training 016 adds the compact machine-readable phase-order comparison artifact.
+
+# Modal Training 016: Phase-Order Comparison Artifact
+
+## Goal
+
+Make the Training 014 and Training 015 phase-order result reproducible without
+manually reading two large JSON files. This milestone reads the `async_first`
+and `server_first` paired outputs and writes one comparison table.
+
+## Command
+
+```bash
+modal run modal_app.py --mode vllm-server-async-phase-order-compare
+```
+
+The committed result writes:
+
+```text
+results/modal-vllm-server-async-phase-order-compare/phase-order-compare.json
+results/modal-vllm-server-async-phase-order-compare/phase-order-compare.csv
+```
+
+## Result
+
+| Requests | Async-first tok/s ratio | Server-first tok/s ratio | Delta | Async-first latency ratio | Server-first latency ratio | Delta | Async-first first-event ratio | Server-first first-event ratio |
+| ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| 1 | 0.995 | 0.903 | -0.092 | 1.004 | 1.107 | 0.103 | 1.081 | 1.405 |
+| 2 | 1.074 | 0.843 | -0.231 | 0.931 | 1.185 | 0.254 | 1.221 | 1.273 |
+| 4 | 1.082 | 0.902 | -0.181 | 0.924 | 1.108 | 0.184 | 1.170 | 1.482 |
+| 8 | 1.098 | 0.924 | -0.174 | 0.910 | 1.081 | 0.171 | 1.332 | 1.368 |
+
+Mean ratios:
+
+| Phase order | Server ready ms | Async engine load ms | Server/Async tok/s | Server/Async first event | Server/Async p95 latency | Server/Async TPOT |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| `async_first` | 33099.757 | 154248.278 | 1.099 | 1.299 | 0.943 | 0.909 |
+| `server_first` | 173620.882 | 21686.931 | 0.880 | 1.409 | 1.154 | 1.133 |
+
+## Interpretation
+
+The compact artifact makes the order effect unambiguous:
+
+- Every scenario has a lower server/async throughput ratio when the server runs
+  first.
+- Every scenario has a higher server/async p95 latency ratio when the server
+  runs first.
+- First-event latency is worse for the server in both phase orders.
+
+This turns the paired benchmark into a useful research artifact: it does not
+just report a speed number, it identifies a confounder and records the evidence
+in machine-readable form.
+
+## Next Step
+
+Run independent repetitions of both phase orders across fresh Modal workers.
+The next benchmark should report confidence intervals for the order effect, not
+just one async-first run and one server-first run.

@@ -28,6 +28,12 @@ DEFAULT_VLLM_SERVER_CONCURRENT_OUTPUT = "results/modal-vllm-server-concurrent"
 DEFAULT_VLLM_SERVER_SWEEP_OUTPUT = "results/modal-vllm-server-sweep"
 DEFAULT_VLLM_SERVER_SWEEP_COMPARE_OUTPUT = "results/modal-vllm-server-sweep-compare"
 DEFAULT_VLLM_SERVER_ASYNC_PAIRED_OUTPUT = "results/modal-vllm-server-async-paired"
+DEFAULT_VLLM_SERVER_ASYNC_PAIRED_SERVER_FIRST_OUTPUT = (
+    "results/modal-vllm-server-async-paired-server-first"
+)
+DEFAULT_VLLM_SERVER_ASYNC_PHASE_ORDER_COMPARE_OUTPUT = (
+    "results/modal-vllm-server-async-phase-order-compare"
+)
 DEFAULT_VLLM_PREFIX_CACHE_SWEEP_OUTPUT = "results/modal-vllm-prefix-cache-sweep"
 DEFAULT_VLLM_PREFIX_CACHE_COMPARE_OUTPUT = "results/modal-vllm-prefix-cache-compare"
 DEFAULT_VLLM_SWEEP_REQUEST_COUNTS = "1,2,4,8"
@@ -2770,6 +2776,8 @@ def main(
     prefix_sweep_dir: str = DEFAULT_VLLM_PREFIX_CACHE_SWEEP_OUTPUT,
     async_sweep_dir: str = DEFAULT_VLLM_SWEEP_OUTPUT,
     server_sweep_dir: str = DEFAULT_VLLM_SERVER_SWEEP_OUTPUT,
+    async_first_paired_dir: str = DEFAULT_VLLM_SERVER_ASYNC_PAIRED_OUTPUT,
+    server_first_paired_dir: str = DEFAULT_VLLM_SERVER_ASYNC_PAIRED_SERVER_FIRST_OUTPUT,
     output_dir: str = "",
 ) -> None:
     if mode == "gpu-probe":
@@ -3014,6 +3022,39 @@ def main(
         print(f"runs_csv: {run_csv_path}")
         return
 
+    if mode == "vllm-server-async-phase-order-compare":
+        payload = _compare_vllm_server_async_phase_orders(
+            async_first_dir=Path(async_first_paired_dir),
+            server_first_dir=Path(server_first_paired_dir),
+        )
+        output_path = Path(output_dir or DEFAULT_VLLM_SERVER_ASYNC_PHASE_ORDER_COMPARE_OUTPUT)
+        output_path.mkdir(parents=True, exist_ok=True)
+        json_path = output_path / "phase-order-compare.json"
+        csv_path = output_path / "phase-order-compare.csv"
+        json_path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+        _write_records_csv(csv_path, payload["rows"])
+
+        print(f"scenarios: {payload['scenario_count']}")
+        print(
+            "async_first_mean_server_to_async_throughput_ratio: "
+            f"{payload['async_first']['mean_server_to_async_throughput_ratio']:.3f}"
+        )
+        print(
+            "server_first_mean_server_to_async_throughput_ratio: "
+            f"{payload['server_first']['mean_server_to_async_throughput_ratio']:.3f}"
+        )
+        print(
+            "async_first_mean_server_to_async_latency_ratio: "
+            f"{payload['async_first']['mean_server_to_async_latency_ratio']:.3f}"
+        )
+        print(
+            "server_first_mean_server_to_async_latency_ratio: "
+            f"{payload['server_first']['mean_server_to_async_latency_ratio']:.3f}"
+        )
+        print(f"json: {json_path}")
+        print(f"csv: {csv_path}")
+        return
+
     if mode == "vllm-sweep":
         enable_prefix_caching = _parse_bool_choice(prefix_caching, "prefix_caching")
         payload = run_vllm_sweep_remote.remote(
@@ -3077,7 +3118,8 @@ def main(
             "'vllm-inference', 'vllm-streaming', 'vllm-concurrent', "
             "'vllm-server-streaming', 'vllm-server-concurrent', "
             "'vllm-server-sweep', 'vllm-server-sweep-compare', "
-            "'vllm-server-async-paired', 'vllm-sweep', or "
+            "'vllm-server-async-paired', "
+            "'vllm-server-async-phase-order-compare', 'vllm-sweep', or "
             "'vllm-prefix-cache-compare'"
         )
 
@@ -3661,6 +3703,103 @@ def _compare_vllm_server_async_csvs(
         "mean_server_to_async_tpot_ratio": _mean_present(
             row["server_to_async_p95_stream_tpot_ms_ratio"] for row in rows
         ),
+        "rows": rows,
+    }
+
+
+def _compare_vllm_server_async_phase_orders(
+    async_first_dir: Path,
+    server_first_dir: Path,
+) -> dict[str, Any]:
+    async_first_json = async_first_dir / "paired-server-async.json"
+    server_first_json = server_first_dir / "paired-server-async.json"
+    async_first_csv = async_first_dir / "paired-server-async-summary.csv"
+    server_first_csv = server_first_dir / "paired-server-async-summary.csv"
+
+    async_first_payload = json.loads(async_first_json.read_text(encoding="utf-8"))
+    server_first_payload = json.loads(server_first_json.read_text(encoding="utf-8"))
+    async_first_rows = _read_csv_by_key(async_first_csv, "scenario_id")
+    server_first_rows = _read_csv_by_key(server_first_csv, "scenario_id")
+    scenario_ids = sorted(set(async_first_rows) & set(server_first_rows))
+    if not scenario_ids:
+        raise ValueError("No matching scenario_id values found for phase-order comparison")
+
+    ratio_fields = (
+        "server_to_async_output_tokens_per_second_ratio_median",
+        "server_to_async_p95_first_event_ms_ratio_median",
+        "server_to_async_p95_latency_ms_ratio_median",
+        "server_to_async_p95_stream_tpot_ms_ratio_median",
+        "server_to_async_batch_wall_ms_ratio_median",
+    )
+    rows = []
+    for scenario_id in scenario_ids:
+        async_first = async_first_rows[scenario_id]
+        server_first = server_first_rows[scenario_id]
+        row: dict[str, Any] = {
+            "scenario_id": scenario_id,
+            "prompt_profile": async_first["prompt_profile"],
+            "request_count": int(async_first["request_count"]),
+            "max_new_tokens": int(async_first["max_new_tokens"]),
+            "pairs": int(async_first["pairs"]),
+        }
+        for field in ratio_fields:
+            async_first_value = _float_field(async_first, field)
+            server_first_value = _float_field(server_first, field)
+            short_field = field.removeprefix("server_to_async_").removesuffix("_median")
+            row[f"async_first_{short_field}"] = async_first_value
+            row[f"server_first_{short_field}"] = server_first_value
+            row[f"server_first_minus_async_first_{short_field}"] = _delta(
+                server_first_value,
+                async_first_value,
+            )
+        rows.append(row)
+
+    return {
+        "schema_version": 1,
+        "mode": "vllm-server-async-phase-order-compare",
+        "async_first_dir": str(async_first_dir),
+        "server_first_dir": str(server_first_dir),
+        "async_first_json": str(async_first_json),
+        "server_first_json": str(server_first_json),
+        "async_first_csv": str(async_first_csv),
+        "server_first_csv": str(server_first_csv),
+        "scenario_count": len(rows),
+        "async_first": {
+            "phase_order": async_first_payload.get("phase_order", "async_first"),
+            "paired_run_count": async_first_payload["paired_run_count"],
+            "server_ready_ms": async_first_payload["server_ready_ms"],
+            "async_engine_load_ms": async_first_payload["async_engine_load_ms"],
+            "mean_server_to_async_throughput_ratio": async_first_payload[
+                "mean_server_to_async_throughput_ratio"
+            ],
+            "mean_server_to_async_first_event_ratio": async_first_payload[
+                "mean_server_to_async_first_event_ratio"
+            ],
+            "mean_server_to_async_latency_ratio": async_first_payload[
+                "mean_server_to_async_latency_ratio"
+            ],
+            "mean_server_to_async_tpot_ratio": async_first_payload[
+                "mean_server_to_async_tpot_ratio"
+            ],
+        },
+        "server_first": {
+            "phase_order": server_first_payload.get("phase_order", "server_first"),
+            "paired_run_count": server_first_payload["paired_run_count"],
+            "server_ready_ms": server_first_payload["server_ready_ms"],
+            "async_engine_load_ms": server_first_payload["async_engine_load_ms"],
+            "mean_server_to_async_throughput_ratio": server_first_payload[
+                "mean_server_to_async_throughput_ratio"
+            ],
+            "mean_server_to_async_first_event_ratio": server_first_payload[
+                "mean_server_to_async_first_event_ratio"
+            ],
+            "mean_server_to_async_latency_ratio": server_first_payload[
+                "mean_server_to_async_latency_ratio"
+            ],
+            "mean_server_to_async_tpot_ratio": server_first_payload[
+                "mean_server_to_async_tpot_ratio"
+            ],
+        },
         "rows": rows,
     }
 
