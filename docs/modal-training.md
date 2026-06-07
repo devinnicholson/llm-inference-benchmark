@@ -606,3 +606,140 @@ Turn this into a real experiment sweep:
 
 That sweep will finally give a clean bridge between the synthetic capacity
 sweep and real vLLM serving behavior.
+
+# Modal Training 007: vLLM Concurrency and Context Sweep
+
+## Goal
+
+Turn the one-off concurrent vLLM run into a controlled experiment table. This
+sweep varies:
+
+- request count: `1`, `2`, `4`, `8`
+- prompt profile: `short`, `long`
+- output budget: `16`, `32`
+
+The result is the first real backend artifact that can be plotted against the
+synthetic scheduler work: throughput, first output, tail completion latency,
+TPOT, prompt tokens, output tokens, and estimated live sequence tokens.
+
+## Command
+
+```bash
+modal run modal_app.py --mode vllm-sweep
+```
+
+The committed result writes:
+
+```text
+results/modal-vllm-sweep/vllm-sweep.json
+results/modal-vllm-sweep/vllm-sweep.csv
+```
+
+Override the grid:
+
+```bash
+modal run modal_app.py \
+  --mode vllm-sweep \
+  --request-counts 1,4,8 \
+  --prompt-profiles short,long,mixed \
+  --output-tokens 32
+```
+
+## Method
+
+One Modal `T4` worker loads one vLLM `AsyncLLM` engine with:
+
+- `vllm==0.21.0`
+- `max_model_len=1024`
+- `max_num_batched_tokens=8192`
+- `max_num_seqs=8`
+- `gpu_memory_utilization=0.50`
+- `enable_prefix_caching=False`
+- `enforce_eager=True`
+
+Prefix caching is disabled for this sweep so repeated prompts across request
+counts do not turn into a prefix-cache benchmark by accident. The run performs a
+one-token shape warmup for each scenario before measurement, then records the
+measured scenario grid.
+
+The JSON artifact keeps per-request timings and generated text. The CSV artifact
+keeps one flat row per scenario for plotting and spreadsheet inspection.
+
+## Runtime Observations
+
+The corrected sweep logged:
+
+- FlashAttention 2 unavailable on T4 compute capability `7.5`.
+- FlashInfer selected as the attention backend.
+- vLLM reported `6.88 GiB` available KV-cache memory.
+- vLLM reported `320,400` GPU KV-cache tokens.
+- vLLM reported maximum concurrency of `312.89x` for `1024` tokens/request.
+- Engine initialization took `152.06 s`.
+- Shape warmup generated `60` tokens across `16` warmup scenarios in
+  `1683.817 ms`.
+
+## Result: 32 Output Tokens
+
+The `32` token output budget is the cleanest first comparison because decode
+time dominates more than the very short `16` token cases.
+
+| Profile | Requests | Prompt tokens mean | Peak sequence tokens | p95 first chunk ms | p95 latency ms | Output tok/s |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| short | 1 | 44.00 | 76 | 42.206 | 658.706 | 48.564 |
+| short | 2 | 43.50 | 151 | 66.472 | 695.793 | 91.951 |
+| short | 4 | 43.25 | 301 | 68.193 | 719.836 | 177.745 |
+| short | 8 | 45.25 | 618 | 70.246 | 730.611 | 350.206 |
+| long | 1 | 118.00 | 150 | 43.115 | 660.063 | 48.462 |
+| long | 2 | 117.50 | 299 | 66.416 | 691.602 | 92.508 |
+| long | 4 | 117.25 | 597 | 67.200 | 693.981 | 184.368 |
+| long | 8 | 119.25 | 1210 | 69.801 | 715.642 | 357.475 |
+
+## Result: 16 Output Tokens
+
+The `16` token output budget is noisier because fixed overhead and remaining
+shape effects are a larger share of the request. The outliers are kept in the
+artifact instead of hidden.
+
+| Profile | Requests | Prompt tokens mean | Peak sequence tokens | p95 first chunk ms | p95 latency ms | Output tok/s |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| short | 1 | 44.00 | 60 | 642.418 | 965.841 | 16.561 |
+| short | 2 | 43.50 | 119 | 87.118 | 468.528 | 68.252 |
+| short | 4 | 43.25 | 237 | 101.082 | 444.810 | 143.713 |
+| short | 8 | 45.25 | 490 | 95.863 | 408.578 | 312.949 |
+| long | 1 | 118.00 | 134 | 43.648 | 333.320 | 47.972 |
+| long | 2 | 117.50 | 267 | 65.617 | 358.687 | 89.152 |
+| long | 4 | 117.25 | 533 | 282.954 | 588.966 | 108.610 |
+| long | 8 | 119.25 | 1082 | 69.469 | 368.329 | 347.151 |
+
+## Interpretation
+
+For `32` output tokens, aggregate throughput scales nearly linearly from one to
+eight concurrent requests on this tiny model while p95 completion latency only
+increases modestly. The short profile moves from `48.564` to `350.206` output
+tokens/sec, and the long profile moves from `48.462` to `357.475` output
+tokens/sec.
+
+The long prompts are roughly 2.7x the token length of the short prompts, but at
+this model size and context length they do not dominate the `32` token results.
+Decode batching is the main effect we can see.
+
+The `16` token cases show why single-run microbenchmarks are dangerous. Two
+scenarios have visible first-output outliers even after shape warmup:
+
+- `short_out16_n1`: `642.418 ms` p95 first chunk
+- `long_out16_n4`: `282.954 ms` p95 first chunk
+
+Those outliers are useful, not embarrassing. They tell us the next benchmark
+needs repetitions, randomized scenario order, and confidence intervals before
+we claim stable performance curves.
+
+## Next Step
+
+Add repeat support to `vllm-sweep`:
+
+- run each scenario `N` times after warmup
+- randomize scenario order with a fixed seed
+- save median, p95, min, max, and coefficient of variation
+- separate cold-prefix and prefix-cache-enabled sweeps
+
+That turns this from a first benchmark table into a more defensible experiment.

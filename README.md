@@ -127,6 +127,12 @@ Run the first Modal vLLM concurrent workload:
 modal run modal_app.py --mode vllm-concurrent
 ```
 
+Run the first Modal vLLM concurrency/context sweep:
+
+```bash
+modal run modal_app.py --mode vllm-sweep
+```
+
 Modal training is documented in
 [`docs/modal-training.md`](docs/modal-training.md).
 
