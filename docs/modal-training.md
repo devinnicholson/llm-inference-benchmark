@@ -635,6 +635,10 @@ results/modal-vllm-sweep/vllm-sweep.json
 results/modal-vllm-sweep/vllm-sweep.csv
 ```
 
+This first version was a single-run sweep. The current artifact format is
+superseded by Modal Training 008 below, which adds repeats, seeded shuffle, and
+per-repeat CSV output.
+
 Override the grid:
 
 ```bash
@@ -735,11 +739,120 @@ we claim stable performance curves.
 
 ## Next Step
 
-Add repeat support to `vllm-sweep`:
+Training 008 adds repeat support and turns this from a first benchmark table
+into a more defensible experiment.
 
-- run each scenario `N` times after warmup
-- randomize scenario order with a fixed seed
-- save median, p95, min, max, and coefficient of variation
-- separate cold-prefix and prefix-cache-enabled sweeps
+# Modal Training 008: Repeated vLLM Sweep
 
-That turns this from a first benchmark table into a more defensible experiment.
+## Goal
+
+Make the concurrency/context sweep less dependent on a single run order. The
+same 16 scenarios now run with:
+
+- `3` measured repeats per scenario
+- seeded random scenario order with seed `568`
+- one aggregate CSV row per scenario
+- one run-level CSV row per measured scenario execution
+- median, p95, min, max, mean, and coefficient of variation across repeats
+
+This is still not a statistically complete benchmark, but it is a meaningful
+upgrade from one measurement per scenario.
+
+## Command
+
+```bash
+modal run modal_app.py --mode vllm-sweep --repeats 3 --scenario-seed 568
+```
+
+The current repeated artifact writes:
+
+```text
+results/modal-vllm-sweep/vllm-sweep.json
+results/modal-vllm-sweep/vllm-sweep.csv
+results/modal-vllm-sweep/vllm-sweep-runs.csv
+```
+
+## Method Changes
+
+The engine settings are still:
+
+- `max_model_len=1024`
+- `max_num_batched_tokens=8192`
+- `max_num_seqs=8`
+- `gpu_memory_utilization=0.50`
+- `enable_prefix_caching=False`
+- `enforce_eager=True`
+
+The run still performs one-token shape warmups before measurement. After warmup,
+it expands the scenario grid into `48` measured runs and shuffles that run plan
+with seed `568`.
+
+## Runtime Observations
+
+The repeated sweep logged:
+
+- FlashInfer selected as the attention backend on T4.
+- vLLM reported `6.88 GiB` available KV-cache memory.
+- vLLM reported `320,400` GPU KV-cache tokens.
+- vLLM reported maximum concurrency of `312.89x` for `1024` tokens/request.
+- Engine initialization took `156.93 s`.
+- Shape warmup generated `60` tokens across `16` scenarios in `1765.127 ms`.
+
+## Repeated Result: 32 Output Tokens
+
+Median values across three repeats:
+
+| Profile | Requests | Prompt tokens mean | Peak sequence tokens | Median output tok/s | Median p95 first chunk ms | Median p95 latency ms | Throughput CV | Latency CV |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| short | 1 | 44.00 | 76 | 44.118 | 43.641 | 725.110 | 0.043 | 0.042 |
+| short | 2 | 43.50 | 151 | 82.016 | 80.396 | 779.962 | 0.090 | 0.092 |
+| short | 4 | 43.25 | 301 | 172.321 | 75.088 | 742.276 | 0.093 | 0.099 |
+| short | 8 | 45.25 | 618 | 328.727 | 86.379 | 778.291 | 0.052 | 0.053 |
+| long | 1 | 118.00 | 150 | 42.429 | 57.854 | 753.957 | 0.040 | 0.039 |
+| long | 2 | 117.50 | 299 | 79.287 | 83.727 | 806.955 | 0.041 | 0.040 |
+| long | 4 | 117.25 | 597 | 156.908 | 86.116 | 815.424 | 0.148 | 0.158 |
+| long | 8 | 119.25 | 1210 | 273.144 | 118.478 | 936.751 | 0.072 | 0.076 |
+
+## Repeated Result: 16 Output Tokens
+
+Median values across three repeats:
+
+| Profile | Requests | Prompt tokens mean | Peak sequence tokens | Median output tok/s | Median p95 first chunk ms | Median p95 latency ms | Throughput CV | Latency CV |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| short | 1 | 44.00 | 60 | 43.182 | 46.923 | 368.175 | 0.102 | 0.099 |
+| short | 2 | 43.50 | 119 | 72.647 | 82.545 | 440.167 | 0.372 | 0.505 |
+| short | 4 | 43.25 | 237 | 118.524 | 135.904 | 538.787 | 0.103 | 0.097 |
+| short | 8 | 45.25 | 490 | 290.304 | 88.002 | 440.269 | 0.027 | 0.026 |
+| long | 1 | 118.00 | 134 | 42.336 | 48.847 | 377.738 | 0.013 | 0.013 |
+| long | 2 | 117.50 | 267 | 79.005 | 66.483 | 404.736 | 0.065 | 0.062 |
+| long | 4 | 117.25 | 533 | 144.310 | 94.868 | 443.163 | 0.034 | 0.034 |
+| long | 8 | 119.25 | 1082 | 299.199 | 77.761 | 426.862 | 0.049 | 0.046 |
+
+## Interpretation
+
+The repeated `32` token results still show the main serving-engine effect:
+throughput rises with concurrency while latency grows much more slowly than
+throughput. For short prompts, median throughput moves from `44.118` to
+`328.727` output tokens/sec from one to eight concurrent requests. For long
+prompts, it moves from `42.429` to `273.144`.
+
+The repeat data also weakens the overly clean single-run story. Long prompts at
+`8` concurrent requests now have higher median p95 latency than the short
+profile: `936.751 ms` versus `778.291 ms`. That is the shape we expected to see
+as live sequence tokens grow.
+
+The coefficient of variation fields are now the most useful benchmark-quality
+signal. `short_out16_n2` is unstable with throughput CV `0.372` and latency CV
+`0.505`, so that scenario should not be used for conclusions without more
+repeats. The `32` token cases are generally more stable, though `long_out32_n4`
+still has visible variance.
+
+## Next Step
+
+Add a paired prefix-cache sweep:
+
+- run the same repeated grid with `enable_prefix_caching=True`
+- keep the current cold-prefix sweep as the control
+- compare first chunk, latency, and throughput deltas
+- explicitly document where repeated prompts make prefix caching a feature
+  rather than a confounder

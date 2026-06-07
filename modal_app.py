@@ -26,6 +26,8 @@ DEFAULT_VLLM_SWEEP_OUTPUT = "results/modal-vllm-sweep"
 DEFAULT_VLLM_SWEEP_REQUEST_COUNTS = "1,2,4,8"
 DEFAULT_VLLM_SWEEP_PROMPT_PROFILES = "short,long"
 DEFAULT_VLLM_SWEEP_OUTPUT_TOKENS = "16,32"
+DEFAULT_VLLM_SWEEP_REPEATS = 3
+DEFAULT_VLLM_SWEEP_SEED = 568
 DEFAULT_HF_MODEL = "HuggingFaceTB/SmolLM2-135M-Instruct"
 DEFAULT_INFERENCE_PROMPT = "Explain KV cache in LLM inference in two concise sentences."
 DEFAULT_CONCURRENT_PROMPTS = (
@@ -782,9 +784,12 @@ def run_vllm_sweep_remote(
     request_counts: str = DEFAULT_VLLM_SWEEP_REQUEST_COUNTS,
     prompt_profiles: str = DEFAULT_VLLM_SWEEP_PROMPT_PROFILES,
     output_tokens: str = DEFAULT_VLLM_SWEEP_OUTPUT_TOKENS,
+    repeats: int = DEFAULT_VLLM_SWEEP_REPEATS,
+    scenario_seed: int = DEFAULT_VLLM_SWEEP_SEED,
 ) -> dict[str, Any]:
     import asyncio
     import platform
+    import random
     import time
 
     from transformers import AutoTokenizer
@@ -796,6 +801,8 @@ def run_vllm_sweep_remote(
     request_count_values = _split_positive_int_csv(request_counts, "request_counts")
     prompt_profile_values = [profile.lower() for profile in _split_csv(prompt_profiles)]
     output_token_values = _split_positive_int_csv(output_tokens, "output_tokens")
+    if repeats <= 0:
+        raise ValueError("repeats must be positive")
     for profile in prompt_profile_values:
         if profile not in {"short", "long", "mixed"}:
             raise ValueError("prompt_profiles must contain only short, long, or mixed")
@@ -876,6 +883,7 @@ def run_vllm_sweep_remote(
 
         async def stream_one(
             scenario_id: str,
+            run_id: str,
             record: dict[str, Any],
             sampling_params: Any,
             batch_started: float,
@@ -888,7 +896,7 @@ def run_vllm_sweep_remote(
             chunk_count = 0
 
             async for output in engine.generate(
-                request_id=f"{scenario_id}-{record['request_id']}",
+                request_id=f"{run_id}-{scenario_id}-{record['request_id']}",
                 prompt=record["formatted_prompt"],
                 sampling_params=sampling_params,
             ):
@@ -976,17 +984,23 @@ def run_vllm_sweep_remote(
                 "generated_tokens": generated_tokens,
             }
 
-        async def run_scenario(spec: dict[str, Any]) -> dict[str, Any]:
+        async def run_scenario(
+            spec: dict[str, Any],
+            repeat_index: int,
+            run_order: int,
+        ) -> dict[str, Any]:
             sampling_params = SamplingParams(
                 max_tokens=spec["max_new_tokens"],
                 temperature=0.0,
                 output_kind=RequestOutputKind.DELTA,
             )
+            run_id = f"rep{repeat_index:02d}-run{run_order:03d}"
             batch_started = time.perf_counter()
             request_results = await asyncio.gather(
                 *(
                     stream_one(
                         spec["scenario_id"],
+                        run_id,
                         record,
                         sampling_params,
                         batch_started,
@@ -997,6 +1011,9 @@ def run_vllm_sweep_remote(
             batch_wall_ms = (time.perf_counter() - batch_started) * 1000
             summary = _summarize_stream_requests(request_results, batch_wall_ms)
             return {
+                "run_id": run_id,
+                "repeat_index": repeat_index,
+                "run_order": run_order,
                 "scenario_id": spec["scenario_id"],
                 "prompt_profile": spec["prompt_profile"],
                 "request_count": spec["request_count"],
@@ -1015,16 +1032,27 @@ def run_vllm_sweep_remote(
 
         try:
             warmup_result = await run_warmup()
-            scenario_results = []
-            for spec in scenario_specs:
-                scenario_results.append(await run_scenario(spec))
+            scenario_plan = []
+            for repeat_index in range(repeats):
+                for spec in scenario_specs:
+                    scenario_plan.append((repeat_index, spec))
+            random.Random(scenario_seed).shuffle(scenario_plan)
+            scenario_runs = []
+            for run_order, (repeat_index, spec) in enumerate(scenario_plan):
+                scenario_runs.append(
+                    await run_scenario(
+                        spec,
+                        repeat_index=repeat_index,
+                        run_order=run_order,
+                    )
+                )
         finally:
             engine.shutdown()
 
         return {
             "engine_load_ms": engine_load_ms,
             "warmup": warmup_result,
-            "scenarios": scenario_results,
+            "scenario_runs": scenario_runs,
         }
 
     sweep_result = asyncio.run(run_streaming_sweep())
@@ -1038,7 +1066,8 @@ def run_vllm_sweep_remote(
         ]
     )
 
-    scenarios = sweep_result["scenarios"]
+    scenario_runs = sweep_result["scenario_runs"]
+    scenarios = _aggregate_vllm_sweep_scenarios(scenario_specs, scenario_runs)
     return {
         "schema_version": 1,
         "execution": "modal",
@@ -1048,7 +1077,10 @@ def run_vllm_sweep_remote(
         "request_counts": request_count_values,
         "prompt_profiles": prompt_profile_values,
         "output_tokens": output_token_values,
+        "repeats": int(repeats),
+        "scenario_seed": int(scenario_seed),
         "scenario_count": len(scenarios),
+        "scenario_run_count": len(scenario_runs),
         "max_model_len": max_model_len,
         "max_num_batched_tokens": max_num_batched_tokens,
         "max_num_seqs": max_request_count,
@@ -1059,13 +1091,15 @@ def run_vllm_sweep_remote(
         "engine_load_ms": sweep_result["engine_load_ms"],
         "warmup": sweep_result["warmup"],
         "summary": _vllm_sweep_summary_rows(scenarios),
+        "run_summary": _vllm_sweep_run_rows(scenario_runs),
         "scenarios": scenarios,
+        "scenario_runs": scenario_runs,
         "vllm_version": str(vllm.__version__),
         "platform": platform.platform(),
         "python_version": platform.python_version(),
         "nvidia_smi_before": nvidia_smi_before,
         "nvidia_smi_after": nvidia_smi_after,
-        "note": "One loaded AsyncLLM engine runs a grid over request count, prompt profile, and output token budget after one-token shape warmups with prefix caching disabled.",
+        "note": "One loaded AsyncLLM engine runs a seeded, repeated, shuffled grid over request count, prompt profile, and output token budget after one-token shape warmups with prefix caching disabled.",
     }
 
 
@@ -1084,6 +1118,8 @@ def main(
     request_counts: str = DEFAULT_VLLM_SWEEP_REQUEST_COUNTS,
     prompt_profiles: str = DEFAULT_VLLM_SWEEP_PROMPT_PROFILES,
     output_tokens: str = DEFAULT_VLLM_SWEEP_OUTPUT_TOKENS,
+    repeats: int = DEFAULT_VLLM_SWEEP_REPEATS,
+    scenario_seed: int = DEFAULT_VLLM_SWEEP_SEED,
     output_dir: str = "",
 ) -> None:
     if mode == "gpu-probe":
@@ -1184,20 +1220,28 @@ def main(
             request_counts=request_counts,
             prompt_profiles=prompt_profiles,
             output_tokens=output_tokens,
+            repeats=repeats,
+            scenario_seed=scenario_seed,
         )
         output_path = Path(output_dir or DEFAULT_VLLM_SWEEP_OUTPUT)
         output_path.mkdir(parents=True, exist_ok=True)
         json_path = output_path / "vllm-sweep.json"
         csv_path = output_path / "vllm-sweep.csv"
+        run_csv_path = output_path / "vllm-sweep-runs.csv"
         json_path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
         _write_records_csv(csv_path, payload["summary"])
+        _write_records_csv(run_csv_path, payload["run_summary"])
 
         print(f"model: {payload['model_id']}")
         print(f"backend: {payload['backend']} {payload['vllm_version']}")
         print(f"scenarios: {payload['scenario_count']}")
+        print(f"scenario_runs: {payload['scenario_run_count']}")
+        print(f"repeats: {payload['repeats']}")
+        print(f"scenario_seed: {payload['scenario_seed']}")
         print(f"max_num_seqs: {payload['max_num_seqs']}")
         print(f"json: {json_path}")
         print(f"csv: {csv_path}")
+        print(f"runs_csv: {run_csv_path}")
         return
 
     if mode != "sweep":
@@ -1317,8 +1361,102 @@ def _summarize_stream_requests(
     }
 
 
+def _aggregate_vllm_sweep_scenarios(
+    scenario_specs: list[dict[str, Any]],
+    scenario_runs: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    runs_by_scenario: dict[str, list[dict[str, Any]]] = {}
+    for run in scenario_runs:
+        runs_by_scenario.setdefault(run["scenario_id"], []).append(run)
+
+    scenarios = []
+    for spec in scenario_specs:
+        runs = sorted(
+            runs_by_scenario.get(spec["scenario_id"], []),
+            key=lambda run: (run["repeat_index"], run["run_order"]),
+        )
+        scenario: dict[str, Any] = {
+            "scenario_id": spec["scenario_id"],
+            "prompt_profile": spec["prompt_profile"],
+            "request_count": spec["request_count"],
+            "max_new_tokens": spec["max_new_tokens"],
+            "prompt_format": spec["prompt_format"],
+            "prompt_tokens_min": spec["prompt_tokens_min"],
+            "prompt_tokens_max": spec["prompt_tokens_max"],
+            "prompt_tokens_mean": spec["prompt_tokens_mean"],
+            "total_prompt_tokens": spec["total_prompt_tokens"],
+            "repeats": len(runs),
+            "repeat_indices": [run["repeat_index"] for run in runs],
+            "run_orders": [run["run_order"] for run in runs],
+        }
+        for field in (
+            "estimated_peak_sequence_tokens",
+            "batch_wall_ms",
+            "total_output_tokens",
+            "aggregate_output_tokens_per_second",
+            "p50_first_chunk_ms",
+            "p95_first_chunk_ms",
+            "p50_latency_ms",
+            "p95_latency_ms",
+            "p50_stream_tpot_ms",
+            "p95_stream_tpot_ms",
+        ):
+            scenario.update(_metric_distribution(runs, field))
+        scenarios.append(scenario)
+    return scenarios
+
+
 def _vllm_sweep_summary_rows(scenarios: list[dict[str, Any]]) -> list[dict[str, Any]]:
     row_fields = (
+        "scenario_id",
+        "prompt_profile",
+        "request_count",
+        "max_new_tokens",
+        "prompt_tokens_min",
+        "prompt_tokens_max",
+        "prompt_tokens_mean",
+        "total_prompt_tokens",
+        "repeats",
+        "estimated_peak_sequence_tokens_median",
+        "estimated_peak_sequence_tokens_p95",
+        "batch_wall_ms_median",
+        "batch_wall_ms_p95",
+        "batch_wall_ms_min",
+        "batch_wall_ms_max",
+        "batch_wall_ms_cv",
+        "total_output_tokens_median",
+        "aggregate_output_tokens_per_second_median",
+        "aggregate_output_tokens_per_second_p95",
+        "aggregate_output_tokens_per_second_min",
+        "aggregate_output_tokens_per_second_max",
+        "aggregate_output_tokens_per_second_cv",
+        "p95_first_chunk_ms_median",
+        "p95_first_chunk_ms_p95",
+        "p95_first_chunk_ms_min",
+        "p95_first_chunk_ms_max",
+        "p95_first_chunk_ms_cv",
+        "p95_latency_ms_median",
+        "p95_latency_ms_p95",
+        "p95_latency_ms_min",
+        "p95_latency_ms_max",
+        "p95_latency_ms_cv",
+        "p95_stream_tpot_ms_median",
+        "p95_stream_tpot_ms_p95",
+        "p95_stream_tpot_ms_min",
+        "p95_stream_tpot_ms_max",
+        "p95_stream_tpot_ms_cv",
+    )
+    return [
+        {field: scenario.get(field) for field in row_fields}
+        for scenario in scenarios
+    ]
+
+
+def _vllm_sweep_run_rows(scenario_runs: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    row_fields = (
+        "run_id",
+        "repeat_index",
+        "run_order",
         "scenario_id",
         "prompt_profile",
         "request_count",
@@ -1339,9 +1477,43 @@ def _vllm_sweep_summary_rows(scenarios: list[dict[str, Any]]) -> list[dict[str, 
         "p95_stream_tpot_ms",
     )
     return [
-        {field: scenario.get(field) for field in row_fields}
-        for scenario in scenarios
+        {field: run.get(field) for field in row_fields}
+        for run in sorted(scenario_runs, key=lambda run: run["run_order"])
     ]
+
+
+def _metric_distribution(
+    records: list[dict[str, Any]],
+    field: str,
+) -> dict[str, float | int | None]:
+    values = [
+        float(record[field])
+        for record in records
+        if record.get(field) is not None
+    ]
+    if not values:
+        return {
+            f"{field}_count": 0,
+            f"{field}_min": None,
+            f"{field}_max": None,
+            f"{field}_mean": None,
+            f"{field}_median": None,
+            f"{field}_p95": None,
+            f"{field}_cv": None,
+        }
+
+    mean_value = sum(values) / len(values)
+    variance = sum((value - mean_value) ** 2 for value in values) / len(values)
+    stddev = variance**0.5
+    return {
+        f"{field}_count": len(values),
+        f"{field}_min": min(values),
+        f"{field}_max": max(values),
+        f"{field}_mean": mean_value,
+        f"{field}_median": _percentile(values, 50),
+        f"{field}_p95": _percentile(values, 95),
+        f"{field}_cv": stddev / mean_value if mean_value else None,
+    }
 
 
 def _model_config_path(name: str, root: Path = ROOT) -> Path:

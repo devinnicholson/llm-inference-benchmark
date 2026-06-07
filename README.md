@@ -133,6 +133,12 @@ Run the first Modal vLLM concurrency/context sweep:
 modal run modal_app.py --mode vllm-sweep
 ```
 
+Run the repeated sweep with an explicit shuffle seed:
+
+```bash
+modal run modal_app.py --mode vllm-sweep --repeats 3 --scenario-seed 568
+```
+
 Modal training is documented in
 [`docs/modal-training.md`](docs/modal-training.md).
 
