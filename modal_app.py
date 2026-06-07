@@ -19,9 +19,11 @@ DEFAULT_POLICIES = "deadline,memory-aware-deadline"
 DEFAULT_SWEEP_OUTPUT = "results/modal-training-smoke"
 DEFAULT_GPU_PROBE_OUTPUT = "results/modal-gpu-probe"
 DEFAULT_INFERENCE_OUTPUT = "results/modal-tiny-inference"
+DEFAULT_VLLM_OUTPUT = "results/modal-vllm-inference"
 DEFAULT_HF_MODEL = "HuggingFaceTB/SmolLM2-135M-Instruct"
 DEFAULT_INFERENCE_PROMPT = "Explain KV cache in LLM inference in two concise sentences."
 HF_CACHE_PATH = "/cache"
+VLLM_CACHE_PATH = "/vllm-cache"
 
 image = (
     modal.Image.debian_slim(python_version="3.12")
@@ -35,7 +37,20 @@ inference_image = (
     .uv_pip_install("accelerate", "numpy", "safetensors", "torch", "transformers")
     .env({"HF_HOME": HF_CACHE_PATH})
 )
+vllm_image = (
+    modal.Image.from_registry("nvidia/cuda:12.9.0-devel-ubuntu22.04", add_python="3.12")
+    .entrypoint([])
+    .uv_pip_install("vllm==0.21.0", "huggingface-hub==0.36.0")
+    .env(
+        {
+            "HF_HOME": HF_CACHE_PATH,
+            "HF_XET_HIGH_PERFORMANCE": "1",
+            "VLLM_CACHE_ROOT": VLLM_CACHE_PATH,
+        }
+    )
+)
 hf_cache_volume = modal.Volume.from_name("llmbench-hf-cache", create_if_missing=True)
+vllm_cache_volume = modal.Volume.from_name("llmbench-vllm-cache", create_if_missing=True)
 app = modal.App(name="llmbench-modal-training", image=image)
 
 
@@ -250,6 +265,122 @@ def run_tiny_inference_remote(
     }
 
 
+@app.function(
+    image=vllm_image,
+    gpu="T4",
+    timeout=1200,
+    volumes={HF_CACHE_PATH: hf_cache_volume, VLLM_CACHE_PATH: vllm_cache_volume},
+)
+def run_vllm_inference_remote(
+    hf_model: str = DEFAULT_HF_MODEL,
+    prompt: str = DEFAULT_INFERENCE_PROMPT,
+    max_new_tokens: int = 32,
+) -> dict[str, Any]:
+    import platform
+    import time
+
+    from transformers import AutoTokenizer
+    from vllm import LLM, SamplingParams
+
+    if max_new_tokens <= 0:
+        raise ValueError("max_new_tokens must be positive")
+
+    import vllm
+
+    nvidia_smi_before = _run_command(
+        [
+            "nvidia-smi",
+            "--query-gpu=name,memory.total,memory.free,driver_version",
+            "--format=csv,noheader,nounits",
+        ]
+    )
+
+    started = time.perf_counter()
+    tokenizer = AutoTokenizer.from_pretrained(hf_model)
+    tokenizer_load_ms = (time.perf_counter() - started) * 1000
+
+    started = time.perf_counter()
+    formatted_prompt, prompt_format = _format_prompt_for_generation(tokenizer, prompt)
+    prompt_format_ms = (time.perf_counter() - started) * 1000
+    prompt_tokens = len(tokenizer.encode(formatted_prompt))
+
+    started = time.perf_counter()
+    llm = LLM(
+        model=hf_model,
+        dtype="half",
+        max_model_len=1024,
+        max_num_batched_tokens=1024,
+        max_num_seqs=1,
+        gpu_memory_utilization=0.50,
+        enforce_eager=True,
+        trust_remote_code=False,
+    )
+    engine_load_ms = (time.perf_counter() - started) * 1000
+
+    sampling_params = SamplingParams(
+        max_tokens=max_new_tokens,
+        temperature=0.0,
+    )
+    started = time.perf_counter()
+    outputs = llm.generate([formatted_prompt], sampling_params, use_tqdm=False)
+    generate_wall_ms = (time.perf_counter() - started) * 1000
+
+    output = outputs[0]
+    completion = output.outputs[0]
+    generated_text = completion.text
+    generated_token_ids = list(completion.token_ids)
+    generated_tokens = len(generated_token_ids)
+    metrics = _serialize_vllm_metrics(output)
+
+    hf_cache_volume.commit()
+    vllm_cache_volume.commit()
+    nvidia_smi_after = _run_command(
+        [
+            "nvidia-smi",
+            "--query-gpu=name,memory.total,memory.free,driver_version",
+            "--format=csv,noheader,nounits",
+        ]
+    )
+
+    metric_ttft_ms = _duration_from_metrics_ms(metrics, "arrival_time", "first_token_time")
+    metric_total_ms = _duration_from_metrics_ms(metrics, "arrival_time", "finished_time")
+    metric_decode_ms = _duration_from_metrics_ms(metrics, "first_token_time", "finished_time")
+    decode_tokens = max(generated_tokens - 1, 0)
+
+    return {
+        "schema_version": 1,
+        "execution": "modal",
+        "mode": "vllm-inference",
+        "backend": "vllm",
+        "model_id": hf_model,
+        "prompt": prompt,
+        "prompt_format": prompt_format,
+        "prompt_tokens": prompt_tokens,
+        "max_new_tokens": int(max_new_tokens),
+        "generated_tokens": generated_tokens,
+        "generated_text": generated_text,
+        "max_model_len": 1024,
+        "max_num_batched_tokens": 1024,
+        "max_num_seqs": 1,
+        "tokenizer_load_ms": tokenizer_load_ms,
+        "prompt_format_ms": prompt_format_ms,
+        "engine_load_ms": engine_load_ms,
+        "generate_wall_ms": generate_wall_ms,
+        "output_tokens_per_second": generated_tokens / max(generate_wall_ms / 1000, 1e-9),
+        "metric_ttft_ms": metric_ttft_ms,
+        "metric_decode_ms": metric_decode_ms,
+        "metric_total_ms": metric_total_ms,
+        "metric_tpot_ms": metric_decode_ms / decode_tokens if metric_decode_ms and decode_tokens else None,
+        "vllm_version": str(vllm.__version__),
+        "platform": platform.platform(),
+        "python_version": platform.python_version(),
+        "nvidia_smi_before": nvidia_smi_before,
+        "nvidia_smi_after": nvidia_smi_after,
+        "vllm_metrics": metrics,
+        "note": "Offline vLLM generate path; streaming TTFT will be measured in a later server-mode run.",
+    }
+
+
 @app.local_entrypoint()
 def main(
     mode: str = "sweep",
@@ -294,8 +425,30 @@ def main(
         print(f"json: {json_path}")
         return
 
+    if mode == "vllm-inference":
+        payload = run_vllm_inference_remote.remote(
+            hf_model=hf_model,
+            prompt=prompt,
+            max_new_tokens=max_new_tokens,
+        )
+        output_path = Path(output_dir or DEFAULT_VLLM_OUTPUT)
+        output_path.mkdir(parents=True, exist_ok=True)
+        json_path = output_path / "vllm-inference.json"
+        json_path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+
+        print(f"model: {payload['model_id']}")
+        print(f"backend: {payload['backend']} {payload['vllm_version']}")
+        print(f"generate_wall_ms: {payload['generate_wall_ms']:.3f}")
+        print(f"output_tokens_per_second: {payload['output_tokens_per_second']:.3f}")
+        if payload.get("metric_ttft_ms") is not None:
+            print(f"metric_ttft_ms: {payload['metric_ttft_ms']:.3f}")
+        print(f"json: {json_path}")
+        return
+
     if mode != "sweep":
-        raise ValueError("mode must be 'sweep', 'gpu-probe', or 'tiny-inference'")
+        raise ValueError(
+            "mode must be 'sweep', 'gpu-probe', 'tiny-inference', or 'vllm-inference'"
+        )
 
     payload = run_capacity_sweep_remote.remote(
         workload=workload,
@@ -361,6 +514,20 @@ def _tokenize_prompt(tokenizer: Any, prompt: str) -> tuple[dict[str, Any], str]:
     return tokenizer(prompt, return_tensors="pt"), "plain"
 
 
+def _format_prompt_for_generation(tokenizer: Any, prompt: str) -> tuple[str, str]:
+    if getattr(tokenizer, "chat_template", None):
+        messages = [{"role": "user", "content": prompt}]
+        return (
+            tokenizer.apply_chat_template(
+                messages,
+                add_generation_prompt=True,
+                tokenize=False,
+            ),
+            "chat_template",
+        )
+    return prompt, "plain"
+
+
 def _manual_greedy_decode(
     model: Any,
     inputs: dict[str, Any],
@@ -422,6 +589,39 @@ def _manual_greedy_decode(
 def _synchronize_if_cuda(torch_module: Any) -> None:
     if torch_module.cuda.is_available():
         torch_module.cuda.synchronize()
+
+
+def _serialize_vllm_metrics(output: Any) -> dict[str, float | None]:
+    metrics = getattr(output, "metrics", None)
+    if metrics is None:
+        return {}
+    metric_names = (
+        "arrival_time",
+        "first_scheduled_time",
+        "first_token_time",
+        "last_token_time",
+        "finished_time",
+        "scheduler_time",
+        "model_forward_time",
+        "model_execute_time",
+    )
+    result: dict[str, float | None] = {}
+    for name in metric_names:
+        value = getattr(metrics, name, None)
+        result[name] = float(value) if isinstance(value, int | float) else None
+    return result
+
+
+def _duration_from_metrics_ms(
+    metrics: dict[str, float | None],
+    start_key: str,
+    end_key: str,
+) -> float | None:
+    start = metrics.get(start_key)
+    end = metrics.get(end_key)
+    if start is None or end is None:
+        return None
+    return max(0.0, (end - start) * 1000)
 
 
 def _run_command(command: list[str]) -> str:

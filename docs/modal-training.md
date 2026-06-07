@@ -290,3 +290,101 @@ it makes the next step clear.
 The next training milestone should run the same prompt through a backend with a
 serving-oriented scheduler and paged/block KV cache, then compare measurement
 fields against this raw Transformers baseline.
+
+# Modal Training 004: vLLM Baseline
+
+## Goal
+
+Run the same prompt through vLLM, a serving-oriented inference engine, and
+compare the result against the raw Transformers baseline.
+
+This is still not an online serving benchmark. It uses vLLM's offline
+`LLM.generate` path first because that is the smallest reliable bridge from a
+single-request Transformers loop to a backend with paged KV cache, chunked
+prefill, prefix caching, and scheduler configuration.
+
+## Command
+
+```bash
+modal run modal_app.py --mode vllm-inference
+```
+
+The first committed vLLM result is:
+
+```text
+results/modal-vllm-inference/vllm-inference.json
+```
+
+## Modal Pieces Learned
+
+This milestone adds:
+
+- a CUDA 12.9 vLLM image based on `nvidia/cuda:12.9.0-devel-ubuntu22.04`
+- `vllm==0.21.0`
+- a separate Modal Volume for vLLM cache artifacts
+- `VLLM_CACHE_ROOT=/vllm-cache`
+- a `vllm-inference` local entrypoint mode
+- a constrained smoke-test vLLM config:
+  - `max_model_len=1024`
+  - `max_num_batched_tokens=1024`
+  - `max_num_seqs=1`
+  - `gpu_memory_utilization=0.50`
+  - `enforce_eager=True`
+
+## Result
+
+| Field | Transformers manual decode | vLLM offline generate |
+| --- | ---: | ---: |
+| Backend | `transformers` | `vllm 0.21.0` |
+| GPU | `Tesla T4` | `Tesla T4` |
+| Prompt tokens | `43` | `43` |
+| Generated tokens | `32` | `30` |
+| Generation wall time | `1042.356 ms` | `1563.241 ms` |
+| Output tokens/sec | `30.700` | `19.191` |
+| TTFT | `37.221 ms` | not exposed by offline artifact |
+| TPOT | `32.424 ms` | not exposed by offline artifact |
+
+vLLM generated:
+
+```text
+A KV cache in LLM is a data structure that stores the results of a LLM computation, allowing for efficient data retrieval and manipulation.
+```
+
+## vLLM Runtime Observations
+
+The logs are more important than the single-request throughput number:
+
+- vLLM resolved the model architecture as `LlamaForCausalLM`.
+- The model weights were `bfloat16` and were cast to `float16` on T4.
+- FlashAttention 2 was unavailable because T4 compute capability is `7.5`;
+  vLLM selected a FlashInfer attention backend instead.
+- vLLM reported approximately `6.96 GiB` available for KV cache.
+- vLLM reported `324,320` GPU KV-cache tokens.
+- vLLM reported maximum concurrency of `316.72x` for `1024` tokens/request.
+- Engine initialization, including profile, KV-cache creation, and warmup, took
+  `134.47 s`.
+- A Triton kernel JIT compilation happened during inference for
+  `_compute_slot_mapping_kernel`, causing a latency spike.
+
+## Interpretation
+
+For this tiny single-request run, vLLM is slower than the raw Transformers
+manual decode path. That is not surprising. We are paying for a serving engine
+whose advantages show up under batching, concurrency, prefix reuse, and memory
+pressure, not in one short prompt.
+
+This result is still the right next step for the research artifact because it
+gives us a real serving-engine surface:
+
+- explicit scheduler settings
+- KV-cache capacity reporting
+- backend/hardware compatibility behavior
+- warmup and JIT costs
+- a baseline that can be compared against concurrent workloads later
+
+## Next Step
+
+Move from offline `LLM.generate` to a small OpenAI-compatible vLLM server mode
+with streaming enabled. That should let us measure TTFT directly from the first
+streamed token and compare raw Transformers, vLLM offline, and vLLM server
+timing on the same prompt.

@@ -109,6 +109,12 @@ Run the first Modal tiny inference timing:
 modal run modal_app.py --mode tiny-inference
 ```
 
+Run the first Modal vLLM inference baseline:
+
+```bash
+modal run modal_app.py --mode vllm-inference
+```
+
 Modal training is documented in
 [`docs/modal-training.md`](docs/modal-training.md).
 
