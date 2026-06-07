@@ -127,6 +127,12 @@ Run the first OpenAI-compatible vLLM server streaming smoke:
 modal run modal_app.py --mode vllm-server-streaming
 ```
 
+Run the first OpenAI-compatible vLLM server concurrent streaming workload:
+
+```bash
+modal run modal_app.py --mode vllm-server-concurrent
+```
+
 Run the first Modal vLLM concurrent workload:
 
 ```bash

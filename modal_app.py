@@ -24,6 +24,7 @@ DEFAULT_VLLM_STREAMING_OUTPUT = "results/modal-vllm-streaming"
 DEFAULT_VLLM_CONCURRENT_OUTPUT = "results/modal-vllm-concurrent"
 DEFAULT_VLLM_SWEEP_OUTPUT = "results/modal-vllm-sweep"
 DEFAULT_VLLM_SERVER_OUTPUT = "results/modal-vllm-server-streaming"
+DEFAULT_VLLM_SERVER_CONCURRENT_OUTPUT = "results/modal-vllm-server-concurrent"
 DEFAULT_VLLM_PREFIX_CACHE_SWEEP_OUTPUT = "results/modal-vllm-prefix-cache-sweep"
 DEFAULT_VLLM_PREFIX_CACHE_COMPARE_OUTPUT = "results/modal-vllm-prefix-cache-compare"
 DEFAULT_VLLM_SWEEP_REQUEST_COUNTS = "1,2,4,8"
@@ -1347,6 +1348,351 @@ def run_vllm_server_streaming_remote(
     }
 
 
+@app.function(
+    image=vllm_image,
+    gpu="T4",
+    timeout=1800,
+    volumes={HF_CACHE_PATH: hf_cache_volume, VLLM_CACHE_PATH: vllm_cache_volume},
+)
+def run_vllm_server_concurrent_remote(
+    hf_model: str = DEFAULT_HF_MODEL,
+    request_counts: str = DEFAULT_VLLM_SWEEP_REQUEST_COUNTS,
+    prompt_profile: str = "short",
+    max_new_tokens: int = 32,
+    ready_timeout_s: int = 600,
+) -> dict[str, Any]:
+    import asyncio
+    import json
+    import platform
+    import subprocess
+    import threading
+    import time
+
+    import httpx
+    from transformers import AutoTokenizer
+
+    request_count_values = _split_positive_int_csv(request_counts, "request_counts")
+    prompt_profile = prompt_profile.lower()
+    if prompt_profile not in {"short", "long", "mixed"}:
+        raise ValueError("prompt_profile must be short, long, or mixed")
+    if max_new_tokens <= 0:
+        raise ValueError("max_new_tokens must be positive")
+    if ready_timeout_s <= 0:
+        raise ValueError("ready_timeout_s must be positive")
+
+    import vllm
+
+    nvidia_smi_before = _run_command(
+        [
+            "nvidia-smi",
+            "--query-gpu=name,memory.total,memory.free,driver_version",
+            "--format=csv,noheader,nounits",
+        ]
+    )
+
+    started = time.perf_counter()
+    tokenizer = AutoTokenizer.from_pretrained(hf_model)
+    tokenizer_load_ms = (time.perf_counter() - started) * 1000
+
+    scenario_specs = []
+    prompt_format_started = time.perf_counter()
+    for request_count in request_count_values:
+        prompt_records = []
+        for index, prompt in enumerate(_select_sweep_prompts(request_count, prompt_profile)):
+            formatted_prompt, prompt_format = _format_prompt_for_generation(tokenizer, prompt)
+            prompt_records.append(
+                {
+                    "request_id": f"{prompt_profile}-n{request_count}-{index:02d}",
+                    "prompt": prompt,
+                    "formatted_prompt": formatted_prompt,
+                    "prompt_format": prompt_format,
+                    "prompt_tokens": len(tokenizer.encode(formatted_prompt)),
+                }
+            )
+        prompt_tokens = [record["prompt_tokens"] for record in prompt_records]
+        scenario_specs.append(
+            {
+                "scenario_id": f"{prompt_profile}_out{max_new_tokens}_n{request_count}",
+                "prompt_profile": prompt_profile,
+                "request_count": request_count,
+                "max_new_tokens": max_new_tokens,
+                "prompt_format": prompt_records[0]["prompt_format"],
+                "prompt_tokens_min": min(prompt_tokens),
+                "prompt_tokens_max": max(prompt_tokens),
+                "prompt_tokens_mean": sum(prompt_tokens) / len(prompt_tokens),
+                "total_prompt_tokens": sum(prompt_tokens),
+                "prompt_records": prompt_records,
+            }
+        )
+    prompt_format_ms = (time.perf_counter() - prompt_format_started) * 1000
+
+    max_request_count = max(request_count_values)
+    max_model_len = 1024
+    max_num_batched_tokens = max(2048, max_request_count * max_model_len)
+    port = 8000
+    base_url = f"http://127.0.0.1:{port}"
+    command = [
+        "vllm",
+        "serve",
+        hf_model,
+        "--host",
+        "127.0.0.1",
+        "--port",
+        str(port),
+        "--dtype",
+        "half",
+        "--max-model-len",
+        str(max_model_len),
+        "--max-num-batched-tokens",
+        str(max_num_batched_tokens),
+        "--max-num-seqs",
+        str(max_request_count),
+        "--gpu-memory-utilization",
+        "0.50",
+        "--enforce-eager",
+    ]
+
+    server_logs: list[str] = []
+    server_started = time.perf_counter()
+    process = subprocess.Popen(
+        command,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
+        bufsize=1,
+    )
+
+    def drain_logs() -> None:
+        if process.stdout is None:
+            return
+        for line in process.stdout:
+            server_logs.append(line.rstrip())
+
+    log_thread = threading.Thread(target=drain_logs, daemon=True)
+    log_thread.start()
+
+    async def stream_one(
+        scenario_id: str,
+        record: dict[str, Any],
+        batch_started: float,
+    ) -> dict[str, Any]:
+        request_body = {
+            "model": hf_model,
+            "messages": [{"role": "user", "content": record["prompt"]}],
+            "temperature": 0.0,
+            "max_tokens": max_new_tokens,
+            "stream": True,
+            "stream_options": {"include_usage": True},
+        }
+        chunks: list[dict[str, Any]] = []
+        generated_text_parts: list[str] = []
+        usage: dict[str, Any] | None = None
+        response_status_code: int | None = None
+        first_content_ms: float | None = None
+        request_started = time.perf_counter()
+        async with httpx.AsyncClient(timeout=None) as client:
+            async with client.stream(
+                "POST",
+                f"{base_url}/v1/chat/completions",
+                json=request_body,
+                headers={"Accept": "text/event-stream"},
+            ) as response:
+                response_status_code = response.status_code
+                response.raise_for_status()
+                async for line in response.aiter_lines():
+                    if not line.startswith("data: "):
+                        continue
+                    data = line[len("data: ") :]
+                    if data == "[DONE]":
+                        break
+                    event = json.loads(data)
+                    elapsed_ms = (time.perf_counter() - request_started) * 1000
+                    batch_elapsed_ms = (time.perf_counter() - batch_started) * 1000
+                    if event.get("usage") is not None:
+                        usage = event["usage"]
+                    for choice in event.get("choices", []):
+                        delta = choice.get("delta") or {}
+                        content = delta.get("content") or ""
+                        if content and first_content_ms is None:
+                            first_content_ms = elapsed_ms
+                        if content:
+                            generated_text_parts.append(content)
+                        chunks.append(
+                            {
+                                "elapsed_ms": elapsed_ms,
+                                "batch_elapsed_ms": batch_elapsed_ms,
+                                "content": content,
+                                "finish_reason": choice.get("finish_reason"),
+                            }
+                        )
+        request_wall_ms = (time.perf_counter() - request_started) * 1000
+        generated_text = "".join(generated_text_parts)
+        generated_tokens = (
+            int(usage["completion_tokens"])
+            if usage and usage.get("completion_tokens") is not None
+            else len(tokenizer.encode(generated_text, add_special_tokens=False))
+        )
+        prompt_tokens = (
+            int(usage["prompt_tokens"])
+            if usage and usage.get("prompt_tokens") is not None
+            else record["prompt_tokens"]
+        )
+        decode_tokens_after_first = max(generated_tokens - 1, 0)
+        decode_after_first_ms = (
+            request_wall_ms - first_content_ms
+            if first_content_ms is not None
+            else None
+        )
+        return {
+            "request_id": record["request_id"],
+            "scenario_id": scenario_id,
+            "prompt": record["prompt"],
+            "prompt_tokens": prompt_tokens,
+            "prompt_tokens_local_estimate": record["prompt_tokens"],
+            "generated_tokens": generated_tokens,
+            "total_sequence_tokens": prompt_tokens + generated_tokens,
+            "generated_text": generated_text,
+            "response_status_code": response_status_code,
+            "first_content_ms": first_content_ms,
+            "request_wall_ms": request_wall_ms,
+            "decode_after_first_ms": decode_after_first_ms,
+            "stream_tpot_ms": (
+                decode_after_first_ms / decode_tokens_after_first
+                if decode_after_first_ms is not None and decode_tokens_after_first
+                else None
+            ),
+            "chunk_count": len(chunks),
+            "chunks": chunks,
+            "usage": usage,
+        }
+
+    async def run_scenario(spec: dict[str, Any]) -> dict[str, Any]:
+        batch_started = time.perf_counter()
+        request_results = await asyncio.gather(
+            *(
+                stream_one(
+                    spec["scenario_id"],
+                    record,
+                    batch_started,
+                )
+                for record in spec["prompt_records"]
+            )
+        )
+        batch_wall_ms = (time.perf_counter() - batch_started) * 1000
+        total_output_tokens = sum(request["generated_tokens"] for request in request_results)
+        first_contents = [
+            request["first_content_ms"]
+            for request in request_results
+            if request["first_content_ms"] is not None
+        ]
+        latencies = [request["request_wall_ms"] for request in request_results]
+        tpot_values = [
+            request["stream_tpot_ms"]
+            for request in request_results
+            if request["stream_tpot_ms"] is not None
+        ]
+        return {
+            "scenario_id": spec["scenario_id"],
+            "prompt_profile": spec["prompt_profile"],
+            "request_count": spec["request_count"],
+            "max_new_tokens": spec["max_new_tokens"],
+            "prompt_format": spec["prompt_format"],
+            "prompt_tokens_min": spec["prompt_tokens_min"],
+            "prompt_tokens_max": spec["prompt_tokens_max"],
+            "prompt_tokens_mean": spec["prompt_tokens_mean"],
+            "total_prompt_tokens": spec["total_prompt_tokens"],
+            "estimated_peak_sequence_tokens": sum(
+                request["total_sequence_tokens"] for request in request_results
+            ),
+            "batch_wall_ms": batch_wall_ms,
+            "total_output_tokens": total_output_tokens,
+            "aggregate_output_tokens_per_second": total_output_tokens / max(batch_wall_ms / 1000, 1e-9),
+            "p50_first_content_ms": _percentile(first_contents, 50),
+            "p95_first_content_ms": _percentile(first_contents, 95),
+            "p50_latency_ms": _percentile(latencies, 50),
+            "p95_latency_ms": _percentile(latencies, 95),
+            "p50_stream_tpot_ms": _percentile(tpot_values, 50),
+            "p95_stream_tpot_ms": _percentile(tpot_values, 95),
+            "requests": request_results,
+        }
+
+    ready_ms: float | None = None
+    scenarios: list[dict[str, Any]] = []
+    try:
+        with httpx.Client(timeout=2.0) as health_client:
+            while (time.perf_counter() - server_started) < ready_timeout_s:
+                if process.poll() is not None:
+                    raise RuntimeError(
+                        "vLLM server exited before readiness: "
+                        + "\n".join(_tail_lines(server_logs, 40))
+                    )
+                try:
+                    response = health_client.get(f"{base_url}/health")
+                    if response.status_code == 200:
+                        ready_ms = (time.perf_counter() - server_started) * 1000
+                        break
+                except httpx.HTTPError:
+                    pass
+                time.sleep(1.0)
+        if ready_ms is None:
+            raise TimeoutError(
+                "vLLM server did not become ready: "
+                + "\n".join(_tail_lines(server_logs, 40))
+            )
+
+        for spec in scenario_specs:
+            scenarios.append(asyncio.run(run_scenario(spec)))
+    finally:
+        if process.poll() is None:
+            process.terminate()
+            try:
+                process.wait(timeout=20)
+            except subprocess.TimeoutExpired:
+                process.kill()
+                process.wait(timeout=20)
+        log_thread.join(timeout=5)
+
+    hf_cache_volume.commit()
+    vllm_cache_volume.commit()
+    nvidia_smi_after = _run_command(
+        [
+            "nvidia-smi",
+            "--query-gpu=name,memory.total,memory.free,driver_version",
+            "--format=csv,noheader,nounits",
+        ]
+    )
+
+    return {
+        "schema_version": 1,
+        "execution": "modal",
+        "mode": "vllm-server-concurrent",
+        "backend": "vllm-openai-server",
+        "model_id": hf_model,
+        "request_counts": request_count_values,
+        "prompt_profile": prompt_profile,
+        "max_new_tokens": int(max_new_tokens),
+        "scenario_count": len(scenarios),
+        "max_model_len": max_model_len,
+        "max_num_batched_tokens": max_num_batched_tokens,
+        "max_num_seqs": max_request_count,
+        "gpu_memory_utilization": 0.50,
+        "server_ready_ms": ready_ms,
+        "tokenizer_load_ms": tokenizer_load_ms,
+        "prompt_format_ms": prompt_format_ms,
+        "summary": _vllm_server_concurrent_summary_rows(scenarios),
+        "scenarios": scenarios,
+        "server_command": command,
+        "vllm_version": str(vllm.__version__),
+        "platform": platform.platform(),
+        "python_version": platform.python_version(),
+        "nvidia_smi_before": nvidia_smi_before,
+        "nvidia_smi_after": nvidia_smi_after,
+        "server_logs_head": server_logs[:80],
+        "server_logs_tail": _tail_lines(server_logs, 80),
+        "note": "OpenAI-compatible vLLM server concurrent streaming workload using /v1/chat/completions.",
+    }
+
+
 @app.local_entrypoint()
 def main(
     mode: str = "sweep",
@@ -1359,6 +1705,7 @@ def main(
     policies: str = DEFAULT_POLICIES,
     max_new_tokens: int = 32,
     prompt_count: int = 4,
+    prompt_profile: str = "short",
     request_counts: str = DEFAULT_VLLM_SWEEP_REQUEST_COUNTS,
     prompt_profiles: str = DEFAULT_VLLM_SWEEP_PROMPT_PROFILES,
     output_tokens: str = DEFAULT_VLLM_SWEEP_OUTPUT_TOKENS,
@@ -1483,6 +1830,29 @@ def main(
         print(f"json: {json_path}")
         return
 
+    if mode == "vllm-server-concurrent":
+        payload = run_vllm_server_concurrent_remote.remote(
+            hf_model=hf_model,
+            request_counts=request_counts,
+            prompt_profile=prompt_profile,
+            max_new_tokens=max_new_tokens,
+        )
+        output_path = Path(output_dir or DEFAULT_VLLM_SERVER_CONCURRENT_OUTPUT)
+        output_path.mkdir(parents=True, exist_ok=True)
+        json_path = output_path / "vllm-server-concurrent.json"
+        csv_path = output_path / "vllm-server-concurrent.csv"
+        json_path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+        _write_records_csv(csv_path, payload["summary"])
+
+        print(f"model: {payload['model_id']}")
+        print(f"backend: {payload['backend']} {payload['vllm_version']}")
+        print(f"server_ready_ms: {payload['server_ready_ms']:.3f}")
+        print(f"scenarios: {payload['scenario_count']}")
+        print(f"max_num_seqs: {payload['max_num_seqs']}")
+        print(f"json: {json_path}")
+        print(f"csv: {csv_path}")
+        return
+
     if mode == "vllm-sweep":
         enable_prefix_caching = _parse_bool_choice(prefix_caching, "prefix_caching")
         payload = run_vllm_sweep_remote.remote(
@@ -1544,7 +1914,8 @@ def main(
         raise ValueError(
             "mode must be 'sweep', 'gpu-probe', 'tiny-inference', "
             "'vllm-inference', 'vllm-streaming', 'vllm-concurrent', "
-            "'vllm-server-streaming', 'vllm-sweep', or "
+            "'vllm-server-streaming', 'vllm-server-concurrent', "
+            "'vllm-sweep', or "
             "'vllm-prefix-cache-compare'"
         )
 
@@ -1785,6 +2156,35 @@ def _vllm_sweep_run_rows(scenario_runs: list[dict[str, Any]]) -> list[dict[str, 
     return [
         {field: run.get(field) for field in row_fields}
         for run in sorted(scenario_runs, key=lambda run: run["run_order"])
+    ]
+
+
+def _vllm_server_concurrent_summary_rows(
+    scenarios: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    row_fields = (
+        "scenario_id",
+        "prompt_profile",
+        "request_count",
+        "max_new_tokens",
+        "prompt_tokens_min",
+        "prompt_tokens_max",
+        "prompt_tokens_mean",
+        "total_prompt_tokens",
+        "estimated_peak_sequence_tokens",
+        "batch_wall_ms",
+        "total_output_tokens",
+        "aggregate_output_tokens_per_second",
+        "p50_first_content_ms",
+        "p95_first_content_ms",
+        "p50_latency_ms",
+        "p95_latency_ms",
+        "p50_stream_tpot_ms",
+        "p95_stream_tpot_ms",
+    )
+    return [
+        {field: scenario.get(field) for field in row_fields}
+        for scenario in scenarios
     ]
 
 

@@ -1100,13 +1100,116 @@ total tokens.
 
 ## Next Step
 
-Add a server-side concurrent streaming workload against
-`/v1/chat/completions`:
+Training 011 adds a server-side concurrent streaming workload against
+`/v1/chat/completions`.
+
+# Modal Training 011: OpenAI-Compatible vLLM Server Concurrent Streaming
+
+## Goal
+
+Move the server path from a single smoke request to a small concurrency sweep.
+This milestone starts one vLLM OpenAI-compatible server, waits for `/health`,
+then sends `1`, `2`, `4`, and `8` concurrent streaming chat completions through
+`/v1/chat/completions`.
+
+The point is to measure the API-facing version of the same serving questions we
+have been building toward: first-content latency, p95 request latency, TPOT,
+aggregate output throughput, usage accounting, and the server's own KV-cache
+capacity logs.
+
+## Command
+
+```bash
+modal run modal_app.py --mode vllm-server-concurrent
+```
+
+The default prompt profile is `short`. Use `--prompt-profile long` or
+`--prompt-profile mixed` to run the same server path against different prompt
+sets.
+
+The committed result writes:
+
+```text
+results/modal-vllm-server-concurrent/vllm-server-concurrent.json
+results/modal-vllm-server-concurrent/vllm-server-concurrent.csv
+```
+
+## Method
+
+The Modal worker starts:
+
+```bash
+vllm serve HuggingFaceTB/SmolLM2-135M-Instruct \
+  --host 127.0.0.1 \
+  --port 8000 \
+  --dtype half \
+  --max-model-len 1024 \
+  --max-num-batched-tokens 8192 \
+  --max-num-seqs 8 \
+  --gpu-memory-utilization 0.50 \
+  --enforce-eager
+```
+
+The local worker logic then:
 
 - start one vLLM server
 - wait for `/health`
 - send `1`, `2`, `4`, and `8` concurrent streaming chat requests
 - record per-request first content, p95 latency, TPOT, token usage, and aggregate
   throughput
-- compare the API-server path against the in-process `AsyncLLM` concurrent
-  sweep
+- capture server logs around KV-cache capacity, route registration, and request
+  handling
+
+Each request uses `stream=true` and `stream_options.include_usage=true`, so the
+artifact records both client-observed streaming timing and OpenAI-compatible
+usage accounting.
+
+## Runtime Observations
+
+The server run logged:
+
+- vLLM server started on `http://127.0.0.1:8000`.
+- `/health` returned `200 OK`.
+- `/v1/chat/completions` returned `200 OK` for the streamed requests.
+- vLLM reported `6.88 GiB` available KV-cache memory.
+- vLLM reported `320,400` GPU KV-cache tokens.
+- vLLM reported maximum concurrency of `312.89x` for `1024` tokens/request.
+- Engine initialization took `132.00 s`.
+- Server health was ready after `165325.553 ms`.
+- A Triton JIT compilation happened during inference for
+  `_compute_slot_mapping_kernel`.
+
+## Result
+
+| Requests | Peak sequence tokens | Batch wall ms | p95 first content ms | p95 latency ms | p95 TPOT ms | Output tok/s |
+| ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| 1 | 76 | 1590.024 | 1026.232 | 1589.735 | 18.178 | 20.125 |
+| 2 | 151 | 673.024 | 76.884 | 672.887 | 19.870 | 95.093 |
+| 4 | 301 | 663.540 | 99.438 | 663.109 | 18.807 | 192.905 |
+| 8 | 618 | 837.285 | 256.552 | 836.748 | 19.282 | 305.750 |
+
+## Interpretation
+
+The API-server path shows the concurrency effect directly: aggregate throughput
+increases from about `20` output tokens/sec at one request to about `306` output
+tokens/sec at eight concurrent requests.
+
+The single-request first-content number is high because this is the first
+measured server request after readiness and includes post-startup JIT work. The
+later concurrent scenarios have much lower first-content latency. That makes
+scenario order and warmup policy an important methodology issue for any claim
+we make from server-side benchmarks.
+
+At eight concurrent requests, p95 request latency stayed under `837 ms` while
+p95 streaming TPOT stayed near `19 ms`. Compared with the earlier in-process
+`AsyncLLM` repeated prefix-cache sweep, server throughput is lower than the
+`short_out32_n8` median of `375.332` output tokens/sec, but this is not a
+controlled server-vs-in-process comparison. The server path includes HTTP, SSE,
+JSON parsing, one run per scenario, and scenario-order effects.
+
+## Next Step
+
+Add a repeated server concurrent sweep or a matched server-vs-`AsyncLLM`
+comparison with warmup/discard runs, repeated scenarios, and fixed scenario
+ordering. That is the next step before treating the API-server path as a
+benchmark instead of a training milestone.

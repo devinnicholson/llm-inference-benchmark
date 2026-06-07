@@ -1,0 +1,3674 @@
+{
+  "backend": "vllm-openai-server",
+  "execution": "modal",
+  "gpu_memory_utilization": 0.5,
+  "max_model_len": 1024,
+  "max_new_tokens": 32,
+  "max_num_batched_tokens": 8192,
+  "max_num_seqs": 8,
+  "mode": "vllm-server-concurrent",
+  "model_id": "HuggingFaceTB/SmolLM2-135M-Instruct",
+  "note": "OpenAI-compatible vLLM server concurrent streaming workload using /v1/chat/completions.",
+  "nvidia_smi_after": "Tesla T4, 15360, 14913, 580.95.05",
+  "nvidia_smi_before": "Tesla T4, 15360, 14913, 580.95.05",
+  "platform": "Linux-4.4.0-x86_64-with-glibc2.35",
+  "prompt_format_ms": 18.657349999999795,
+  "prompt_profile": "short",
+  "python_version": "3.12.1",
+  "request_counts": [
+    1,
+    2,
+    4,
+    8
+  ],
+  "scenario_count": 4,
+  "scenarios": [
+    {
+      "aggregate_output_tokens_per_second": 20.125482294054308,
+      "batch_wall_ms": 1590.024007000011,
+      "estimated_peak_sequence_tokens": 76,
+      "max_new_tokens": 32,
+      "p50_first_content_ms": 1026.2321710000037,
+      "p50_latency_ms": 1589.7348620000002,
+      "p50_stream_tpot_ms": 18.17750616129021,
+      "p95_first_content_ms": 1026.2321710000037,
+      "p95_latency_ms": 1589.7348620000002,
+      "p95_stream_tpot_ms": 18.17750616129021,
+      "prompt_format": "chat_template",
+      "prompt_profile": "short",
+      "prompt_tokens_max": 44,
+      "prompt_tokens_mean": 44.0,
+      "prompt_tokens_min": 44,
+      "request_count": 1,
+      "requests": [
+        {
+          "chunk_count": 32,
+          "chunks": [
+            {
+              "batch_elapsed_ms": 1026.2922890000254,
+              "content": "",
+              "elapsed_ms": 1026.1723460000098,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 1026.3510670000073,
+              "content": "In",
+              "elapsed_ms": 1026.2321710000037,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 1045.335797000007,
+              "content": " L",
+              "elapsed_ms": 1045.2165739999941,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 1063.4045220000132,
+              "content": "LM",
+              "elapsed_ms": 1063.2853950000083,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 1084.326620000013,
+              "content": " serving",
+              "elapsed_ms": 1084.2071099999941,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 1102.960851000006,
+              "content": ",",
+              "elapsed_ms": 1102.8415879999898,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 1121.3549640000053,
+              "content": " K",
+              "elapsed_ms": 1121.2357009999891,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 1142.414307000024,
+              "content": "V",
+              "elapsed_ms": 1142.2946149999973,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 1161.5930170000013,
+              "content": " (",
+              "elapsed_ms": 1161.473989000001,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 1179.9788890000116,
+              "content": "K",
+              "elapsed_ms": 1179.8599230000093,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 1198.3664890000227,
+              "content": "ernel",
+              "elapsed_ms": 1198.2471529999827,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 1217.015967000009,
+              "content": " Volume",
+              "elapsed_ms": 1216.8964070000072,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 1234.6826360000023,
+              "content": ")",
+              "elapsed_ms": 1234.563602999998,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 1253.288212000001,
+              "content": " pressure",
+              "elapsed_ms": 1253.1689319999941,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 1271.6675000000066,
+              "content": " is",
+              "elapsed_ms": 1271.5483769999878,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 1289.7949520000225,
+              "content": " the",
+              "elapsed_ms": 1289.6760289999918,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 1308.0298570000082,
+              "content": " amount",
+              "elapsed_ms": 1307.9102279999972,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 1325.7226120000212,
+              "content": " of",
+              "elapsed_ms": 1325.603502000007,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 1344.1492160000053,
+              "content": " data",
+              "elapsed_ms": 1344.0302660000043,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 1362.3390600000107,
+              "content": " that",
+              "elapsed_ms": 1362.2197660000097,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 1380.5553840000186,
+              "content": " needs",
+              "elapsed_ms": 1380.4358730000104,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 1398.6245710000276,
+              "content": " to",
+              "elapsed_ms": 1398.505140999987,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 1416.7226590000155,
+              "content": " be",
+              "elapsed_ms": 1416.603221999992,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 1434.9184020000223,
+              "content": " processed",
+              "elapsed_ms": 1434.799236999993,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 1455.26737900002,
+              "content": " per",
+              "elapsed_ms": 1455.1483269999892,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 1474.1610480000134,
+              "content": " second",
+              "elapsed_ms": 1474.0417719999925,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 1492.5346750000017,
+              "content": ".",
+              "elapsed_ms": 1492.4150409999868,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 1510.931759000016,
+              "content": " It",
+              "elapsed_ms": 1510.8127889999992,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 1531.3407280000035,
+              "content": " is",
+              "elapsed_ms": 1531.2214930000039,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 1549.1043950000005,
+              "content": " a",
+              "elapsed_ms": 1548.9853899999844,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 1568.3204990000092,
+              "content": " measure",
+              "elapsed_ms": 1568.201221999999,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 1589.1141419999997,
+              "content": " of the",
+              "elapsed_ms": 1588.9944689999993,
+              "finish_reason": "length"
+            }
+          ],
+          "decode_after_first_ms": 563.5026909999965,
+          "first_content_ms": 1026.2321710000037,
+          "generated_text": "In LLM serving, KV (Kernel Volume) pressure is the amount of data that needs to be processed per second. It is a measure of the",
+          "generated_tokens": 32,
+          "prompt": "Explain KV cache pressure in LLM serving in two concise sentences.",
+          "prompt_tokens": 44,
+          "prompt_tokens_local_estimate": 44,
+          "request_id": "short-n1-00",
+          "request_wall_ms": 1589.7348620000002,
+          "response_status_code": 200,
+          "scenario_id": "short_out32_n1",
+          "stream_tpot_ms": 18.17750616129021,
+          "total_sequence_tokens": 76,
+          "usage": {
+            "completion_tokens": 32,
+            "prompt_tokens": 44,
+            "total_tokens": 76
+          }
+        }
+      ],
+      "scenario_id": "short_out32_n1",
+      "total_output_tokens": 32,
+      "total_prompt_tokens": 44
+    },
+    {
+      "aggregate_output_tokens_per_second": 95.09314371197627,
+      "batch_wall_ms": 673.0243370000153,
+      "estimated_peak_sequence_tokens": 151,
+      "max_new_tokens": 32,
+      "p50_first_content_ms": 56.915904000021555,
+      "p50_latency_ms": 671.3672520000102,
+      "p50_stream_tpot_ms": 19.176870548386844,
+      "p95_first_content_ms": 76.8842650000181,
+      "p95_latency_ms": 672.8870500000141,
+      "p95_stream_tpot_ms": 19.870036967741697,
+      "prompt_format": "chat_template",
+      "prompt_profile": "short",
+      "prompt_tokens_max": 44,
+      "prompt_tokens_mean": 43.5,
+      "prompt_tokens_min": 43,
+      "request_count": 2,
+      "requests": [
+        {
+          "chunk_count": 33,
+          "chunks": [
+            {
+              "batch_elapsed_ms": 56.90103500000987,
+              "content": "",
+              "elapsed_ms": 56.8665100000203,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 56.94966900000509,
+              "content": "In",
+              "elapsed_ms": 56.915904000021555,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 78.19618000002038,
+              "content": " L",
+              "elapsed_ms": 78.16241800000512,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 98.35715300002335,
+              "content": "LM",
+              "elapsed_ms": 98.32316200001401,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 117.23600600001305,
+              "content": " serving",
+              "elapsed_ms": 117.20212200000901,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 136.27412300002106,
+              "content": ",",
+              "elapsed_ms": 136.24027400001637,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 157.1831310000107,
+              "content": " K",
+              "elapsed_ms": 157.14930900000468,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 177.74766499999828,
+              "content": "V",
+              "elapsed_ms": 177.71367900002133,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 197.8818560000093,
+              "content": " (",
+              "elapsed_ms": 197.8479370000059,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 217.12183400001095,
+              "content": "K",
+              "elapsed_ms": 217.08802200001287,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 235.97452399999952,
+              "content": "ernel",
+              "elapsed_ms": 235.94070200002193,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 256.47140000000945,
+              "content": " Volume",
+              "elapsed_ms": 256.43732400001795,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 275.8170200000052,
+              "content": ")",
+              "elapsed_ms": 275.7830980000051,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 294.8528630000169,
+              "content": " pressure",
+              "elapsed_ms": 294.8189000000241,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 312.99227499999915,
+              "content": " is",
+              "elapsed_ms": 312.9575120000254,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 330.980387000011,
+              "content": " the",
+              "elapsed_ms": 330.94650600000364,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 348.74043700000357,
+              "content": " amount",
+              "elapsed_ms": 348.706591000024,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 367.57274600000756,
+              "content": " of",
+              "elapsed_ms": 367.5388620000035,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 385.85650999999643,
+              "content": " data",
+              "elapsed_ms": 385.8226899999977,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 404.4374830000095,
+              "content": " that",
+              "elapsed_ms": 404.4036230000074,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 422.99327700001754,
+              "content": " needs",
+              "elapsed_ms": 422.9594390000102,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 441.6027290000102,
+              "content": " to",
+              "elapsed_ms": 441.56891000000087,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 460.0136230000089,
+              "content": " be",
+              "elapsed_ms": 459.97976500001414,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 480.5099499999983,
+              "content": " processed",
+              "elapsed_ms": 480.47607500001277,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 500.44765600000574,
+              "content": " per",
+              "elapsed_ms": 500.41382800000633,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 520.5137830000126,
+              "content": " second",
+              "elapsed_ms": 520.4799530000059,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 540.3395160000173,
+              "content": ".",
+              "elapsed_ms": 540.3056640000159,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 559.7204610000119,
+              "content": " It",
+              "elapsed_ms": 559.6865850000086,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 579.3149149999977,
+              "content": " is",
+              "elapsed_ms": 579.2810599999996,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 597.7964550000081,
+              "content": " a",
+              "elapsed_ms": 597.7625950000061,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 616.2226170000054,
+              "content": " measure",
+              "elapsed_ms": 616.188778999998,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 634.8280680000187,
+              "content": " of",
+              "elapsed_ms": 634.7942220000107,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 672.6097400000128,
+              "content": " the",
+              "elapsed_ms": 672.5759220000214,
+              "finish_reason": "length"
+            }
+          ],
+          "decode_after_first_ms": 615.9711459999926,
+          "first_content_ms": 56.915904000021555,
+          "generated_text": "In LLM serving, KV (Kernel Volume) pressure is the amount of data that needs to be processed per second. It is a measure of the",
+          "generated_tokens": 32,
+          "prompt": "Explain KV cache pressure in LLM serving in two concise sentences.",
+          "prompt_tokens": 44,
+          "prompt_tokens_local_estimate": 44,
+          "request_id": "short-n2-00",
+          "request_wall_ms": 672.8870500000141,
+          "response_status_code": 200,
+          "scenario_id": "short_out32_n2",
+          "stream_tpot_ms": 19.870036967741697,
+          "total_sequence_tokens": 76,
+          "usage": {
+            "completion_tokens": 32,
+            "prompt_tokens": 44,
+            "total_tokens": 76
+          }
+        },
+        {
+          "chunk_count": 32,
+          "chunks": [
+            {
+              "batch_elapsed_ms": 77.98179000002392,
+              "content": "",
+              "elapsed_ms": 76.83791600001655,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 78.02714900000751,
+              "content": "Batch",
+              "elapsed_ms": 76.8842650000181,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 98.17176699999663,
+              "content": "ing",
+              "elapsed_ms": 97.02795700002298,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 117.08849900000473,
+              "content": " can",
+              "elapsed_ms": 115.94495800000004,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 136.0869910000133,
+              "content": " improve",
+              "elapsed_ms": 134.9428710000211,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 156.98587200000702,
+              "content": " GPU",
+              "elapsed_ms": 155.84204300000692,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 177.54344700000502,
+              "content": " utilization",
+              "elapsed_ms": 176.39975000000163,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 197.6843150000036,
+              "content": " for",
+              "elapsed_ms": 196.54042900000945,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 216.93905899999777,
+              "content": " L",
+              "elapsed_ms": 215.79545600002348,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 235.8270680000203,
+              "content": "LM",
+              "elapsed_ms": 234.6836709999991,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 256.2828840000009,
+              "content": " inference",
+              "elapsed_ms": 255.13922600001138,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 275.63266000001363,
+              "content": " by",
+              "elapsed_ms": 274.4891660000235,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 294.6924150000143,
+              "content": " reducing",
+              "elapsed_ms": 293.5489010000083,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 313.1676010000035,
+              "content": " the",
+              "elapsed_ms": 312.0243560000233,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 330.83181500001047,
+              "content": " number",
+              "elapsed_ms": 329.68840200001637,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 348.6079630000063,
+              "content": " of",
+              "elapsed_ms": 347.46478700000694,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 367.3702460000072,
+              "content": " cores",
+              "elapsed_ms": 366.226021000017,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 385.69467600001417,
+              "content": " and",
+              "elapsed_ms": 384.55079400000614,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 404.2952920000005,
+              "content": " threads",
+              "elapsed_ms": 403.15207100002226,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 422.79808000000685,
+              "content": " in",
+              "elapsed_ms": 421.64537300001825,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 441.426306000011,
+              "content": " the",
+              "elapsed_ms": 440.28284099999837,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 459.8379550000118,
+              "content": " GPU",
+              "elapsed_ms": 458.69460200000844,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 480.32582500002263,
+              "content": ",",
+              "elapsed_ms": 479.18196000000535,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 500.26688200000535,
+              "content": " which",
+              "elapsed_ms": 499.1230780000251,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 520.3579950000119,
+              "content": " can",
+              "elapsed_ms": 519.2142410000145,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 540.1497070000119,
+              "content": " lead",
+              "elapsed_ms": 539.005947000021,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 559.5360570000025,
+              "content": " to",
+              "elapsed_ms": 558.3923780000077,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 579.1330300000084,
+              "content": " lower",
+              "elapsed_ms": 577.9888560000188,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 597.6371520000043,
+              "content": " overall",
+              "elapsed_ms": 596.4937630000122,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 616.0479090000024,
+              "content": " system",
+              "elapsed_ms": 614.904322000001,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 634.6443730000146,
+              "content": " utilization",
+              "elapsed_ms": 633.5007580000251,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 672.0369380000193,
+              "content": ". Here",
+              "elapsed_ms": 670.8932909999987,
+              "finish_reason": "length"
+            }
+          ],
+          "decode_after_first_ms": 594.4829869999921,
+          "first_content_ms": 76.8842650000181,
+          "generated_text": "Batching can improve GPU utilization for LLM inference by reducing the number of cores and threads in the GPU, which can lead to lower overall system utilization. Here",
+          "generated_tokens": 32,
+          "prompt": "Explain why batching can improve GPU utilization for LLM inference.",
+          "prompt_tokens": 43,
+          "prompt_tokens_local_estimate": 43,
+          "request_id": "short-n2-01",
+          "request_wall_ms": 671.3672520000102,
+          "response_status_code": 200,
+          "scenario_id": "short_out32_n2",
+          "stream_tpot_ms": 19.176870548386844,
+          "total_sequence_tokens": 75,
+          "usage": {
+            "completion_tokens": 32,
+            "prompt_tokens": 43,
+            "total_tokens": 75
+          }
+        }
+      ],
+      "scenario_id": "short_out32_n2",
+      "total_output_tokens": 64,
+      "total_prompt_tokens": 87
+    },
+    {
+      "aggregate_output_tokens_per_second": 192.90476617823828,
+      "batch_wall_ms": 663.5398519999853,
+      "estimated_peak_sequence_tokens": 301,
+      "max_new_tokens": 32,
+      "p50_first_content_ms": 97.39129900000876,
+      "p50_latency_ms": 661.4723680000054,
+      "p50_stream_tpot_ms": 18.181449096774273,
+      "p95_first_content_ms": 99.4382220000034,
+      "p95_latency_ms": 663.1087380000054,
+      "p95_stream_tpot_ms": 18.806870870967654,
+      "prompt_format": "chat_template",
+      "prompt_profile": "short",
+      "prompt_tokens_max": 44,
+      "prompt_tokens_mean": 43.25,
+      "prompt_tokens_min": 43,
+      "request_count": 4,
+      "requests": [
+        {
+          "chunk_count": 32,
+          "chunks": [
+            {
+              "batch_elapsed_ms": 99.44021699999439,
+              "content": "",
+              "elapsed_ms": 99.40113700000097,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 99.47725499998228,
+              "content": "In",
+              "elapsed_ms": 99.4382220000034,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 117.47174499998891,
+              "content": " L",
+              "elapsed_ms": 117.43248199999812,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 135.65674499997726,
+              "content": "LM",
+              "elapsed_ms": 135.61767900000632,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 153.7260179999862,
+              "content": " serving",
+              "elapsed_ms": 153.68683299999475,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 172.69639399998482,
+              "content": ",",
+              "elapsed_ms": 172.65724099999602,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 190.91958999999292,
+              "content": " K",
+              "elapsed_ms": 190.88045099999817,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 209.6328399999834,
+              "content": "V",
+              "elapsed_ms": 209.59376100000782,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 229.07387299997595,
+              "content": " (",
+              "elapsed_ms": 229.034697000003,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 247.48993999997992,
+              "content": "K",
+              "elapsed_ms": 247.4507469999878,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 266.25555499998654,
+              "content": "ernel",
+              "elapsed_ms": 266.21637100001294,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 284.02047499997707,
+              "content": " Volume",
+              "elapsed_ms": 283.9813049999975,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 302.9046279999932,
+              "content": ")",
+              "elapsed_ms": 302.86553199999844,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 321.1946029999808,
+              "content": " pressure",
+              "elapsed_ms": 321.1555069999861,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 340.0470229999826,
+              "content": " is",
+              "elapsed_ms": 340.007858000007,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 358.48243699999216,
+              "content": " the",
+              "elapsed_ms": 358.44333000000006,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 377.4098849999916,
+              "content": " amount",
+              "elapsed_ms": 377.37073599998894,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 396.6803379999817,
+              "content": " of",
+              "elapsed_ms": 396.6411689999916,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 415.80827399999976,
+              "content": " data",
+              "elapsed_ms": 415.7691419999878,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 435.6113569999991,
+              "content": " that",
+              "elapsed_ms": 435.5722349999951,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 454.597208999985,
+              "content": " needs",
+              "elapsed_ms": 454.5580070000028,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 474.21291599999904,
+              "content": " to",
+              "elapsed_ms": 474.17372399999635,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 493.4343309999747,
+              "content": " be",
+              "elapsed_ms": 493.395200000009,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 512.3439229999747,
+              "content": " processed",
+              "elapsed_ms": 512.3047310000004,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 530.8352449999916,
+              "content": " per",
+              "elapsed_ms": 530.7961649999982,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 549.2575249999732,
+              "content": " second",
+              "elapsed_ms": 549.2183599999976,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 567.2007999999948,
+              "content": ".",
+              "elapsed_ms": 567.161671000008,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 585.8036899999775,
+              "content": " It",
+              "elapsed_ms": 585.7643340000038,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 603.9902239999719,
+              "content": " is",
+              "elapsed_ms": 603.9510829999983,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 622.4174049999931,
+              "content": " a",
+              "elapsed_ms": 622.378279000003,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 641.1579579999795,
+              "content": " measure",
+              "elapsed_ms": 641.1188579999987,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 662.3259229999974,
+              "content": " of the",
+              "elapsed_ms": 662.286733000002,
+              "finish_reason": "length"
+            }
+          ],
+          "decode_after_first_ms": 563.670516000002,
+          "first_content_ms": 99.4382220000034,
+          "generated_text": "In LLM serving, KV (Kernel Volume) pressure is the amount of data that needs to be processed per second. It is a measure of the",
+          "generated_tokens": 32,
+          "prompt": "Explain KV cache pressure in LLM serving in two concise sentences.",
+          "prompt_tokens": 44,
+          "prompt_tokens_local_estimate": 44,
+          "request_id": "short-n4-00",
+          "request_wall_ms": 663.1087380000054,
+          "response_status_code": 200,
+          "scenario_id": "short_out32_n4",
+          "stream_tpot_ms": 18.182919870967805,
+          "total_sequence_tokens": 76,
+          "usage": {
+            "completion_tokens": 32,
+            "prompt_tokens": 44,
+            "total_tokens": 76
+          }
+        },
+        {
+          "chunk_count": 33,
+          "chunks": [
+            {
+              "batch_elapsed_ms": 79.6977989999732,
+              "content": "",
+              "elapsed_ms": 78.63168500000484,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 79.74744299997383,
+              "content": "Batch",
+              "elapsed_ms": 78.68197500002339,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 99.20139899998048,
+              "content": "ing",
+              "elapsed_ms": 98.13464900000213,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 117.2462969999799,
+              "content": " can",
+              "elapsed_ms": 116.17986300001348,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 135.4791509999984,
+              "content": " improve",
+              "elapsed_ms": 134.41325499999834,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 153.58003899999062,
+              "content": " GPU",
+              "elapsed_ms": 152.5141870000084,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 172.47054599999956,
+              "content": " utilization",
+              "elapsed_ms": 171.40329500000462,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 190.74260599998638,
+              "content": " for",
+              "elapsed_ms": 189.67664500002002,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 209.45780899998567,
+              "content": " L",
+              "elapsed_ms": 208.39168900002392,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 228.8987339999835,
+              "content": "LM",
+              "elapsed_ms": 227.8323890000138,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 247.28884599997514,
+              "content": " inference",
+              "elapsed_ms": 246.22262300002262,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 266.0669359999872,
+              "content": " by",
+              "elapsed_ms": 265.000796999999,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 283.8137849999782,
+              "content": " reducing",
+              "elapsed_ms": 282.74780300000657,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 302.7143059999844,
+              "content": " the",
+              "elapsed_ms": 301.6482090000068,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 321.0082679999857,
+              "content": " number",
+              "elapsed_ms": 319.942253000022,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 339.8642749999965,
+              "content": " of",
+              "elapsed_ms": 338.79834800001163,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 358.27957899999774,
+              "content": " cores",
+              "elapsed_ms": 357.21382600002016,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 377.2245709999993,
+              "content": " and",
+              "elapsed_ms": 376.1584760000005,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 396.4824189999945,
+              "content": " threads",
+              "elapsed_ms": 395.41656900001954,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 415.64949599998613,
+              "content": " in",
+              "elapsed_ms": 414.58377300000393,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 435.39683899999204,
+              "content": " the",
+              "elapsed_ms": 434.330564000021,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 454.42217099997606,
+              "content": " GPU",
+              "elapsed_ms": 453.35588700001495,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 474.0413919999753,
+              "content": ",",
+              "elapsed_ms": 472.9756380000083,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 493.2051219999778,
+              "content": " which",
+              "elapsed_ms": 492.1390160000101,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 512.1525859999849,
+              "content": " can",
+              "elapsed_ms": 511.0865950000232,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 530.6792809999763,
+              "content": " lead",
+              "elapsed_ms": 529.6131850000165,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 549.040773999991,
+              "content": " to",
+              "elapsed_ms": 547.9744190000133,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 567.0486659999767,
+              "content": " lower",
+              "elapsed_ms": 565.9828480000044,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 585.364640999984,
+              "content": " overall",
+              "elapsed_ms": 584.2985160000183,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 603.8215069999922,
+              "content": " system",
+              "elapsed_ms": 602.7558070000225,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 622.2151419999875,
+              "content": " utilization",
+              "elapsed_ms": 621.1491770000066,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 640.9950929999866,
+              "content": ".",
+              "elapsed_ms": 639.9292180000202,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 661.9849829999964,
+              "content": " Here",
+              "elapsed_ms": 660.9192390000089,
+              "finish_reason": "length"
+            }
+          ],
+          "decode_after_first_ms": 583.0129969999973,
+          "first_content_ms": 78.68197500002339,
+          "generated_text": "Batching can improve GPU utilization for LLM inference by reducing the number of cores and threads in the GPU, which can lead to lower overall system utilization. Here",
+          "generated_tokens": 32,
+          "prompt": "Explain why batching can improve GPU utilization for LLM inference.",
+          "prompt_tokens": 43,
+          "prompt_tokens_local_estimate": 43,
+          "request_id": "short-n4-01",
+          "request_wall_ms": 661.6949720000207,
+          "response_status_code": 200,
+          "scenario_id": "short_out32_n4",
+          "stream_tpot_ms": 18.806870870967654,
+          "total_sequence_tokens": 75,
+          "usage": {
+            "completion_tokens": 32,
+            "prompt_tokens": 43,
+            "total_tokens": 75
+          }
+        },
+        {
+          "chunk_count": 32,
+          "chunks": [
+            {
+              "batch_elapsed_ms": 99.58787699997629,
+              "content": "",
+              "elapsed_ms": 97.83495900001071,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 99.63942199999565,
+              "content": "In",
+              "elapsed_ms": 97.88661000001753,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 117.59354899999153,
+              "content": " L",
+              "elapsed_ms": 115.84048600002461,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 135.7580919999748,
+              "content": "LM",
+              "elapsed_ms": 134.00526100002708,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 153.86934199997881,
+              "content": " inference",
+              "elapsed_ms": 152.1163220000119,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 172.81310899997493,
+              "content": ",",
+              "elapsed_ms": 171.06009600001926,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 191.06652599998597,
+              "content": " the",
+              "elapsed_ms": 189.31350600001906,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 209.74377299998537,
+              "content": " difference",
+              "elapsed_ms": 207.9907910000145,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 229.21617199997968,
+              "content": " between",
+              "elapsed_ms": 227.4631040000088,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 247.59431299997914,
+              "content": " pref",
+              "elapsed_ms": 245.84146300000498,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 266.364507999981,
+              "content": "ill",
+              "elapsed_ms": 264.6115280000174,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 284.131546999987,
+              "content": " and",
+              "elapsed_ms": 282.3785740000062,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 303.0093319999878,
+              "content": " decode",
+              "elapsed_ms": 301.2564320000024,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 321.3027389999752,
+              "content": " is",
+              "elapsed_ms": 319.54970600000365,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 340.1767449999795,
+              "content": " crucial",
+              "elapsed_ms": 338.4238870000047,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 358.58119699997815,
+              "content": ".",
+              "elapsed_ms": 356.8283100000258,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 377.54413599998315,
+              "content": "\n",
+              "elapsed_ms": 375.79122300002155,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 396.7876269999806,
+              "content": "\n",
+              "elapsed_ms": 395.03467900001965,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 415.91031799998746,
+              "content": "**",
+              "elapsed_ms": 414.1573950000179,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 435.7221419999746,
+              "content": "Pre",
+              "elapsed_ms": 433.9691370000196,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 454.73376099999996,
+              "content": "fill",
+              "elapsed_ms": 452.9808780000053,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 474.3097189999901,
+              "content": ":**",
+              "elapsed_ms": 472.55683300002715,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 493.53994499998066,
+              "content": "\n",
+              "elapsed_ms": 491.78708100001245,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 512.4610119999886,
+              "content": "\n",
+              "elapsed_ms": 510.70797500000253,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 530.9824659999833,
+              "content": "Pre",
+              "elapsed_ms": 529.2292430000032,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 549.3777249999994,
+              "content": "fill",
+              "elapsed_ms": 547.6248209999994,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 567.3020569999778,
+              "content": " is",
+              "elapsed_ms": 565.549156000003,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 585.9410009999806,
+              "content": " a",
+              "elapsed_ms": 584.187959000019,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 604.093545999973,
+              "content": " type",
+              "elapsed_ms": 602.3406240000213,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 622.53472499998,
+              "content": " of",
+              "elapsed_ms": 620.7817130000137,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 641.2855339999908,
+              "content": " inference",
+              "elapsed_ms": 639.5324450000146,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 662.5010909999958,
+              "content": " that involves",
+              "elapsed_ms": 660.7481930000176,
+              "finish_reason": "length"
+            }
+          ],
+          "decode_after_first_ms": 563.5857579999879,
+          "first_content_ms": 97.88661000001753,
+          "generated_text": "In LLM inference, the difference between prefill and decode is crucial.\n\n**Prefill:**\n\nPrefill is a type of inference that involves",
+          "generated_tokens": 32,
+          "prompt": "Explain the difference between prefill and decode in LLM inference.",
+          "prompt_tokens": 43,
+          "prompt_tokens_local_estimate": 43,
+          "request_id": "short-n4-02",
+          "request_wall_ms": 661.4723680000054,
+          "response_status_code": 200,
+          "scenario_id": "short_out32_n4",
+          "stream_tpot_ms": 18.180185741935095,
+          "total_sequence_tokens": 75,
+          "usage": {
+            "completion_tokens": 32,
+            "prompt_tokens": 43,
+            "total_tokens": 75
+          }
+        },
+        {
+          "chunk_count": 32,
+          "chunks": [
+            {
+              "batch_elapsed_ms": 99.74157999999989,
+              "content": "",
+              "elapsed_ms": 97.34875200001625,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 99.78383399999302,
+              "content": "Long",
+              "elapsed_ms": 97.39129900000876,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 117.73062099999265,
+              "content": ",",
+              "elapsed_ms": 115.33778599999778,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 135.86903099999859,
+              "content": " complex",
+              "elapsed_ms": 133.47645800001828,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 153.97679399998765,
+              "content": ",",
+              "elapsed_ms": 151.58390600001326,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 172.92824099999393,
+              "content": " or",
+              "elapsed_ms": 170.53550700001097,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 191.16067599998132,
+              "content": " overly",
+              "elapsed_ms": 188.76807600000234,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 209.866513999998,
+              "content": " complex",
+              "elapsed_ms": 207.47391200001175,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 229.31801899997595,
+              "content": " prompts",
+              "elapsed_ms": 226.92530300000158,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 247.69188299998746,
+              "content": " can",
+              "elapsed_ms": 245.2991890000078,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 266.48378499999126,
+              "content": " negatively",
+              "elapsed_ms": 264.091121000007,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 284.24025799998276,
+              "content": " impact",
+              "elapsed_ms": 281.8475520000163,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 303.1218379999814,
+              "content": " the",
+              "elapsed_ms": 300.72922700000504,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 321.4002209999762,
+              "content": " tail",
+              "elapsed_ms": 319.00760900001046,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 340.272710999983,
+              "content": " latency",
+              "elapsed_ms": 337.88014800001065,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 358.6702479999815,
+              "content": " of",
+              "elapsed_ms": 356.27761599999985,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 377.64490899999714,
+              "content": " an",
+              "elapsed_ms": 375.2523010000175,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 396.8914949999771,
+              "content": " inference",
+              "elapsed_ms": 394.49879200000737,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 415.99930900000004,
+              "content": " server",
+              "elapsed_ms": 413.60672400000453,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 435.8448599999747,
+              "content": ".",
+              "elapsed_ms": 433.4522300000003,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 454.8345889999723,
+              "content": " Here",
+              "elapsed_ms": 452.44183900001644,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 474.40492599997697,
+              "content": "'s",
+              "elapsed_ms": 472.01233100000195,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 493.63652299999217,
+              "content": " why",
+              "elapsed_ms": 491.2438830000099,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 512.5748489999751,
+              "content": ":",
+              "elapsed_ms": 510.18227200000865,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 531.0806369999739,
+              "content": "\n\n",
+              "elapsed_ms": 528.6879980000094,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 549.4919619999905,
+              "content": "1",
+              "elapsed_ms": 547.0992470000056,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 567.4092179999946,
+              "content": ".",
+              "elapsed_ms": 565.0166199999944,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 586.0507749999897,
+              "content": " **",
+              "elapsed_ms": 583.6580719999915,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 604.1920279999999,
+              "content": "Complex",
+              "elapsed_ms": 601.7994089999945,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 622.636018999998,
+              "content": "ity",
+              "elapsed_ms": 620.2434019999998,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 641.5006879999794,
+              "content": "**:",
+              "elapsed_ms": 639.1079630000149,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 662.9455969999754,
+              "content": " Long,",
+              "elapsed_ms": 660.5529180000076,
+              "finish_reason": "length"
+            }
+          ],
+          "decode_after_first_ms": 563.6249220000025,
+          "first_content_ms": 97.39129900000876,
+          "generated_text": "Long, complex, or overly complex prompts can negatively impact the tail latency of an inference server. Here's why:\n\n1. **Complexity**: Long,",
+          "generated_tokens": 32,
+          "prompt": "Explain why long prompts can hurt tail latency in an inference server.",
+          "prompt_tokens": 43,
+          "prompt_tokens_local_estimate": 43,
+          "request_id": "short-n4-03",
+          "request_wall_ms": 661.0162210000112,
+          "response_status_code": 200,
+          "scenario_id": "short_out32_n4",
+          "stream_tpot_ms": 18.181449096774273,
+          "total_sequence_tokens": 75,
+          "usage": {
+            "completion_tokens": 32,
+            "prompt_tokens": 43,
+            "total_tokens": 75
+          }
+        }
+      ],
+      "scenario_id": "short_out32_n4",
+      "total_output_tokens": 128,
+      "total_prompt_tokens": 173
+    },
+    {
+      "aggregate_output_tokens_per_second": 305.75012410589284,
+      "batch_wall_ms": 837.2850239999821,
+      "estimated_peak_sequence_tokens": 618,
+      "max_new_tokens": 32,
+      "p50_first_content_ms": 253.28820000001429,
+      "p50_latency_ms": 833.5639800000081,
+      "p50_stream_tpot_ms": 18.718573548386896,
+      "p95_first_content_ms": 256.55236100001844,
+      "p95_latency_ms": 836.7480080000007,
+      "p95_stream_tpot_ms": 19.281860258064764,
+      "prompt_format": "chat_template",
+      "prompt_profile": "short",
+      "prompt_tokens_max": 48,
+      "prompt_tokens_mean": 45.25,
+      "prompt_tokens_min": 43,
+      "request_count": 8,
+      "requests": [
+        {
+          "chunk_count": 33,
+          "chunks": [
+            {
+              "batch_elapsed_ms": 256.56827199998133,
+              "content": "",
+              "elapsed_ms": 256.5207040000246,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 256.5997979999963,
+              "content": "In",
+              "elapsed_ms": 256.55236100001844,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 279.7358599999882,
+              "content": " L",
+              "elapsed_ms": 279.6881120000023,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 303.2810869999878,
+              "content": "LM",
+              "elapsed_ms": 303.23354800000857,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 323.39315999999485,
+              "content": " serving",
+              "elapsed_ms": 323.3454800000004,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 343.4296819999929,
+              "content": ",",
+              "elapsed_ms": 343.38198900002226,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 362.84858199999803,
+              "content": " K",
+              "elapsed_ms": 362.8010150000023,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 381.18030999999064,
+              "content": "V",
+              "elapsed_ms": 381.1328110000147,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 400.0063359999899,
+              "content": " (",
+              "elapsed_ms": 399.9585460000219,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 418.3330619999879,
+              "content": "K",
+              "elapsed_ms": 418.2850500000086,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 437.5546989999748,
+              "content": "ernel",
+              "elapsed_ms": 437.50674300000014,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 456.03351899998756,
+              "content": " Volume",
+              "elapsed_ms": 455.98583000000303,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 474.9135299999807,
+              "content": ")",
+              "elapsed_ms": 474.86581900000147,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 493.83664699999485,
+              "content": " pressure",
+              "elapsed_ms": 493.788918000007,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 512.2063909999781,
+              "content": " is",
+              "elapsed_ms": 512.1587130000194,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 530.6716479999807,
+              "content": " the",
+              "elapsed_ms": 530.6240470000034,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 549.4119929999783,
+              "content": " amount",
+              "elapsed_ms": 549.3641970000169,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 568.0531259999952,
+              "content": " of",
+              "elapsed_ms": 568.0053300000054,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 586.389515999997,
+              "content": " data",
+              "elapsed_ms": 586.3418360000026,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 604.7383969999771,
+              "content": " that",
+              "elapsed_ms": 604.6908229999985,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 623.4709510000016,
+              "content": " needs",
+              "elapsed_ms": 623.4234320000098,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 641.8883439999945,
+              "content": " to",
+              "elapsed_ms": 641.8406570000172,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 661.6111719999935,
+              "content": " be",
+              "elapsed_ms": 661.5635600000189,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 680.7171879999885,
+              "content": " processed",
+              "elapsed_ms": 680.6696000000159,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 698.8795639999807,
+              "content": " per",
+              "elapsed_ms": 698.8320310000233,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 717.694057999978,
+              "content": " second",
+              "elapsed_ms": 717.6461460000212,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 736.7196259999957,
+              "content": ".",
+              "elapsed_ms": 736.6719250000244,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 755.181900999986,
+              "content": " It",
+              "elapsed_ms": 755.1343530000167,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 774.1994879999936,
+              "content": " is",
+              "elapsed_ms": 774.1515579999998,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 793.1252409999843,
+              "content": " a",
+              "elapsed_ms": 793.0775840000024,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 812.5290189999816,
+              "content": " measure",
+              "elapsed_ms": 812.481479000013,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 833.353035999977,
+              "content": " of",
+              "elapsed_ms": 833.3053839999991,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 835.3451599999744,
+              "content": " the",
+              "elapsed_ms": 835.2971220000143,
+              "finish_reason": "length"
+            }
+          ],
+          "decode_after_first_ms": 580.1956469999823,
+          "first_content_ms": 256.55236100001844,
+          "generated_text": "In LLM serving, KV (Kernel Volume) pressure is the amount of data that needs to be processed per second. It is a measure of the",
+          "generated_tokens": 32,
+          "prompt": "Explain KV cache pressure in LLM serving in two concise sentences.",
+          "prompt_tokens": 44,
+          "prompt_tokens_local_estimate": 44,
+          "request_id": "short-n8-00",
+          "request_wall_ms": 836.7480080000007,
+          "response_status_code": 200,
+          "scenario_id": "short_out32_n8",
+          "stream_tpot_ms": 18.715988612902652,
+          "total_sequence_tokens": 76,
+          "usage": {
+            "completion_tokens": 32,
+            "prompt_tokens": 44,
+            "total_tokens": 76
+          }
+        },
+        {
+          "chunk_count": 33,
+          "chunks": [
+            {
+              "batch_elapsed_ms": 235.93925299999796,
+              "content": "",
+              "elapsed_ms": 235.02085599997713,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 235.99547799997822,
+              "content": "Batch",
+              "elapsed_ms": 235.07781699998986,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 255.98271999999156,
+              "content": "ing",
+              "elapsed_ms": 255.06504000000518,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 279.30721799998537,
+              "content": " can",
+              "elapsed_ms": 278.38948199999436,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 302.7861669999936,
+              "content": " improve",
+              "elapsed_ms": 301.8684679999808,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 322.8906059999872,
+              "content": " GPU",
+              "elapsed_ms": 321.9729399999949,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 342.9771219999793,
+              "content": " utilization",
+              "elapsed_ms": 342.059479999989,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 362.42234699997766,
+              "content": " for",
+              "elapsed_ms": 361.50460400000384,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 380.80499299999815,
+              "content": " L",
+              "elapsed_ms": 379.88744399999064,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 399.54131899997947,
+              "content": "LM",
+              "elapsed_ms": 398.6234629999785,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 417.8636679999954,
+              "content": " inference",
+              "elapsed_ms": 416.9459809999978,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 437.06724799997687,
+              "content": " by",
+              "elapsed_ms": 436.1495769999806,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 455.536818999974,
+              "content": " reducing",
+              "elapsed_ms": 454.61911299997837,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 474.4634559999952,
+              "content": " the",
+              "elapsed_ms": 473.5457820000022,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 493.34396899999433,
+              "content": " number",
+              "elapsed_ms": 492.4261829999921,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 511.8020409999815,
+              "content": " of",
+              "elapsed_ms": 510.88432199998124,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 530.2630009999802,
+              "content": " cores",
+              "elapsed_ms": 529.345343999978,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 548.88798799999,
+              "content": " and",
+              "elapsed_ms": 547.9701059999798,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 567.5951949999956,
+              "content": " threads",
+              "elapsed_ms": 566.6775069999801,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 585.8880899999974,
+              "content": " in",
+              "elapsed_ms": 584.9704350000025,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 604.2763749999835,
+              "content": " the",
+              "elapsed_ms": 603.3586849999892,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 622.6905729999999,
+              "content": " GPU",
+              "elapsed_ms": 621.772548999985,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 641.4265450000016,
+              "content": ",",
+              "elapsed_ms": 640.5088759999842,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 660.9997559999954,
+              "content": " which",
+              "elapsed_ms": 660.0818839999931,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 680.2229269999884,
+              "content": " can",
+              "elapsed_ms": 679.3051519999835,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 698.5231660000011,
+              "content": " lead",
+              "elapsed_ms": 697.6055619999784,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 717.1272459999898,
+              "content": " to",
+              "elapsed_ms": 716.2094509999974,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 736.2544979999939,
+              "content": " lower",
+              "elapsed_ms": 735.3367009999943,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 754.7712819999788,
+              "content": " overall",
+              "elapsed_ms": 753.8536019999924,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 773.7127319999786,
+              "content": " system",
+              "elapsed_ms": 772.7948639999909,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 792.6715790000003,
+              "content": " utilization",
+              "elapsed_ms": 791.7538149999928,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 812.0685579999929,
+              "content": ".",
+              "elapsed_ms": 811.1508279999953,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 832.6696190000007,
+              "content": " Here",
+              "elapsed_ms": 831.7519549999872,
+              "finish_reason": "length"
+            }
+          ],
+          "decode_after_first_ms": 597.7376680000077,
+          "first_content_ms": 235.07781699998986,
+          "generated_text": "Batching can improve GPU utilization for LLM inference by reducing the number of cores and threads in the GPU, which can lead to lower overall system utilization. Here",
+          "generated_tokens": 32,
+          "prompt": "Explain why batching can improve GPU utilization for LLM inference.",
+          "prompt_tokens": 43,
+          "prompt_tokens_local_estimate": 43,
+          "request_id": "short-n8-01",
+          "request_wall_ms": 832.8154849999976,
+          "response_status_code": 200,
+          "scenario_id": "short_out32_n8",
+          "stream_tpot_ms": 19.281860258064764,
+          "total_sequence_tokens": 75,
+          "usage": {
+            "completion_tokens": 32,
+            "prompt_tokens": 43,
+            "total_tokens": 75
+          }
+        },
+        {
+          "chunk_count": 33,
+          "chunks": [
+            {
+              "batch_elapsed_ms": 256.43693899999676,
+              "content": "",
+              "elapsed_ms": 254.79011999999557,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 256.46960399998875,
+              "content": "In",
+              "elapsed_ms": 254.82288899999617,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 279.6343859999979,
+              "content": " L",
+              "elapsed_ms": 277.9871999999841,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 303.1903929999942,
+              "content": "LM",
+              "elapsed_ms": 301.5435009999976,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 323.2646339999974,
+              "content": " inference",
+              "elapsed_ms": 321.6177449999975,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 343.29133299999626,
+              "content": ",",
+              "elapsed_ms": 341.64439699998184,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 362.72289199999364,
+              "content": " the",
+              "elapsed_ms": 361.0761329999832,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 381.0996869999883,
+              "content": " difference",
+              "elapsed_ms": 379.45290599998316,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 399.9075639999887,
+              "content": " between",
+              "elapsed_ms": 398.26045099999874,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 418.2360410000001,
+              "content": " pref",
+              "elapsed_ms": 416.58904899998106,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 437.41335099997514,
+              "content": "ill",
+              "elapsed_ms": 435.7661559999997,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 455.9373469999741,
+              "content": " and",
+              "elapsed_ms": 454.2904109999881,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 474.82238099999563,
+              "content": " decode",
+              "elapsed_ms": 473.1754819999878,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 493.7352529999828,
+              "content": " is",
+              "elapsed_ms": 492.0884579999836,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 512.0951109999794,
+              "content": " crucial",
+              "elapsed_ms": 510.4482449999921,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 530.5539479999766,
+              "content": ".",
+              "elapsed_ms": 528.9072189999899,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 549.3056039999828,
+              "content": "\n",
+              "elapsed_ms": 547.6586810000015,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 567.9586109999946,
+              "content": "\n",
+              "elapsed_ms": 566.3117549999868,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 586.2837929999785,
+              "content": "**",
+              "elapsed_ms": 584.6366729999772,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 604.6469599999966,
+              "content": "Pre",
+              "elapsed_ms": 603.0000659999928,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 623.3823039999891,
+              "content": "fill",
+              "elapsed_ms": 621.7272939999816,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 641.7912919999935,
+              "content": ":**",
+              "elapsed_ms": 640.1443579999864,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 661.505912999985,
+              "content": "\n",
+              "elapsed_ms": 659.8589509999897,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 680.5880529999797,
+              "content": "\n",
+              "elapsed_ms": 678.9412339999785,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 698.7966589999814,
+              "content": "Pre",
+              "elapsed_ms": 697.1498869999948,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 717.5691549999783,
+              "content": "fill",
+              "elapsed_ms": 715.9221339999817,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 736.6265109999972,
+              "content": " is",
+              "elapsed_ms": 734.9797219999914,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 755.0909889999957,
+              "content": " a",
+              "elapsed_ms": 753.4442489999833,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 774.0943719999791,
+              "content": " type",
+              "elapsed_ms": 772.4472089999779,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 792.9414729999849,
+              "content": " of",
+              "elapsed_ms": 791.2945489999856,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 812.3971499999811,
+              "content": " inference",
+              "elapsed_ms": 810.7503389999806,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 833.2584030000021,
+              "content": " that",
+              "elapsed_ms": 831.6114609999943,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 835.1801509999746,
+              "content": " involves",
+              "elapsed_ms": 833.5331819999965,
+              "finish_reason": "length"
+            }
+          ],
+          "decode_after_first_ms": 580.2501949999908,
+          "first_content_ms": 254.82288899999617,
+          "generated_text": "In LLM inference, the difference between prefill and decode is crucial.\n\n**Prefill:**\n\nPrefill is a type of inference that involves",
+          "generated_tokens": 32,
+          "prompt": "Explain the difference between prefill and decode in LLM inference.",
+          "prompt_tokens": 43,
+          "prompt_tokens_local_estimate": 43,
+          "request_id": "short-n8-02",
+          "request_wall_ms": 835.0730839999869,
+          "response_status_code": 200,
+          "scenario_id": "short_out32_n8",
+          "stream_tpot_ms": 18.717748225806154,
+          "total_sequence_tokens": 75,
+          "usage": {
+            "completion_tokens": 32,
+            "prompt_tokens": 43,
+            "total_tokens": 75
+          }
+        },
+        {
+          "chunk_count": 33,
+          "chunks": [
+            {
+              "batch_elapsed_ms": 256.2894089999759,
+              "content": "",
+              "elapsed_ms": 253.99585599998886,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 256.3239409999767,
+              "content": "Long",
+              "elapsed_ms": 254.03050400001348,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 279.42873899999654,
+              "content": ",",
+              "elapsed_ms": 277.1350540000128,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 303.0590689999997,
+              "content": " complex",
+              "elapsed_ms": 300.7656249999968,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 323.1135529999847,
+              "content": ",",
+              "elapsed_ms": 320.819924999995,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 343.19372399997405,
+              "content": " or",
+              "elapsed_ms": 340.9001150000108,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 362.6299919999951,
+              "content": " overly",
+              "elapsed_ms": 360.3364489999876,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 381.01657799998634,
+              "content": " complex",
+              "elapsed_ms": 378.72308699999735,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 399.760735000001,
+              "content": " prompts",
+              "elapsed_ms": 397.46711800000867,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 418.0904569999768,
+              "content": " can",
+              "elapsed_ms": 415.7969309999885,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 437.3072849999744,
+              "content": " negatively",
+              "elapsed_ms": 435.01366600000324,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 455.72389800000224,
+              "content": " impact",
+              "elapsed_ms": 453.43034300000795,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 474.7253419999993,
+              "content": " the",
+              "elapsed_ms": 472.43177100000366,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 493.58204799997907,
+              "content": " tail",
+              "elapsed_ms": 491.2884169999927,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 512.0022849999941,
+              "content": " latency",
+              "elapsed_ms": 509.7086959999899,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 530.4679159999921,
+              "content": " of",
+              "elapsed_ms": 528.1744000000117,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 549.201829999987,
+              "content": " an",
+              "elapsed_ms": 546.9081560000006,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 567.8203439999834,
+              "content": " inference",
+              "elapsed_ms": 565.5268079999871,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 586.1796159999813,
+              "content": " server",
+              "elapsed_ms": 583.8859419999949,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 604.5499169999857,
+              "content": ".",
+              "elapsed_ms": 602.2563109999908,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 623.2858029999875,
+              "content": " Here",
+              "elapsed_ms": 620.9922699999879,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 641.647541999987,
+              "content": "'s",
+              "elapsed_ms": 639.3538769999907,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 661.2259009999946,
+              "content": " why",
+              "elapsed_ms": 658.9323800000102,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 680.4916189999801,
+              "content": ":",
+              "elapsed_ms": 678.1980780000083,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 698.7096869999903,
+              "content": "\n\n",
+              "elapsed_ms": 696.4162060000092,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 717.45606799999,
+              "content": "1",
+              "elapsed_ms": 715.1624009999864,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 736.5300299999831,
+              "content": ".",
+              "elapsed_ms": 734.2364900000007,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 755.0059859999863,
+              "content": " **",
+              "elapsed_ms": 752.7124920000006,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 773.9366609999934,
+              "content": "Complex",
+              "elapsed_ms": 771.6429710000057,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 793.0347879999999,
+              "content": "ity",
+              "elapsed_ms": 790.7412110000109,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 812.2917029999996,
+              "content": "**:",
+              "elapsed_ms": 809.9980739999921,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 833.0520609999894,
+              "content": " Long",
+              "elapsed_ms": 830.7582600000103,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 835.0020589999758,
+              "content": ",",
+              "elapsed_ms": 832.7082669999868,
+              "finish_reason": "length"
+            }
+          ],
+          "decode_after_first_ms": 580.3133639999771,
+          "first_content_ms": 254.03050400001348,
+          "generated_text": "Long, complex, or overly complex prompts can negatively impact the tail latency of an inference server. Here's why:\n\n1. **Complexity**: Long,",
+          "generated_tokens": 32,
+          "prompt": "Explain why long prompts can hurt tail latency in an inference server.",
+          "prompt_tokens": 43,
+          "prompt_tokens_local_estimate": 43,
+          "request_id": "short-n8-03",
+          "request_wall_ms": 834.3438679999906,
+          "response_status_code": 200,
+          "scenario_id": "short_out32_n8",
+          "stream_tpot_ms": 18.719785935483134,
+          "total_sequence_tokens": 75,
+          "usage": {
+            "completion_tokens": 32,
+            "prompt_tokens": 43,
+            "total_tokens": 75
+          }
+        },
+        {
+          "chunk_count": 33,
+          "chunks": [
+            {
+              "batch_elapsed_ms": 256.69288199998164,
+              "content": "",
+              "elapsed_ms": 253.7475860000029,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 256.7238349999741,
+              "content": "In",
+              "elapsed_ms": 253.7784540000132,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 279.82817399998794,
+              "content": " L",
+              "elapsed_ms": 276.88272900002175,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 303.3680189999757,
+              "content": "LM",
+              "elapsed_ms": 300.42266500001347,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 323.4894949999898,
+              "content": " serving",
+              "elapsed_ms": 320.5441730000018,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 343.5243719999903,
+              "content": ",",
+              "elapsed_ms": 340.5790800000261,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 362.9382029999988,
+              "content": " the",
+              "elapsed_ms": 359.99288500002535,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 381.2616829999911,
+              "content": " K",
+              "elapsed_ms": 378.31642700001566,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 400.0991259999864,
+              "content": "V",
+              "elapsed_ms": 397.1536130000004,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 418.4370309999963,
+              "content": " cache",
+              "elapsed_ms": 415.4912800000261,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 437.75334399998655,
+              "content": " pressure",
+              "elapsed_ms": 434.80790700002103,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 456.12449899999774,
+              "content": " is",
+              "elapsed_ms": 453.1790960000137,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 475.0019189999932,
+              "content": " a",
+              "elapsed_ms": 472.0565599999986,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 493.93268399998647,
+              "content": " measure",
+              "elapsed_ms": 490.9872090000249,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 512.319175999977,
+              "content": " of",
+              "elapsed_ms": 509.37368300000685,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 530.7553839999741,
+              "content": " the",
+              "elapsed_ms": 527.8100490000099,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 549.5113609999862,
+              "content": " average",
+              "elapsed_ms": 546.5659680000101,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 568.143761999977,
+              "content": " number",
+              "elapsed_ms": 565.1984350000134,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 586.4868519999789,
+              "content": " of",
+              "elapsed_ms": 583.5414619999995,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 604.8825109999996,
+              "content": " requests",
+              "elapsed_ms": 601.9370530000003,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 623.5558209999965,
+              "content": " per",
+              "elapsed_ms": 620.6104640000092,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 641.9830959999899,
+              "content": " second",
+              "elapsed_ms": 639.0373979999993,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 661.707075999999,
+              "content": ",",
+              "elapsed_ms": 658.761678000019,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 680.8113529999957,
+              "content": " typically",
+              "elapsed_ms": 677.8660580000064,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 698.9837809999813,
+              "content": " measured",
+              "elapsed_ms": 696.0384660000045,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 717.7922009999804,
+              "content": " in",
+              "elapsed_ms": 714.8466120000023,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 736.809677999986,
+              "content": " units",
+              "elapsed_ms": 733.8642700000264,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 755.3931799999987,
+              "content": " of",
+              "elapsed_ms": 752.4478900000133,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 774.3016489999945,
+              "content": " seconds",
+              "elapsed_ms": 771.3562510000145,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 793.2148449999943,
+              "content": ".",
+              "elapsed_ms": 790.2693660000182,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 812.6258959999859,
+              "content": " A",
+              "elapsed_ms": 809.6804340000006,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 833.4539099999745,
+              "content": " higher",
+              "elapsed_ms": 830.5084050000175,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 836.1046219999935,
+              "content": " K",
+              "elapsed_ms": 833.1587620000107,
+              "finish_reason": "length"
+            }
+          ],
+          "decode_after_first_ms": 580.3339999999935,
+          "first_content_ms": 253.7784540000132,
+          "generated_text": "In LLM serving, the KV cache pressure is a measure of the average number of requests per second, typically measured in units of seconds. A higher K",
+          "generated_tokens": 32,
+          "prompt": "Explain KV cache pressure in LLM serving in two concise sentences. Variation 5.",
+          "prompt_tokens": 48,
+          "prompt_tokens_local_estimate": 48,
+          "request_id": "short-n8-04",
+          "request_wall_ms": 834.1124540000067,
+          "response_status_code": 200,
+          "scenario_id": "short_out32_n8",
+          "stream_tpot_ms": 18.720451612903016,
+          "total_sequence_tokens": 80,
+          "usage": {
+            "completion_tokens": 32,
+            "prompt_tokens": 48,
+            "total_tokens": 80
+          }
+        },
+        {
+          "chunk_count": 33,
+          "chunks": [
+            {
+              "batch_elapsed_ms": 256.8193169999802,
+              "content": "",
+              "elapsed_ms": 253.25613000001113,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 256.8512969999972,
+              "content": "Batch",
+              "elapsed_ms": 253.28820000001429,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 279.9438839999766,
+              "content": "ing",
+              "elapsed_ms": 276.3806899999963,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 303.4620059999895,
+              "content": " can",
+              "elapsed_ms": 299.89881900002047,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 323.59997499997917,
+              "content": " improve",
+              "elapsed_ms": 320.036545000022,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 343.61455499998783,
+              "content": " GPU",
+              "elapsed_ms": 340.05137700000887,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 363.0263479999769,
+              "content": " utilization",
+              "elapsed_ms": 359.4631349999986,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 381.33953199999837,
+              "content": " for",
+              "elapsed_ms": 377.7763970000194,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 400.1907819999815,
+              "content": " L",
+              "elapsed_ms": 396.6275079999946,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 418.52851899997745,
+              "content": "LM",
+              "elapsed_ms": 414.96519599999715,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 437.6574399999811,
+              "content": " inference",
+              "elapsed_ms": 434.0940630000034,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 456.2137369999846,
+              "content": " by",
+              "elapsed_ms": 452.6504570000043,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 475.08732199997894,
+              "content": " reducing",
+              "elapsed_ms": 471.5241130000152,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 494.0264849999778,
+              "content": " the",
+              "elapsed_ms": 490.4631100000074,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 512.4267249999832,
+              "content": " number",
+              "elapsed_ms": 508.86336700000356,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 530.8401209999829,
+              "content": " of",
+              "elapsed_ms": 527.2768540000072,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 549.6089799999879,
+              "content": " threads",
+              "elapsed_ms": 546.0457290000136,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 568.2311529999993,
+              "content": " and",
+              "elapsed_ms": 564.6679620000157,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 586.5798879999886,
+              "content": " processes",
+              "elapsed_ms": 583.0166510000083,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 604.9723099999937,
+              "content": " that",
+              "elapsed_ms": 601.4091250000035,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 623.6504359999913,
+              "content": " need",
+              "elapsed_ms": 620.0871660000189,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 642.0721979999939,
+              "content": " to",
+              "elapsed_ms": 638.508958000017,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 661.8000829999744,
+              "content": " be",
+              "elapsed_ms": 658.2368870000153,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 680.9010439999952,
+              "content": " executed",
+              "elapsed_ms": 677.3377430000096,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 699.0759649999916,
+              "content": " simultaneously",
+              "elapsed_ms": 695.5127749999974,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 717.8855749999968,
+              "content": ".",
+              "elapsed_ms": 714.3220480000139,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 736.8970179999792,
+              "content": " This",
+              "elapsed_ms": 733.3338250000168,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 755.3034899999886,
+              "content": " is",
+              "elapsed_ms": 751.7403180000031,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 774.4189579999841,
+              "content": " achieved",
+              "elapsed_ms": 770.8557939999992,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 793.3015079999848,
+              "content": " by",
+              "elapsed_ms": 789.7383309999952,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 812.7157729999794,
+              "content": " dividing",
+              "elapsed_ms": 809.1526000000044,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 833.5483759999818,
+              "content": " the",
+              "elapsed_ms": 829.9850500000048,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 836.3195159999748,
+              "content": " computation",
+              "elapsed_ms": 832.7559090000136,
+              "finish_reason": "length"
+            }
+          ],
+          "decode_after_first_ms": 580.2757799999938,
+          "first_content_ms": 253.28820000001429,
+          "generated_text": "Batching can improve GPU utilization for LLM inference by reducing the number of threads and processes that need to be executed simultaneously. This is achieved by dividing the computation",
+          "generated_tokens": 32,
+          "prompt": "Explain why batching can improve GPU utilization for LLM inference. Variation 6.",
+          "prompt_tokens": 47,
+          "prompt_tokens_local_estimate": 47,
+          "request_id": "short-n8-05",
+          "request_wall_ms": 833.5639800000081,
+          "response_status_code": 200,
+          "scenario_id": "short_out32_n8",
+          "stream_tpot_ms": 18.718573548386896,
+          "total_sequence_tokens": 79,
+          "usage": {
+            "completion_tokens": 32,
+            "prompt_tokens": 47,
+            "total_tokens": 79
+          }
+        },
+        {
+          "chunk_count": 33,
+          "chunks": [
+            {
+              "batch_elapsed_ms": 256.0927609999908,
+              "content": "",
+              "elapsed_ms": 251.47906699999112,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 256.12834199998247,
+              "content": "In",
+              "elapsed_ms": 251.51479699999868,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 279.53602899998486,
+              "content": " L",
+              "elapsed_ms": 274.9223509999865,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 302.9578159999744,
+              "content": "LM",
+              "elapsed_ms": 298.3440499999972,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 323.00780899998927,
+              "content": " inference",
+              "elapsed_ms": 318.3939859999896,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 343.0904609999743,
+              "content": ",",
+              "elapsed_ms": 338.4768059999885,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 362.5298609999845,
+              "content": " the",
+              "elapsed_ms": 357.9162319999796,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 380.8944679999797,
+              "content": " difference",
+              "elapsed_ms": 376.280869999988,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 399.65646899997864,
+              "content": " between",
+              "elapsed_ms": 395.0426010000001,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 417.9889959999912,
+              "content": " pref",
+              "elapsed_ms": 413.3753349999836,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 437.1839169999987,
+              "content": "ill",
+              "elapsed_ms": 432.5701449999997,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 455.82852799998363,
+              "content": " and",
+              "elapsed_ms": 451.2148860000025,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 474.5718409999995,
+              "content": " decode",
+              "elapsed_ms": 469.9581550000005,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 493.47548000000074,
+              "content": " is",
+              "elapsed_ms": 488.86184099998786,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 511.9052409999938,
+              "content": " crucial",
+              "elapsed_ms": 507.2915650000027,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 530.3684299999816,
+              "content": ".",
+              "elapsed_ms": 525.7547779999925,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 549.0827909999894,
+              "content": "\n",
+              "elapsed_ms": 544.4688299999996,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 567.7207199999827,
+              "content": "\n",
+              "elapsed_ms": 563.1070689999831,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 586.0023029999866,
+              "content": "**",
+              "elapsed_ms": 581.388555999979,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 604.4371360000014,
+              "content": "Pre",
+              "elapsed_ms": 599.823391000001,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 623.1916679999756,
+              "content": "fill",
+              "elapsed_ms": 618.5778929999799,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 641.5381439999805,
+              "content": ":**",
+              "elapsed_ms": 636.9243970000014,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 661.1131649999891,
+              "content": "\n",
+              "elapsed_ms": 656.4994549999881,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 680.3848549999998,
+              "content": "\n",
+              "elapsed_ms": 675.7711390000054,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 698.6200300000007,
+              "content": "Pre",
+              "elapsed_ms": 694.0063649999786,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 717.3371259999897,
+              "content": "fill",
+              "elapsed_ms": 712.7233279999814,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 736.3709749999998,
+              "content": " is",
+              "elapsed_ms": 731.7572270000028,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 754.9148729999899,
+              "content": " a",
+              "elapsed_ms": 750.3011910000055,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 773.8294799999892,
+              "content": " type",
+              "elapsed_ms": 769.2156479999994,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 792.83926399998,
+              "content": " of",
+              "elapsed_ms": 788.2255749999842,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 812.184966999979,
+              "content": " inference",
+              "elapsed_ms": 807.5712170000031,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 833.16182599998,
+              "content": " that",
+              "elapsed_ms": 828.548144999985,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 834.8188899999798,
+              "content": " involves",
+              "elapsed_ms": 830.2045929999906,
+              "finish_reason": "length"
+            }
+          ],
+          "decode_after_first_ms": 580.4194730000063,
+          "first_content_ms": 251.51479699999868,
+          "generated_text": "In LLM inference, the difference between prefill and decode is crucial.\n\n**Prefill:**\n\nPrefill is a type of inference that involves",
+          "generated_tokens": 32,
+          "prompt": "Explain the difference between prefill and decode in LLM inference. Variation 7.",
+          "prompt_tokens": 47,
+          "prompt_tokens_local_estimate": 47,
+          "request_id": "short-n8-06",
+          "request_wall_ms": 831.934270000005,
+          "response_status_code": 200,
+          "scenario_id": "short_out32_n8",
+          "stream_tpot_ms": 18.723208806451815,
+          "total_sequence_tokens": 79,
+          "usage": {
+            "completion_tokens": 32,
+            "prompt_tokens": 47,
+            "total_tokens": 79
+          }
+        },
+        {
+          "chunk_count": 33,
+          "chunks": [
+            {
+              "batch_elapsed_ms": 255.7480129999874,
+              "content": "",
+              "elapsed_ms": 250.14565700001867,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 255.79999099997508,
+              "content": "Long",
+              "elapsed_ms": 250.198016000013,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 279.04153000000065,
+              "content": ",",
+              "elapsed_ms": 273.43867600001204,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 302.6158710000004,
+              "content": " complex",
+              "elapsed_ms": 297.01349300000857,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 322.62537399998337,
+              "content": ",",
+              "elapsed_ms": 317.02255600001195,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 342.741148999977,
+              "content": " or",
+              "elapsed_ms": 337.1382520000168,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 362.23680399999125,
+              "content": " long",
+              "elapsed_ms": 356.6344050000225,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 380.66969099998005,
+              "content": "-",
+              "elapsed_ms": 375.0673560000166,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 399.30923000000007,
+              "content": "wind",
+              "elapsed_ms": 393.70627100001343,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 417.66693299999247,
+              "content": "ed",
+              "elapsed_ms": 412.06435099999794,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 436.8395739999755,
+              "content": " prompts",
+              "elapsed_ms": 431.23694400000545,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 455.34577499998363,
+              "content": " can",
+              "elapsed_ms": 449.7432870000182,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 474.2686789999766,
+              "content": " have",
+              "elapsed_ms": 468.6659140000131,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 493.10965600000145,
+              "content": " a",
+              "elapsed_ms": 487.507039999997,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 511.57613199998764,
+              "content": " negative",
+              "elapsed_ms": 505.9737550000136,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 530.093321999999,
+              "content": " impact",
+              "elapsed_ms": 524.4909440000072,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 548.7068819999763,
+              "content": " on",
+              "elapsed_ms": 543.1034560000114,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 567.398546999982,
+              "content": " tail",
+              "elapsed_ms": 561.7960800000219,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 585.6277159999763,
+              "content": " latency",
+              "elapsed_ms": 580.0243500000022,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 604.1337899999917,
+              "content": " in",
+              "elapsed_ms": 598.5312460000216,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 623.0317309999975,
+              "content": " an",
+              "elapsed_ms": 617.429460000011,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 641.2195719999829,
+              "content": " inference",
+              "elapsed_ms": 635.6168869999976,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 660.7708370000012,
+              "content": " server",
+              "elapsed_ms": 655.168271000008,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 680.0570149999885,
+              "content": ".",
+              "elapsed_ms": 674.4545150000079,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 698.3522489999814,
+              "content": " Here",
+              "elapsed_ms": 692.7500070000008,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 716.9424539999909,
+              "content": "'s",
+              "elapsed_ms": 711.3391790000207,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 736.0636999999883,
+              "content": " why",
+              "elapsed_ms": 730.4613139999958,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 754.6277679999776,
+              "content": ":",
+              "elapsed_ms": 749.0255550000029,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 773.4897199999864,
+              "content": "\n\n",
+              "elapsed_ms": 767.8866640000024,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 792.4723719999918,
+              "content": "1",
+              "elapsed_ms": 786.8698740000184,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 811.8487929999958,
+              "content": ".",
+              "elapsed_ms": 806.2459670000237,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 832.4767809999969,
+              "content": " **",
+              "elapsed_ms": 826.8738520000056,
+              "finish_reason": null
+            },
+            {
+              "batch_elapsed_ms": 834.3999939999946,
+              "content": "Redu",
+              "elapsed_ms": 828.7972890000219,
+              "finish_reason": "length"
+            }
+          ],
+          "decode_after_first_ms": 579.8702339999977,
+          "first_content_ms": 250.198016000013,
+          "generated_text": "Long, complex, or long-winded prompts can have a negative impact on tail latency in an inference server. Here's why:\n\n1. **Redu",
+          "generated_tokens": 32,
+          "prompt": "Explain why long prompts can hurt tail latency in an inference server. Variation 8.",
+          "prompt_tokens": 47,
+          "prompt_tokens_local_estimate": 47,
+          "request_id": "short-n8-07",
+          "request_wall_ms": 830.0682500000107,
+          "response_status_code": 200,
+          "scenario_id": "short_out32_n8",
+          "stream_tpot_ms": 18.705491419354765,
+          "total_sequence_tokens": 79,
+          "usage": {
+            "completion_tokens": 32,
+            "prompt_tokens": 47,
+            "total_tokens": 79
+          }
+        }
+      ],
+      "scenario_id": "short_out32_n8",
+      "total_output_tokens": 256,
+      "total_prompt_tokens": 362
+    }
+  ],
+  "schema_version": 1,
+  "server_command": [
+    "vllm",
+    "serve",
+    "HuggingFaceTB/SmolLM2-135M-Instruct",
+    "--host",
+    "127.0.0.1",
+    "--port",
+    "8000",
+    "--dtype",
+    "half",
+    "--max-model-len",
+    "1024",
+    "--max-num-batched-tokens",
+    "8192",
+    "--max-num-seqs",
+    "8",
+    "--gpu-memory-utilization",
+    "0.50",
+    "--enforce-eager"
+  ],
+  "server_logs_head": [
+    "WARNING 06-07 21:19:50 [config.py:70] Support for Transformers v4 is deprecated. The Transformers v4 codepath will become unmaintained in vLLM v0.22.0 and will be removed in vLLM v0.24.0. Please upgrade to Transformers v5: pip install --upgrade transformers",
+    "(APIServer pid=24) INFO 06-07 21:19:53 [utils.py:306]",
+    "(APIServer pid=24) INFO 06-07 21:19:53 [utils.py:306]        \u2588     \u2588     \u2588\u2584   \u2584\u2588",
+    "(APIServer pid=24) INFO 06-07 21:19:53 [utils.py:306]  \u2584\u2584 \u2584\u2588 \u2588     \u2588     \u2588 \u2580\u2584\u2580 \u2588  version 0.21.0",
+    "(APIServer pid=24) INFO 06-07 21:19:53 [utils.py:306]   \u2588\u2584\u2588\u2580 \u2588     \u2588     \u2588     \u2588  model   HuggingFaceTB/SmolLM2-135M-Instruct",
+    "(APIServer pid=24) INFO 06-07 21:19:53 [utils.py:306]    \u2580\u2580  \u2580\u2580\u2580\u2580\u2580 \u2580\u2580\u2580\u2580\u2580 \u2580     \u2580",
+    "(APIServer pid=24) INFO 06-07 21:19:53 [utils.py:306]",
+    "(APIServer pid=24) INFO 06-07 21:19:54 [utils.py:240] non-default args: {'model_tag': 'HuggingFaceTB/SmolLM2-135M-Instruct', 'host': '127.0.0.1', 'model': 'HuggingFaceTB/SmolLM2-135M-Instruct', 'dtype': 'half', 'max_model_len': 1024, 'enforce_eager': True, 'gpu_memory_utilization': 0.5, 'max_num_batched_tokens': 8192, 'max_num_seqs': 8}",
+    "(APIServer pid=24) INFO 06-07 21:19:54 [model.py:568] Resolved architecture: LlamaForCausalLM",
+    "(APIServer pid=24) WARNING 06-07 21:19:54 [model.py:2035] Casting torch.bfloat16 to torch.float16.",
+    "(APIServer pid=24) INFO 06-07 21:19:54 [model.py:1697] Using max model len 1024",
+    "(APIServer pid=24) INFO 06-07 21:19:54 [scheduler.py:239] Chunked prefill is enabled with max_num_batched_tokens=8192.",
+    "(APIServer pid=24) INFO 06-07 21:19:54 [vllm.py:886] Asynchronous scheduling is enabled.",
+    "(APIServer pid=24) WARNING 06-07 21:19:54 [vllm.py:942] Enforce eager set, disabling torch.compile and CUDAGraphs. This is equivalent to setting -cc.mode=none -cc.cudagraph_mode=none",
+    "(APIServer pid=24) WARNING 06-07 21:19:54 [vllm.py:960] Inductor compilation was disabled by user settings, optimizations settings that are only active during inductor compilation will be ignored.",
+    "(APIServer pid=24) INFO 06-07 21:19:54 [kernel.py:212] Final IR op priority after setting platform defaults: IrOpPriorityConfig(rms_norm=['vllm_c', 'native'], fused_add_rms_norm=['vllm_c', 'native'])",
+    "(APIServer pid=24) INFO 06-07 21:19:56 [vllm.py:1135] Cudagraph is disabled under eager mode",
+    "(APIServer pid=24) INFO 06-07 21:19:56 [compilation.py:303] Enabled custom fusions: norm_quant, act_quant",
+    "WARNING 06-07 21:20:03 [config.py:70] Support for Transformers v4 is deprecated. The Transformers v4 codepath will become unmaintained in vLLM v0.22.0 and will be removed in vLLM v0.24.0. Please upgrade to Transformers v5: pip install --upgrade transformers",
+    "(EngineCore pid=36) INFO 06-07 21:20:05 [core.py:109] Initializing a V1 LLM engine (v0.21.0) with config: model='HuggingFaceTB/SmolLM2-135M-Instruct', speculative_config=None, tokenizer='HuggingFaceTB/SmolLM2-135M-Instruct', skip_tokenizer_init=False, tokenizer_mode=auto, revision=None, tokenizer_revision=None, trust_remote_code=False, dtype=torch.float16, max_seq_len=1024, download_dir=None, load_format=auto, tensor_parallel_size=1, pipeline_parallel_size=1, data_parallel_size=1, decode_context_parallel_size=1, dcp_comm_backend=ag_rs, disable_custom_all_reduce=False, quantization=None, quantization_config=None, enforce_eager=True, enable_return_routed_experts=False, kv_cache_dtype=auto, device_config=cuda, structured_outputs_config=StructuredOutputsConfig(backend='auto', disable_any_whitespace=False, disable_additional_properties=False, reasoning_parser='', reasoning_parser_plugin='', enable_in_reasoning=False), observability_config=ObservabilityConfig(show_hidden_metrics_for_version=None, otlp_traces_endpoint=None, collect_detailed_traces=None, kv_cache_metrics=False, kv_cache_metrics_sample=0.01, cudagraph_metrics=False, enable_layerwise_nvtx_tracing=False, enable_mfu_metrics=False, enable_mm_processor_stats=False, enable_logging_iteration_details=False), seed=0, served_model_name=HuggingFaceTB/SmolLM2-135M-Instruct, enable_prefix_caching=True, enable_chunked_prefill=True, pooler_config=None, compilation_config={'mode': <CompilationMode.NONE: 0>, 'debug_dump_path': None, 'cache_dir': '', 'compile_cache_save_format': 'binary', 'backend': 'inductor', 'custom_ops': ['all'], 'ir_enable_torch_wrap': False, 'splitting_ops': [], 'compile_mm_encoder': False, 'cudagraph_mm_encoder': False, 'encoder_cudagraph_token_budgets': [], 'encoder_cudagraph_max_vision_items_per_batch': 0, 'encoder_cudagraph_max_frames_per_batch': None, 'compile_sizes': [], 'compile_ranges_endpoints': [8192], 'inductor_compile_config': {'enable_auto_functionalized_v2': False, 'size_asserts': False, 'alignment_asserts': False, 'scalar_asserts': False, 'combo_kernels': True, 'benchmark_combo_kernel': True}, 'inductor_passes': {}, 'cudagraph_mode': <CUDAGraphMode.NONE: 0>, 'cudagraph_num_of_warmups': 0, 'cudagraph_capture_sizes': [], 'cudagraph_copy_inputs': False, 'cudagraph_specialize_lora': True, 'use_inductor_graph_partition': False, 'pass_config': {'fuse_norm_quant': True, 'fuse_act_quant': True, 'fuse_attn_quant': False, 'enable_sp': False, 'fuse_gemm_comms': False, 'fuse_allreduce_rms': False, 'fuse_act_padding': False}, 'max_cudagraph_capture_size': 0, 'dynamic_shapes_config': {'type': <DynamicShapesType.BACKED: 'backed'>, 'evaluate_guards': False, 'assume_32_bit_indexing': False}, 'local_cache_dir': None, 'fast_moe_cold_start': False, 'static_all_moe_layers': []}, kernel_config=KernelConfig(ir_op_priority=IrOpPriorityConfig(rms_norm=['vllm_c', 'native'], fused_add_rms_norm=['vllm_c', 'native']), enable_flashinfer_autotune=False, moe_backend='auto')",
+    "(EngineCore pid=36) INFO 06-07 21:20:08 [parallel_state.py:1410] world_size=1 rank=0 local_rank=0 distributed_init_method=tcp://172.20.3.14:59258 backend=nccl",
+    "(EngineCore pid=36) INFO 06-07 21:20:08 [parallel_state.py:1723] rank 0 in world size 1 is assigned as DP rank 0, PP rank 0, PCP rank 0, TP rank 0, EP rank N/A, EPLB rank N/A",
+    "(EngineCore pid=36) INFO 06-07 21:20:10 [topk_topp_sampler.py:45] Using FlashInfer for top-p & top-k sampling.",
+    "(EngineCore pid=36) INFO 06-07 21:20:10 [gpu_model_runner.py:4857] Starting to load model HuggingFaceTB/SmolLM2-135M-Instruct...",
+    "(EngineCore pid=36) ERROR 06-07 21:20:11 [fa_utils.py:171] Cannot use FA version 2 is not supported due to FA2 is only supported on devices with compute capability >= 8",
+    "(EngineCore pid=36) INFO 06-07 21:20:11 [cuda.py:372] Using FLASHINFER attention backend out of potential backends: ['FLASHINFER', 'TRITON_ATTN', 'FLEX_ATTENTION'].",
+    "(EngineCore pid=36) INFO 06-07 21:20:11 [weight_utils.py:663] No model.safetensors.index.json found in remote.",
+    "(EngineCore pid=36) INFO 06-07 21:20:11 [weight_utils.py:938] Filesystem type for checkpoints: 9P. Checkpoint size: 0.25 GiB. Available RAM: 371.33 GiB.",
+    "(EngineCore pid=36) INFO 06-07 21:20:11 [weight_utils.py:961] Auto-prefetch is disabled because the filesystem (9P) is not a recognized network FS (NFS/Lustre). If you want to force prefetching, start vLLM with --safetensors-load-strategy=prefetch.",
+    "(EngineCore pid=36)",
+    "Loading safetensors checkpoint shards:   0% Completed | 0/1 [00:00<?, ?it/s]",
+    "(EngineCore pid=36)",
+    "Loading safetensors checkpoint shards: 100% Completed | 1/1 [00:00<00:00,  1.63it/s]",
+    "(EngineCore pid=36)",
+    "Loading safetensors checkpoint shards: 100% Completed | 1/1 [00:00<00:00,  1.62it/s]",
+    "(EngineCore pid=36)",
+    "(EngineCore pid=36) INFO 06-07 21:20:12 [default_loader.py:397] Loading weights took 0.63 seconds",
+    "(EngineCore pid=36) INFO 06-07 21:20:13 [gpu_model_runner.py:4959] Model loading took 0.25 GiB memory and 1.328338 seconds",
+    "(EngineCore pid=36) INFO 06-07 21:22:04 [gpu_worker.py:462] Available KV cache memory: 6.88 GiB",
+    "(EngineCore pid=36) INFO 06-07 21:22:04 [kv_cache_utils.py:1710] GPU KV cache size: 320,400 tokens",
+    "(EngineCore pid=36) INFO 06-07 21:22:04 [kv_cache_utils.py:1711] Maximum concurrency for 1,024 tokens per request: 312.89x",
+    "(EngineCore pid=36) INFO 06-07 21:22:04 [kernel_warmup.py:44] Skipping FlashInfer autotune because it is disabled.",
+    "(EngineCore pid=36) INFO 06-07 21:22:04 [kernel_warmup.py:69] Warming up FlashInfer attention.",
+    "(EngineCore pid=36) INFO 06-07 21:22:25 [jit_monitor.py:54] Kernel JIT monitor activated \u2014 Triton JIT compilations during inference will be logged as warnings.",
+    "(EngineCore pid=36) INFO 06-07 21:22:25 [core.py:306] init engine (profile, create kv cache, warmup model) took 132.00 s",
+    "(EngineCore pid=36) INFO 06-07 21:22:25 [vllm.py:886] Asynchronous scheduling is enabled.",
+    "(EngineCore pid=36) WARNING 06-07 21:22:25 [vllm.py:942] Enforce eager set, disabling torch.compile and CUDAGraphs. This is equivalent to setting -cc.mode=none -cc.cudagraph_mode=none",
+    "(EngineCore pid=36) WARNING 06-07 21:22:25 [vllm.py:960] Inductor compilation was disabled by user settings, optimizations settings that are only active during inductor compilation will be ignored.",
+    "(EngineCore pid=36) INFO 06-07 21:22:25 [kernel.py:212] Final IR op priority after setting platform defaults: IrOpPriorityConfig(rms_norm=['vllm_c', 'native'], fused_add_rms_norm=['vllm_c', 'native'])",
+    "(EngineCore pid=36) INFO 06-07 21:22:25 [vllm.py:1135] Cudagraph is disabled under eager mode",
+    "(EngineCore pid=36) INFO 06-07 21:22:25 [compilation.py:303] Enabled custom fusions: norm_quant, act_quant",
+    "(APIServer pid=24) INFO 06-07 21:22:25 [api_server.py:613] Supported tasks: ['generate']",
+    "(APIServer pid=24) INFO 06-07 21:22:26 [hf.py:483] Detected the chat template content format to be 'string'. You can set `--chat-template-content-format` to override this.",
+    "(APIServer pid=24) INFO 06-07 21:22:26 [api_server.py:617] Starting vLLM server on http://127.0.0.1:8000",
+    "(APIServer pid=24) INFO 06-07 21:22:26 [launcher.py:37] Available routes are:",
+    "(APIServer pid=24) INFO 06-07 21:22:26 [launcher.py:46] Route: /openapi.json, Methods: HEAD, GET",
+    "(APIServer pid=24) INFO 06-07 21:22:26 [launcher.py:46] Route: /docs, Methods: HEAD, GET",
+    "(APIServer pid=24) INFO 06-07 21:22:26 [launcher.py:46] Route: /docs/oauth2-redirect, Methods: HEAD, GET",
+    "(APIServer pid=24) INFO 06-07 21:22:26 [launcher.py:46] Route: /redoc, Methods: HEAD, GET",
+    "(APIServer pid=24) INFO 06-07 21:22:26 [launcher.py:46] Route: /tokenize, Methods: POST",
+    "(APIServer pid=24) INFO 06-07 21:22:26 [launcher.py:46] Route: /detokenize, Methods: POST",
+    "(APIServer pid=24) INFO 06-07 21:22:26 [launcher.py:46] Route: /load, Methods: GET",
+    "(APIServer pid=24) INFO 06-07 21:22:26 [launcher.py:46] Route: /version, Methods: GET",
+    "(APIServer pid=24) INFO 06-07 21:22:26 [launcher.py:46] Route: /health, Methods: GET",
+    "(APIServer pid=24) INFO 06-07 21:22:26 [launcher.py:46] Route: /metrics, Methods: GET",
+    "(APIServer pid=24) INFO 06-07 21:22:26 [launcher.py:46] Route: /v1/models, Methods: GET",
+    "(APIServer pid=24) INFO 06-07 21:22:26 [launcher.py:46] Route: /ping, Methods: GET",
+    "(APIServer pid=24) INFO 06-07 21:22:26 [launcher.py:46] Route: /ping, Methods: POST",
+    "(APIServer pid=24) INFO 06-07 21:22:26 [launcher.py:46] Route: /invocations, Methods: POST",
+    "(APIServer pid=24) INFO 06-07 21:22:26 [launcher.py:46] Route: /v1/chat/completions, Methods: POST",
+    "(APIServer pid=24) INFO 06-07 21:22:26 [launcher.py:46] Route: /v1/chat/completions/batch, Methods: POST",
+    "(APIServer pid=24) INFO 06-07 21:22:26 [launcher.py:46] Route: /v1/responses, Methods: POST",
+    "(APIServer pid=24) INFO 06-07 21:22:26 [launcher.py:46] Route: /v1/responses/{response_id}, Methods: GET",
+    "(APIServer pid=24) INFO 06-07 21:22:26 [launcher.py:46] Route: /v1/responses/{response_id}/cancel, Methods: POST",
+    "(APIServer pid=24) INFO 06-07 21:22:26 [launcher.py:46] Route: /v1/completions, Methods: POST",
+    "(APIServer pid=24) INFO 06-07 21:22:26 [launcher.py:46] Route: /v1/messages, Methods: POST",
+    "(APIServer pid=24) INFO 06-07 21:22:26 [launcher.py:46] Route: /v1/messages/count_tokens, Methods: POST",
+    "(APIServer pid=24) INFO 06-07 21:22:26 [launcher.py:46] Route: /inference/v1/generate, Methods: POST",
+    "(APIServer pid=24) INFO 06-07 21:22:26 [launcher.py:46] Route: /scale_elastic_ep, Methods: POST",
+    "(APIServer pid=24) INFO 06-07 21:22:26 [launcher.py:46] Route: /is_scaling_elastic_ep, Methods: POST"
+  ],
+  "server_logs_tail": [
+    "Loading safetensors checkpoint shards:   0% Completed | 0/1 [00:00<?, ?it/s]",
+    "(EngineCore pid=36)",
+    "Loading safetensors checkpoint shards: 100% Completed | 1/1 [00:00<00:00,  1.63it/s]",
+    "(EngineCore pid=36)",
+    "Loading safetensors checkpoint shards: 100% Completed | 1/1 [00:00<00:00,  1.62it/s]",
+    "(EngineCore pid=36)",
+    "(EngineCore pid=36) INFO 06-07 21:20:12 [default_loader.py:397] Loading weights took 0.63 seconds",
+    "(EngineCore pid=36) INFO 06-07 21:20:13 [gpu_model_runner.py:4959] Model loading took 0.25 GiB memory and 1.328338 seconds",
+    "(EngineCore pid=36) INFO 06-07 21:22:04 [gpu_worker.py:462] Available KV cache memory: 6.88 GiB",
+    "(EngineCore pid=36) INFO 06-07 21:22:04 [kv_cache_utils.py:1710] GPU KV cache size: 320,400 tokens",
+    "(EngineCore pid=36) INFO 06-07 21:22:04 [kv_cache_utils.py:1711] Maximum concurrency for 1,024 tokens per request: 312.89x",
+    "(EngineCore pid=36) INFO 06-07 21:22:04 [kernel_warmup.py:44] Skipping FlashInfer autotune because it is disabled.",
+    "(EngineCore pid=36) INFO 06-07 21:22:04 [kernel_warmup.py:69] Warming up FlashInfer attention.",
+    "(EngineCore pid=36) INFO 06-07 21:22:25 [jit_monitor.py:54] Kernel JIT monitor activated \u2014 Triton JIT compilations during inference will be logged as warnings.",
+    "(EngineCore pid=36) INFO 06-07 21:22:25 [core.py:306] init engine (profile, create kv cache, warmup model) took 132.00 s",
+    "(EngineCore pid=36) INFO 06-07 21:22:25 [vllm.py:886] Asynchronous scheduling is enabled.",
+    "(EngineCore pid=36) WARNING 06-07 21:22:25 [vllm.py:942] Enforce eager set, disabling torch.compile and CUDAGraphs. This is equivalent to setting -cc.mode=none -cc.cudagraph_mode=none",
+    "(EngineCore pid=36) WARNING 06-07 21:22:25 [vllm.py:960] Inductor compilation was disabled by user settings, optimizations settings that are only active during inductor compilation will be ignored.",
+    "(EngineCore pid=36) INFO 06-07 21:22:25 [kernel.py:212] Final IR op priority after setting platform defaults: IrOpPriorityConfig(rms_norm=['vllm_c', 'native'], fused_add_rms_norm=['vllm_c', 'native'])",
+    "(EngineCore pid=36) INFO 06-07 21:22:25 [vllm.py:1135] Cudagraph is disabled under eager mode",
+    "(EngineCore pid=36) INFO 06-07 21:22:25 [compilation.py:303] Enabled custom fusions: norm_quant, act_quant",
+    "(APIServer pid=24) INFO 06-07 21:22:25 [api_server.py:613] Supported tasks: ['generate']",
+    "(APIServer pid=24) INFO 06-07 21:22:26 [hf.py:483] Detected the chat template content format to be 'string'. You can set `--chat-template-content-format` to override this.",
+    "(APIServer pid=24) INFO 06-07 21:22:26 [api_server.py:617] Starting vLLM server on http://127.0.0.1:8000",
+    "(APIServer pid=24) INFO 06-07 21:22:26 [launcher.py:37] Available routes are:",
+    "(APIServer pid=24) INFO 06-07 21:22:26 [launcher.py:46] Route: /openapi.json, Methods: HEAD, GET",
+    "(APIServer pid=24) INFO 06-07 21:22:26 [launcher.py:46] Route: /docs, Methods: HEAD, GET",
+    "(APIServer pid=24) INFO 06-07 21:22:26 [launcher.py:46] Route: /docs/oauth2-redirect, Methods: HEAD, GET",
+    "(APIServer pid=24) INFO 06-07 21:22:26 [launcher.py:46] Route: /redoc, Methods: HEAD, GET",
+    "(APIServer pid=24) INFO 06-07 21:22:26 [launcher.py:46] Route: /tokenize, Methods: POST",
+    "(APIServer pid=24) INFO 06-07 21:22:26 [launcher.py:46] Route: /detokenize, Methods: POST",
+    "(APIServer pid=24) INFO 06-07 21:22:26 [launcher.py:46] Route: /load, Methods: GET",
+    "(APIServer pid=24) INFO 06-07 21:22:26 [launcher.py:46] Route: /version, Methods: GET",
+    "(APIServer pid=24) INFO 06-07 21:22:26 [launcher.py:46] Route: /health, Methods: GET",
+    "(APIServer pid=24) INFO 06-07 21:22:26 [launcher.py:46] Route: /metrics, Methods: GET",
+    "(APIServer pid=24) INFO 06-07 21:22:26 [launcher.py:46] Route: /v1/models, Methods: GET",
+    "(APIServer pid=24) INFO 06-07 21:22:26 [launcher.py:46] Route: /ping, Methods: GET",
+    "(APIServer pid=24) INFO 06-07 21:22:26 [launcher.py:46] Route: /ping, Methods: POST",
+    "(APIServer pid=24) INFO 06-07 21:22:26 [launcher.py:46] Route: /invocations, Methods: POST",
+    "(APIServer pid=24) INFO 06-07 21:22:26 [launcher.py:46] Route: /v1/chat/completions, Methods: POST",
+    "(APIServer pid=24) INFO 06-07 21:22:26 [launcher.py:46] Route: /v1/chat/completions/batch, Methods: POST",
+    "(APIServer pid=24) INFO 06-07 21:22:26 [launcher.py:46] Route: /v1/responses, Methods: POST",
+    "(APIServer pid=24) INFO 06-07 21:22:26 [launcher.py:46] Route: /v1/responses/{response_id}, Methods: GET",
+    "(APIServer pid=24) INFO 06-07 21:22:26 [launcher.py:46] Route: /v1/responses/{response_id}/cancel, Methods: POST",
+    "(APIServer pid=24) INFO 06-07 21:22:26 [launcher.py:46] Route: /v1/completions, Methods: POST",
+    "(APIServer pid=24) INFO 06-07 21:22:26 [launcher.py:46] Route: /v1/messages, Methods: POST",
+    "(APIServer pid=24) INFO 06-07 21:22:26 [launcher.py:46] Route: /v1/messages/count_tokens, Methods: POST",
+    "(APIServer pid=24) INFO 06-07 21:22:26 [launcher.py:46] Route: /inference/v1/generate, Methods: POST",
+    "(APIServer pid=24) INFO 06-07 21:22:26 [launcher.py:46] Route: /scale_elastic_ep, Methods: POST",
+    "(APIServer pid=24) INFO 06-07 21:22:26 [launcher.py:46] Route: /is_scaling_elastic_ep, Methods: POST",
+    "(APIServer pid=24) INFO 06-07 21:22:26 [launcher.py:46] Route: /generative_scoring, Methods: POST",
+    "(APIServer pid=24) INFO 06-07 21:22:26 [launcher.py:46] Route: /v1/chat/completions/render, Methods: POST",
+    "(APIServer pid=24) INFO 06-07 21:22:26 [launcher.py:46] Route: /v1/completions/render, Methods: POST",
+    "(APIServer pid=24) INFO:     Started server process [24]",
+    "(APIServer pid=24) INFO:     Waiting for application startup.",
+    "(APIServer pid=24) INFO:     Application startup complete.",
+    "(APIServer pid=24) INFO:     127.0.0.1:31137 - \"GET /health HTTP/1.1\" 200 OK",
+    "(APIServer pid=24) INFO:     127.0.0.1:54218 - \"POST /v1/chat/completions HTTP/1.1\" 200 OK",
+    "(EngineCore pid=36) WARNING 06-07 21:22:28 [jit_monitor.py:103] Triton kernel JIT compilation during inference: _compute_slot_mapping_kernel. This causes a latency spike; consider extending warmup to cover this shape/config.",
+    "(APIServer pid=24) INFO:     127.0.0.1:36187 - \"POST /v1/chat/completions HTTP/1.1\" 200 OK",
+    "(APIServer pid=24) INFO:     127.0.0.1:64565 - \"POST /v1/chat/completions HTTP/1.1\" 200 OK",
+    "(APIServer pid=24) INFO:     127.0.0.1:33322 - \"POST /v1/chat/completions HTTP/1.1\" 200 OK",
+    "(APIServer pid=24) INFO:     127.0.0.1:34024 - \"POST /v1/chat/completions HTTP/1.1\" 200 OK",
+    "(APIServer pid=24) INFO:     127.0.0.1:16098 - \"POST /v1/chat/completions HTTP/1.1\" 200 OK",
+    "(APIServer pid=24) INFO:     127.0.0.1:30890 - \"POST /v1/chat/completions HTTP/1.1\" 200 OK",
+    "(APIServer pid=24) INFO:     127.0.0.1:23115 - \"POST /v1/chat/completions HTTP/1.1\" 200 OK",
+    "(APIServer pid=24) INFO:     127.0.0.1:47874 - \"POST /v1/chat/completions HTTP/1.1\" 200 OK",
+    "(APIServer pid=24) INFO:     127.0.0.1:41783 - \"POST /v1/chat/completions HTTP/1.1\" 200 OK",
+    "(APIServer pid=24) INFO:     127.0.0.1:61381 - \"POST /v1/chat/completions HTTP/1.1\" 200 OK",
+    "(APIServer pid=24) INFO:     127.0.0.1:34667 - \"POST /v1/chat/completions HTTP/1.1\" 200 OK",
+    "(APIServer pid=24) INFO:     127.0.0.1:24515 - \"POST /v1/chat/completions HTTP/1.1\" 200 OK",
+    "(APIServer pid=24) INFO:     127.0.0.1:54799 - \"POST /v1/chat/completions HTTP/1.1\" 200 OK",
+    "(APIServer pid=24) INFO:     127.0.0.1:18688 - \"POST /v1/chat/completions HTTP/1.1\" 200 OK",
+    "(EngineCore pid=36) INFO 06-07 21:22:31 [core.py:1242] Shutdown initiated (timeout=0)",
+    "(EngineCore pid=36) INFO 06-07 21:22:31 [core.py:1265] Shutdown complete",
+    "(APIServer pid=24) INFO:     Shutting down",
+    "(APIServer pid=24) INFO:     Waiting for application shutdown.",
+    "(APIServer pid=24) INFO:     Application shutdown complete.",
+    "(APIServer pid=24) INFO:     Finished server process [24]",
+    "[rank0]:[W607 21:22:32.610859692 ProcessGroupNCCL.cpp:1575] Warning: WARNING: destroy_process_group() was not called before program exit, which can leak resources. For more info, please see https://pytorch.org/docs/stable/distributed.html#shutdown (function operator())"
+  ],
+  "server_ready_ms": 165325.552858,
+  "summary": [
+    {
+      "aggregate_output_tokens_per_second": 20.125482294054308,
+      "batch_wall_ms": 1590.024007000011,
+      "estimated_peak_sequence_tokens": 76,
+      "max_new_tokens": 32,
+      "p50_first_content_ms": 1026.2321710000037,
+      "p50_latency_ms": 1589.7348620000002,
+      "p50_stream_tpot_ms": 18.17750616129021,
+      "p95_first_content_ms": 1026.2321710000037,
+      "p95_latency_ms": 1589.7348620000002,
+      "p95_stream_tpot_ms": 18.17750616129021,
+      "prompt_profile": "short",
+      "prompt_tokens_max": 44,
+      "prompt_tokens_mean": 44.0,
+      "prompt_tokens_min": 44,
+      "request_count": 1,
+      "scenario_id": "short_out32_n1",
+      "total_output_tokens": 32,
+      "total_prompt_tokens": 44
+    },
+    {
+      "aggregate_output_tokens_per_second": 95.09314371197627,
+      "batch_wall_ms": 673.0243370000153,
+      "estimated_peak_sequence_tokens": 151,
+      "max_new_tokens": 32,
+      "p50_first_content_ms": 56.915904000021555,
+      "p50_latency_ms": 671.3672520000102,
+      "p50_stream_tpot_ms": 19.176870548386844,
+      "p95_first_content_ms": 76.8842650000181,
+      "p95_latency_ms": 672.8870500000141,
+      "p95_stream_tpot_ms": 19.870036967741697,
+      "prompt_profile": "short",
+      "prompt_tokens_max": 44,
+      "prompt_tokens_mean": 43.5,
+      "prompt_tokens_min": 43,
+      "request_count": 2,
+      "scenario_id": "short_out32_n2",
+      "total_output_tokens": 64,
+      "total_prompt_tokens": 87
+    },
+    {
+      "aggregate_output_tokens_per_second": 192.90476617823828,
+      "batch_wall_ms": 663.5398519999853,
+      "estimated_peak_sequence_tokens": 301,
+      "max_new_tokens": 32,
+      "p50_first_content_ms": 97.39129900000876,
+      "p50_latency_ms": 661.4723680000054,
+      "p50_stream_tpot_ms": 18.181449096774273,
+      "p95_first_content_ms": 99.4382220000034,
+      "p95_latency_ms": 663.1087380000054,
+      "p95_stream_tpot_ms": 18.806870870967654,
+      "prompt_profile": "short",
+      "prompt_tokens_max": 44,
+      "prompt_tokens_mean": 43.25,
+      "prompt_tokens_min": 43,
+      "request_count": 4,
+      "scenario_id": "short_out32_n4",
+      "total_output_tokens": 128,
+      "total_prompt_tokens": 173
+    },
+    {
+      "aggregate_output_tokens_per_second": 305.75012410589284,
+      "batch_wall_ms": 837.2850239999821,
+      "estimated_peak_sequence_tokens": 618,
+      "max_new_tokens": 32,
+      "p50_first_content_ms": 253.28820000001429,
+      "p50_latency_ms": 833.5639800000081,
+      "p50_stream_tpot_ms": 18.718573548386896,
+      "p95_first_content_ms": 256.55236100001844,
+      "p95_latency_ms": 836.7480080000007,
+      "p95_stream_tpot_ms": 19.281860258064764,
+      "prompt_profile": "short",
+      "prompt_tokens_max": 48,
+      "prompt_tokens_mean": 45.25,
+      "prompt_tokens_min": 43,
+      "request_count": 8,
+      "scenario_id": "short_out32_n8",
+      "total_output_tokens": 256,
+      "total_prompt_tokens": 362
+    }
+  ],
+  "tokenizer_load_ms": 285.56060000000014,
+  "vllm_version": "0.21.0"
+}
