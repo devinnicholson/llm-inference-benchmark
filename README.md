@@ -320,6 +320,11 @@ modal run modal_app.py --mode vllm-prefix-cache-phase-order-compare \
 modal run modal_app.py --mode vllm-prefix-cache-profile-control \
   --prefix-cache-phase-order-compare-dir results/modal-vllm-prefix-cache-long-control-phase-order \
   --output-dir results/modal-vllm-prefix-cache-long-control-profile-control
+
+# Repeat the paired run with --scenario-seed 569 and trial2 output dirs, then:
+modal run modal_app.py --mode vllm-prefix-cache-profile-multitrial \
+  --prefix-cache-profile-control-dirs results/modal-vllm-prefix-cache-long-control-profile-control,results/modal-vllm-prefix-cache-long-control-profile-control-trial2 \
+  --output-dir results/modal-vllm-prefix-cache-long-control-multitrial
 ```
 
 Modal training is documented in

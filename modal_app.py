@@ -60,6 +60,12 @@ DEFAULT_VLLM_PREFIX_CACHE_PHASE_ORDER_COMPARE_OUTPUT = (
 DEFAULT_VLLM_PREFIX_CACHE_PROFILE_CONTROL_OUTPUT = (
     "results/modal-vllm-prefix-cache-profile-control"
 )
+DEFAULT_VLLM_PREFIX_CACHE_PROFILE_CONTROL_DIRS = (
+    "results/modal-vllm-prefix-cache-long-control-profile-control"
+)
+DEFAULT_VLLM_PREFIX_CACHE_PROFILE_MULTITRIAL_OUTPUT = (
+    "results/modal-vllm-prefix-cache-long-control-multitrial"
+)
 DEFAULT_VLLM_SWEEP_REQUEST_COUNTS = "1,2,4,8"
 DEFAULT_VLLM_SWEEP_PROMPT_PROFILES = "short,long"
 DEFAULT_VLLM_SWEEP_OUTPUT_TOKENS = "16,32"
@@ -3205,6 +3211,7 @@ def main(
     prefix_cache_cold_first_paired_dir: str = DEFAULT_VLLM_PREFIX_CACHE_PAIRED_OUTPUT,
     prefix_cache_cache_first_paired_dir: str = DEFAULT_VLLM_PREFIX_CACHE_PAIRED_CACHE_FIRST_OUTPUT,
     prefix_cache_phase_order_compare_dir: str = DEFAULT_VLLM_PREFIX_CACHE_PHASE_ORDER_COMPARE_OUTPUT,
+    prefix_cache_profile_control_dirs: str = DEFAULT_VLLM_PREFIX_CACHE_PROFILE_CONTROL_DIRS,
     output_dir: str = "",
 ) -> None:
     if mode == "gpu-probe":
@@ -3693,6 +3700,32 @@ def main(
         print(f"csv: {csv_path}")
         return
 
+    if mode == "vllm-prefix-cache-profile-multitrial":
+        payload = _aggregate_vllm_prefix_cache_profile_control_trials(
+            profile_control_dirs=[
+                Path(path)
+                for path in _split_csv(prefix_cache_profile_control_dirs)
+            ],
+        )
+        output_path = Path(output_dir or DEFAULT_VLLM_PREFIX_CACHE_PROFILE_MULTITRIAL_OUTPUT)
+        output_path.mkdir(parents=True, exist_ok=True)
+        json_path = output_path / "prefix-cache-profile-multitrial.json"
+        csv_path = output_path / "prefix-cache-profile-multitrial.csv"
+        json_path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+        _write_records_csv(csv_path, payload["summary"])
+
+        print(f"trials: {payload['trial_count']}")
+        for row in payload["summary"]:
+            print(
+                f"{row['phase_order']} {row['metric']}: "
+                f"mean_delta={row['shared_minus_control_mean']:.3f} "
+                f"min={row['shared_minus_control_min']:.3f} "
+                f"max={row['shared_minus_control_max']:.3f}"
+            )
+        print(f"json: {json_path}")
+        print(f"csv: {csv_path}")
+        return
+
     if mode != "sweep":
         raise ValueError(
             "mode must be 'sweep', 'gpu-probe', 'tiny-inference', "
@@ -3705,7 +3738,8 @@ def main(
             "'vllm-server-async-workload-compare', 'vllm-sweep', or "
             "'vllm-prefix-cache-paired', 'vllm-prefix-cache-compare', or "
             "'vllm-prefix-cache-phase-order-compare', or "
-            "'vllm-prefix-cache-profile-control'"
+            "'vllm-prefix-cache-profile-control', or "
+            "'vllm-prefix-cache-profile-multitrial'"
         )
 
     payload = run_capacity_sweep_remote.remote(
@@ -5362,6 +5396,139 @@ def _compare_vllm_prefix_cache_profile_controls(
         "phase_order_scenario_count": phase_payload["scenario_count"],
         "summary": summary,
         "rows": comparison_rows,
+    }
+
+
+def _aggregate_vllm_prefix_cache_profile_control_trials(
+    profile_control_dirs: list[Path],
+) -> dict[str, Any]:
+    if not profile_control_dirs:
+        raise ValueError("profile_control_dirs must not be empty")
+
+    metric_sources = (
+        (
+            "cold_first",
+            "throughput_ratio",
+            "mean_shared_minus_control_cold_first_output_tokens_per_second_ratio",
+            "higher_is_better",
+        ),
+        (
+            "cold_first",
+            "first_event_ratio",
+            "mean_shared_minus_control_cold_first_p95_first_event_ms_ratio",
+            "lower_is_better",
+        ),
+        (
+            "cold_first",
+            "latency_ratio",
+            "mean_shared_minus_control_cold_first_p95_latency_ms_ratio",
+            "lower_is_better",
+        ),
+        (
+            "cold_first",
+            "tpot_ratio",
+            "mean_shared_minus_control_cold_first_p95_stream_tpot_ms_ratio",
+            "lower_is_better",
+        ),
+        (
+            "cache_first",
+            "throughput_ratio",
+            "mean_shared_minus_control_cache_first_output_tokens_per_second_ratio",
+            "higher_is_better",
+        ),
+        (
+            "cache_first",
+            "first_event_ratio",
+            "mean_shared_minus_control_cache_first_p95_first_event_ms_ratio",
+            "lower_is_better",
+        ),
+        (
+            "cache_first",
+            "latency_ratio",
+            "mean_shared_minus_control_cache_first_p95_latency_ms_ratio",
+            "lower_is_better",
+        ),
+        (
+            "cache_first",
+            "tpot_ratio",
+            "mean_shared_minus_control_cache_first_p95_stream_tpot_ms_ratio",
+            "lower_is_better",
+        ),
+    )
+    trials = []
+    for index, profile_control_dir in enumerate(profile_control_dirs, start=1):
+        path = profile_control_dir / "prefix-cache-profile-control.json"
+        payload = json.loads(path.read_text(encoding="utf-8"))
+        summary = payload["summary"]
+        trial: dict[str, Any] = {
+            "trial_index": index,
+            "trial_label": profile_control_dir.name,
+            "profile_control_json": str(path),
+            "row_count": payload["row_count"],
+            "shared_profile": payload["shared_profile"],
+            "control_profile": payload["control_profile"],
+            "mean_shared_to_control_prompt_tokens_mean_ratio": summary[
+                "mean_shared_to_control_prompt_tokens_mean_ratio"
+            ],
+        }
+        for phase_order, metric, source_field, _direction in metric_sources:
+            trial[f"{phase_order}_{metric}"] = summary[source_field]
+        trials.append(trial)
+
+    summary_rows = []
+    for phase_order, metric, _source_field, direction in metric_sources:
+        field = f"{phase_order}_{metric}"
+        stats = _metric_distribution(trials, field)
+        values = [
+            trial[field]
+            for trial in trials
+            if trial.get(field) is not None
+        ]
+        bootstrap_interval = _bootstrap_mean_interval(values)
+        summary_rows.append(
+            {
+                "phase_order": phase_order,
+                "metric": metric,
+                "direction": direction,
+                "trial_count": len(trials),
+                "shared_minus_control_mean": stats[f"{field}_mean"],
+                "shared_minus_control_min": stats[f"{field}_min"],
+                "shared_minus_control_max": stats[f"{field}_max"],
+                "shared_minus_control_cv": stats[f"{field}_cv"],
+                "shared_minus_control_bootstrap_mean_p05": bootstrap_interval[
+                    "mean_p05"
+                ],
+                "shared_minus_control_bootstrap_mean_p50": bootstrap_interval[
+                    "mean_p50"
+                ],
+                "shared_minus_control_bootstrap_mean_p95": bootstrap_interval[
+                    "mean_p95"
+                ],
+            }
+        )
+
+    prompt_ratio_stats = _metric_distribution(
+        trials,
+        "mean_shared_to_control_prompt_tokens_mean_ratio",
+    )
+    return {
+        "schema_version": 1,
+        "mode": "vllm-prefix-cache-profile-multitrial",
+        "trial_count": len(trials),
+        "profile_control_dirs": [str(path) for path in profile_control_dirs],
+        "shared_profile": trials[0]["shared_profile"],
+        "control_profile": trials[0]["control_profile"],
+        "prompt_token_ratio_mean": prompt_ratio_stats[
+            "mean_shared_to_control_prompt_tokens_mean_ratio_mean"
+        ],
+        "prompt_token_ratio_min": prompt_ratio_stats[
+            "mean_shared_to_control_prompt_tokens_mean_ratio_min"
+        ],
+        "prompt_token_ratio_max": prompt_ratio_stats[
+            "mean_shared_to_control_prompt_tokens_mean_ratio_max"
+        ],
+        "trials": trials,
+        "summary": summary_rows,
     }
 
 
