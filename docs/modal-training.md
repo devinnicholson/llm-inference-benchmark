@@ -1500,6 +1500,97 @@ faster. It tells us the next control we need.
 
 ## Next Step
 
-Add a counterbalanced paired benchmark: run both `async_first` and
-`server_first` orders, then compare paired deltas by order. That will tell us
-how much of the current server advantage comes from phase order and warm state.
+Training 015 adds the `server_first` phase-order control and compares it against
+the `async_first` paired result.
+
+# Modal Training 015: Phase-Order Control
+
+## Goal
+
+Test whether the paired Training 014 result depends on phase order. Training
+014 ran `AsyncLLM` first and the server second. This milestone runs the same
+paired benchmark with `server_first`, using the same prompts, warmup policy,
+repeats, and scenario seed.
+
+## Command
+
+```bash
+modal run modal_app.py --mode vllm-server-async-paired \
+  --phase-order server_first \
+  --prompt-profiles short \
+  --output-tokens 32 \
+  --repeats 3 \
+  --warmup-runs 1 \
+  --scenario-seed 568
+```
+
+The committed result writes:
+
+```text
+results/modal-vllm-server-async-paired-server-first/paired-server-async.json
+results/modal-vllm-server-async-paired-server-first/paired-server-async-summary.csv
+results/modal-vllm-server-async-paired-server-first/paired-server-async-runs.csv
+```
+
+## Runtime Observations
+
+The server-first run logged:
+
+- Server ready: `173620.882 ms`.
+- Server-side vLLM engine init: `141.37 s`.
+- Async engine load after server shutdown: `21686.931 ms`.
+- Server warmup: `896.157 ms` across `4` shapes and `15` generated tokens.
+- Async warmup: `272.285 ms` across `4` shapes and `15` generated tokens.
+- Server-side KV-cache capacity again matched previous runs: `320,400` GPU
+  KV-cache tokens and `312.89x` maximum concurrency for `1024` tokens/request.
+
+This reverses the warm-state relationship from Training 014. In Training 014,
+the server ran second and reached readiness in `33099.757 ms`. Here, the server
+runs first and pays the cold startup cost.
+
+## Server-First Result
+
+The ratio columns are medians of paired per-run ratios.
+
+| Requests | Pairs | Server/Async tok/s | Server/Async first event | Server/Async p95 latency | Server/Async TPOT | Async median tok/s | Server median tok/s |
+| ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| 1 | 3 | 0.903 | 1.405 | 1.107 | 1.069 | 49.024 | 44.109 |
+| 2 | 3 | 0.843 | 1.273 | 1.185 | 1.144 | 85.538 | 80.133 |
+| 4 | 3 | 0.902 | 1.482 | 1.108 | 1.077 | 186.599 | 168.521 |
+| 8 | 3 | 0.924 | 1.368 | 1.081 | 1.058 | 352.692 | 325.904 |
+
+Mean ratios across all `12` paired runs:
+
+- Server/Async throughput: `0.880`
+- Server/Async first event: `1.409`
+- Server/Async p95 latency: `1.154`
+- Server/Async p95 TPOT: `1.133`
+
+## Phase-Order Comparison
+
+| Phase order | Server ready ms | Async engine load ms | Mean Server/Async tok/s | Mean Server/Async first event | Mean Server/Async p95 latency | Mean Server/Async TPOT |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| `async_first` | 33099.757 | 154248.278 | 1.099 | 1.299 | 0.943 | 0.909 |
+| `server_first` | 173620.882 | 21686.931 | 0.880 | 1.409 | 1.154 | 1.133 |
+
+## Interpretation
+
+The phase-order control flips the conclusion. When the server runs second, it
+looks slightly better on throughput, p95 latency, and TPOT. When the server runs
+first, it is worse on all four mean ratio metrics, including throughput.
+
+That means the Training 014 server advantage was not a stable backend claim. It
+was at least partly a warm-state and phase-order effect. The first-event result
+is the most stable signal: the server is worse in both orders, and the
+server-first control makes that penalty larger.
+
+This is a strong methodology improvement for the artifact. We now have evidence
+that same-worker paired benchmarks must be counterbalanced before they are used
+to argue about API transport overhead.
+
+## Next Step
+
+Add a compact phase-order comparison artifact that reads the `async_first` and
+`server_first` paired outputs and writes one machine-readable summary table.
+After that, run more independent repetitions of both orders so we can estimate
+whether the order effect is stable across fresh Modal workers.

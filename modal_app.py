@@ -2123,6 +2123,7 @@ def run_vllm_server_async_paired_remote(
     repeats: int = DEFAULT_VLLM_SWEEP_REPEATS,
     scenario_seed: int = DEFAULT_VLLM_SWEEP_SEED,
     warmup_runs: int = 1,
+    phase_order: str = "async_first",
     ready_timeout_s: int = 600,
 ) -> dict[str, Any]:
     import asyncio
@@ -2151,6 +2152,9 @@ def run_vllm_server_async_paired_remote(
         raise ValueError("warmup_runs must be non-negative")
     if ready_timeout_s <= 0:
         raise ValueError("ready_timeout_s must be positive")
+    phase_order = phase_order.lower().replace("-", "_")
+    if phase_order not in {"async_first", "server_first"}:
+        raise ValueError("phase_order must be async_first or server_first")
     for profile in prompt_profile_values:
         if profile not in {"short", "long", "mixed"}:
             raise ValueError("prompt_profiles must contain only short, long, or mixed")
@@ -2651,13 +2655,21 @@ def run_vllm_server_async_paired_remote(
             "server_logs_tail": _tail_lines(server_logs, 80),
         }
 
-    async_result = asyncio.run(run_async_phase())
-    gc.collect()
-    if torch.cuda.is_available():
-        torch.cuda.empty_cache()
-        torch.cuda.synchronize()
-    time.sleep(2.0)
-    server_result = run_server_phase()
+    def release_cuda_memory() -> None:
+        gc.collect()
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+            torch.cuda.synchronize()
+        time.sleep(2.0)
+
+    if phase_order == "async_first":
+        async_result = asyncio.run(run_async_phase())
+        release_cuda_memory()
+        server_result = run_server_phase()
+    else:
+        server_result = run_server_phase()
+        release_cuda_memory()
+        async_result = asyncio.run(run_async_phase())
 
     hf_cache_volume.commit()
     vllm_cache_volume.commit()
@@ -2686,6 +2698,7 @@ def run_vllm_server_async_paired_remote(
         "repeats": int(repeats),
         "scenario_seed": int(scenario_seed),
         "warmup_runs": int(warmup_runs),
+        "phase_order": phase_order,
         "scenario_count": len(paired_scenarios),
         "paired_run_count": len(paired_runs),
         "max_model_len": max_model_len,
@@ -2725,9 +2738,9 @@ def run_vllm_server_async_paired_remote(
             row["server_to_async_p95_stream_tpot_ms_ratio"] for row in paired_runs
         ),
         "note": (
-            "One Modal worker runs in-process AsyncLLM first, releases the engine, "
-            "then runs the OpenAI-compatible vLLM server with the same scenario "
-            "plan. Paired rows compare matching scenario_id and repeat_index."
+            "One Modal worker runs in-process AsyncLLM and the OpenAI-compatible "
+            f"vLLM server in phase order {phase_order} with the same scenario plan. "
+            "Paired rows compare matching scenario_id and repeat_index."
         ),
     }
 
@@ -2750,6 +2763,7 @@ def main(
     output_tokens: str = DEFAULT_VLLM_SWEEP_OUTPUT_TOKENS,
     repeats: int = DEFAULT_VLLM_SWEEP_REPEATS,
     warmup_runs: int = 1,
+    phase_order: str = "async_first",
     scenario_seed: int = DEFAULT_VLLM_SWEEP_SEED,
     prefix_caching: str = "off",
     cold_sweep_dir: str = DEFAULT_VLLM_SWEEP_OUTPUT,
@@ -2964,8 +2978,15 @@ def main(
             repeats=repeats,
             scenario_seed=scenario_seed,
             warmup_runs=warmup_runs,
+            phase_order=phase_order,
         )
-        output_path = Path(output_dir or DEFAULT_VLLM_SERVER_ASYNC_PAIRED_OUTPUT)
+        phase_order_slug = phase_order.lower().replace("_", "-")
+        default_output = (
+            DEFAULT_VLLM_SERVER_ASYNC_PAIRED_OUTPUT
+            if phase_order_slug == "async-first"
+            else f"{DEFAULT_VLLM_SERVER_ASYNC_PAIRED_OUTPUT}-{phase_order_slug}"
+        )
+        output_path = Path(output_dir or default_output)
         output_path.mkdir(parents=True, exist_ok=True)
         json_path = output_path / "paired-server-async.json"
         summary_csv_path = output_path / "paired-server-async-summary.csv"
@@ -2979,6 +3000,7 @@ def main(
         print(f"paired_runs: {payload['paired_run_count']}")
         print(f"repeats: {payload['repeats']}")
         print(f"warmup_runs: {payload['warmup_runs']}")
+        print(f"phase_order: {payload['phase_order']}")
         print(
             "mean_server_to_async_throughput_ratio: "
             f"{payload['mean_server_to_async_throughput_ratio']:.3f}"

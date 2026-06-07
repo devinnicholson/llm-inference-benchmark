@@ -159,6 +159,17 @@ modal run modal_app.py --mode vllm-server-async-paired \
   --warmup-runs 1
 ```
 
+Run the server-first phase-order control:
+
+```bash
+modal run modal_app.py --mode vllm-server-async-paired \
+  --phase-order server_first \
+  --prompt-profiles short \
+  --output-tokens 32 \
+  --repeats 3 \
+  --warmup-runs 1
+```
+
 Run the first Modal vLLM concurrent workload:
 
 ```bash
