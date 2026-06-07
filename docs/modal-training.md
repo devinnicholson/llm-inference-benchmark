@@ -388,3 +388,99 @@ Move from offline `LLM.generate` to a small OpenAI-compatible vLLM server mode
 with streaming enabled. That should let us measure TTFT directly from the first
 streamed token and compare raw Transformers, vLLM offline, and vLLM server
 timing on the same prompt.
+
+# Modal Training 005: vLLM Streaming
+
+## Goal
+
+Measure vLLM's async streaming path so we can distinguish first-output latency
+from full generation wall time.
+
+This uses vLLM's V1 `AsyncLLM` engine and `RequestOutputKind.DELTA`, which
+streams newly generated text chunks as they arrive. It is still in-process
+offline inference, not an OpenAI-compatible HTTP server, but it measures the
+same first-yield behavior that server streaming depends on.
+
+## Command
+
+```bash
+modal run modal_app.py --mode vllm-streaming
+```
+
+The first committed streaming result is:
+
+```text
+results/modal-vllm-streaming/vllm-streaming.json
+```
+
+## Result
+
+| Field | Value |
+| --- | ---: |
+| Backend | `vllm 0.21.0` |
+| GPU | `Tesla T4` |
+| Prompt tokens | `43` |
+| Generated tokens | `30` |
+| Engine load/init | `151070.897 ms` |
+| First streamed chunk | `1466.684 ms` |
+| Stream wall time | `2072.620 ms` |
+| Decode after first chunk | `605.937 ms` |
+| Stream TPOT after first chunk | `20.894 ms` |
+| Output tokens/sec | `14.474` |
+
+Generated text:
+
+```text
+A KV cache in LLM is a data structure that stores the results of a LLM computation, allowing for efficient data retrieval and manipulation.
+```
+
+## Comparison
+
+| Field | Transformers manual decode | vLLM offline generate | vLLM async streaming |
+| --- | ---: | ---: | ---: |
+| Prompt tokens | `43` | `43` | `43` |
+| Generated tokens | `32` | `30` | `30` |
+| First output | `37.221 ms` | not exposed | `1466.684 ms` |
+| TPOT | `32.424 ms` | not exposed | `20.894 ms` |
+| Generation wall time | `1042.356 ms` | `1563.241 ms` | `2072.620 ms` |
+| Output tokens/sec | `30.700` | `19.191` | `14.474` |
+
+The vLLM streaming result shows lower per-token decode time after the first
+chunk than the raw Transformers loop, but a much slower first output. The run
+also logged a Triton JIT compilation during inference, which likely inflated the
+first streamed chunk time.
+
+## Measurement Caveat
+
+`first_chunk_ms` is the first yielded streaming chunk, not necessarily exactly
+one token. In this run, the first chunk contained two token IDs and text
+`"A K"`. For API-facing TTFT, this is still the user-visible first output. For a
+strict first-token benchmark, the next harness should force or validate
+single-token stream intervals.
+
+## Runtime Observations
+
+The streaming run repeated the same serving-engine observations as the offline
+vLLM baseline:
+
+- FlashAttention 2 was unavailable on T4 compute capability `7.5`.
+- vLLM selected FlashInfer attention.
+- vLLM reported approximately `6.96 GiB` available KV-cache memory.
+- vLLM reported `324,320` GPU KV-cache tokens.
+- vLLM reported maximum concurrency of `316.72x` for `1024` tokens/request.
+- Engine initialization took `144.97 s`.
+- A Triton JIT compilation happened during inference for
+  `_compute_slot_mapping_kernel`.
+
+## Next Step
+
+Now the project has three single-request baselines:
+
+- raw Transformers manual decode
+- vLLM offline generate
+- vLLM async streaming
+
+The next research step should stop optimizing the single prompt and instead run
+a small concurrent workload through vLLM. That is where a serving engine should
+start to differ from the raw Transformers baseline in a way that matters for
+KV-cache scheduling.

@@ -20,6 +20,7 @@ DEFAULT_SWEEP_OUTPUT = "results/modal-training-smoke"
 DEFAULT_GPU_PROBE_OUTPUT = "results/modal-gpu-probe"
 DEFAULT_INFERENCE_OUTPUT = "results/modal-tiny-inference"
 DEFAULT_VLLM_OUTPUT = "results/modal-vllm-inference"
+DEFAULT_VLLM_STREAMING_OUTPUT = "results/modal-vllm-streaming"
 DEFAULT_HF_MODEL = "HuggingFaceTB/SmolLM2-135M-Instruct"
 DEFAULT_INFERENCE_PROMPT = "Explain KV cache in LLM inference in two concise sentences."
 HF_CACHE_PATH = "/cache"
@@ -381,6 +382,176 @@ def run_vllm_inference_remote(
     }
 
 
+@app.function(
+    image=vllm_image,
+    gpu="T4",
+    timeout=1200,
+    volumes={HF_CACHE_PATH: hf_cache_volume, VLLM_CACHE_PATH: vllm_cache_volume},
+)
+def run_vllm_streaming_remote(
+    hf_model: str = DEFAULT_HF_MODEL,
+    prompt: str = DEFAULT_INFERENCE_PROMPT,
+    max_new_tokens: int = 32,
+) -> dict[str, Any]:
+    import asyncio
+    import platform
+    import time
+
+    from transformers import AutoTokenizer
+    from vllm import SamplingParams
+    from vllm.engine.arg_utils import AsyncEngineArgs
+    from vllm.sampling_params import RequestOutputKind
+    from vllm.v1.engine.async_llm import AsyncLLM
+
+    if max_new_tokens <= 0:
+        raise ValueError("max_new_tokens must be positive")
+
+    import vllm
+
+    nvidia_smi_before = _run_command(
+        [
+            "nvidia-smi",
+            "--query-gpu=name,memory.total,memory.free,driver_version",
+            "--format=csv,noheader,nounits",
+        ]
+    )
+
+    started = time.perf_counter()
+    tokenizer = AutoTokenizer.from_pretrained(hf_model)
+    tokenizer_load_ms = (time.perf_counter() - started) * 1000
+
+    started = time.perf_counter()
+    formatted_prompt, prompt_format = _format_prompt_for_generation(tokenizer, prompt)
+    prompt_format_ms = (time.perf_counter() - started) * 1000
+    prompt_tokens = len(tokenizer.encode(formatted_prompt))
+
+    async def run_stream() -> dict[str, Any]:
+        started = time.perf_counter()
+        engine_args = AsyncEngineArgs(
+            model=hf_model,
+            dtype="half",
+            max_model_len=1024,
+            max_num_batched_tokens=1024,
+            max_num_seqs=1,
+            gpu_memory_utilization=0.50,
+            enforce_eager=True,
+            trust_remote_code=False,
+        )
+        engine = AsyncLLM.from_engine_args(engine_args)
+        engine_load_ms = (time.perf_counter() - started) * 1000
+
+        sampling_params = SamplingParams(
+            max_tokens=max_new_tokens,
+            temperature=0.0,
+            output_kind=RequestOutputKind.DELTA,
+        )
+        request_id = "modal-vllm-streaming-001"
+        first_chunk_ms: float | None = None
+        chunks: list[dict[str, Any]] = []
+        generated_text_parts: list[str] = []
+        generated_tokens = 0
+        stream_started = time.perf_counter()
+        stream_finished: float | None = None
+
+        try:
+            async for output in engine.generate(
+                request_id=request_id,
+                prompt=formatted_prompt,
+                sampling_params=sampling_params,
+            ):
+                elapsed_ms = (time.perf_counter() - stream_started) * 1000
+                for completion in output.outputs:
+                    text = completion.text
+                    token_ids = list(completion.token_ids or [])
+                    if first_chunk_ms is None and (text or token_ids):
+                        first_chunk_ms = elapsed_ms
+                    if text:
+                        generated_text_parts.append(text)
+                    generated_tokens += len(token_ids)
+                    chunks.append(
+                        {
+                            "elapsed_ms": elapsed_ms,
+                            "text": text,
+                            "token_count": len(token_ids),
+                            "finished": bool(output.finished),
+                        }
+                    )
+                if output.finished:
+                    stream_finished = time.perf_counter()
+                    break
+            if stream_finished is None:
+                stream_finished = time.perf_counter()
+        finally:
+            engine.shutdown()
+
+        stream_wall_ms = (stream_finished - stream_started) * 1000
+        decode_tokens_after_first = max(generated_tokens - 1, 0)
+        decode_after_first_ms = (
+            stream_wall_ms - first_chunk_ms
+            if first_chunk_ms is not None
+            else None
+        )
+        return {
+            "engine_load_ms": engine_load_ms,
+            "stream_wall_ms": stream_wall_ms,
+            "first_chunk_ms": first_chunk_ms,
+            "decode_after_first_ms": decode_after_first_ms,
+            "stream_tpot_ms": (
+                decode_after_first_ms / decode_tokens_after_first
+                if decode_after_first_ms is not None and decode_tokens_after_first
+                else None
+            ),
+            "generated_tokens": generated_tokens,
+            "generated_text": "".join(generated_text_parts),
+            "chunks": chunks,
+        }
+
+    stream_result = asyncio.run(run_stream())
+    hf_cache_volume.commit()
+    vllm_cache_volume.commit()
+    nvidia_smi_after = _run_command(
+        [
+            "nvidia-smi",
+            "--query-gpu=name,memory.total,memory.free,driver_version",
+            "--format=csv,noheader,nounits",
+        ]
+    )
+
+    stream_wall_ms = float(stream_result["stream_wall_ms"])
+    generated_tokens = int(stream_result["generated_tokens"])
+    return {
+        "schema_version": 1,
+        "execution": "modal",
+        "mode": "vllm-streaming",
+        "backend": "vllm",
+        "model_id": hf_model,
+        "prompt": prompt,
+        "prompt_format": prompt_format,
+        "prompt_tokens": prompt_tokens,
+        "max_new_tokens": int(max_new_tokens),
+        "max_model_len": 1024,
+        "max_num_batched_tokens": 1024,
+        "max_num_seqs": 1,
+        "tokenizer_load_ms": tokenizer_load_ms,
+        "prompt_format_ms": prompt_format_ms,
+        "engine_load_ms": stream_result["engine_load_ms"],
+        "first_chunk_ms": stream_result["first_chunk_ms"],
+        "stream_wall_ms": stream_wall_ms,
+        "decode_after_first_ms": stream_result["decode_after_first_ms"],
+        "stream_tpot_ms": stream_result["stream_tpot_ms"],
+        "generated_tokens": generated_tokens,
+        "generated_text": stream_result["generated_text"],
+        "output_tokens_per_second": generated_tokens / max(stream_wall_ms / 1000, 1e-9),
+        "chunks": stream_result["chunks"],
+        "vllm_version": str(vllm.__version__),
+        "platform": platform.platform(),
+        "python_version": platform.python_version(),
+        "nvidia_smi_before": nvidia_smi_before,
+        "nvidia_smi_after": nvidia_smi_after,
+        "note": "AsyncLLM streaming path using RequestOutputKind.DELTA; first_chunk_ms is measured at first yielded text/token chunk.",
+    }
+
+
 @app.local_entrypoint()
 def main(
     mode: str = "sweep",
@@ -445,9 +616,31 @@ def main(
         print(f"json: {json_path}")
         return
 
+    if mode == "vllm-streaming":
+        payload = run_vllm_streaming_remote.remote(
+            hf_model=hf_model,
+            prompt=prompt,
+            max_new_tokens=max_new_tokens,
+        )
+        output_path = Path(output_dir or DEFAULT_VLLM_STREAMING_OUTPUT)
+        output_path.mkdir(parents=True, exist_ok=True)
+        json_path = output_path / "vllm-streaming.json"
+        json_path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+
+        print(f"model: {payload['model_id']}")
+        print(f"backend: {payload['backend']} {payload['vllm_version']}")
+        if payload.get("first_chunk_ms") is not None:
+            print(f"first_chunk_ms: {payload['first_chunk_ms']:.3f}")
+        if payload.get("stream_tpot_ms") is not None:
+            print(f"stream_tpot_ms: {payload['stream_tpot_ms']:.3f}")
+        print(f"output_tokens_per_second: {payload['output_tokens_per_second']:.3f}")
+        print(f"json: {json_path}")
+        return
+
     if mode != "sweep":
         raise ValueError(
-            "mode must be 'sweep', 'gpu-probe', 'tiny-inference', or 'vllm-inference'"
+            "mode must be 'sweep', 'gpu-probe', 'tiny-inference', "
+            "'vllm-inference', or 'vllm-streaming'"
         )
 
     payload = run_capacity_sweep_remote.remote(

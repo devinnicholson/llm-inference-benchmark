@@ -1,0 +1,206 @@
+{
+  "backend": "vllm",
+  "chunks": [
+    {
+      "elapsed_ms": 1466.6838139999925,
+      "finished": false,
+      "text": "A K",
+      "token_count": 2
+    },
+    {
+      "elapsed_ms": 1484.420190999998,
+      "finished": false,
+      "text": "V",
+      "token_count": 1
+    },
+    {
+      "elapsed_ms": 1505.2592909999873,
+      "finished": false,
+      "text": " cache",
+      "token_count": 1
+    },
+    {
+      "elapsed_ms": 1530.135859000012,
+      "finished": false,
+      "text": " in",
+      "token_count": 1
+    },
+    {
+      "elapsed_ms": 1550.7695800000079,
+      "finished": false,
+      "text": " L",
+      "token_count": 1
+    },
+    {
+      "elapsed_ms": 1567.3898359999896,
+      "finished": false,
+      "text": "LM",
+      "token_count": 1
+    },
+    {
+      "elapsed_ms": 1593.9175659999876,
+      "finished": false,
+      "text": " is",
+      "token_count": 1
+    },
+    {
+      "elapsed_ms": 1613.982821999997,
+      "finished": false,
+      "text": " a",
+      "token_count": 1
+    },
+    {
+      "elapsed_ms": 1637.7402489999895,
+      "finished": false,
+      "text": " data",
+      "token_count": 1
+    },
+    {
+      "elapsed_ms": 1658.924689999992,
+      "finished": false,
+      "text": " structure",
+      "token_count": 1
+    },
+    {
+      "elapsed_ms": 1679.013760999993,
+      "finished": false,
+      "text": " that",
+      "token_count": 1
+    },
+    {
+      "elapsed_ms": 1704.4499779999853,
+      "finished": false,
+      "text": " stores",
+      "token_count": 1
+    },
+    {
+      "elapsed_ms": 1727.5156249999952,
+      "finished": false,
+      "text": " the",
+      "token_count": 1
+    },
+    {
+      "elapsed_ms": 1753.167674999986,
+      "finished": false,
+      "text": " results",
+      "token_count": 1
+    },
+    {
+      "elapsed_ms": 1773.8713729999915,
+      "finished": false,
+      "text": " of",
+      "token_count": 1
+    },
+    {
+      "elapsed_ms": 1794.1861790000075,
+      "finished": false,
+      "text": " a",
+      "token_count": 1
+    },
+    {
+      "elapsed_ms": 1815.1067100000091,
+      "finished": false,
+      "text": " L",
+      "token_count": 1
+    },
+    {
+      "elapsed_ms": 1834.1728329999967,
+      "finished": false,
+      "text": "LM",
+      "token_count": 1
+    },
+    {
+      "elapsed_ms": 1857.2789680000028,
+      "finished": false,
+      "text": " computation",
+      "token_count": 1
+    },
+    {
+      "elapsed_ms": 1877.55369300001,
+      "finished": false,
+      "text": ",",
+      "token_count": 1
+    },
+    {
+      "elapsed_ms": 1899.389154000005,
+      "finished": false,
+      "text": " allowing",
+      "token_count": 1
+    },
+    {
+      "elapsed_ms": 1919.622669000006,
+      "finished": false,
+      "text": " for",
+      "token_count": 1
+    },
+    {
+      "elapsed_ms": 1942.7735380000115,
+      "finished": false,
+      "text": " efficient",
+      "token_count": 1
+    },
+    {
+      "elapsed_ms": 1961.5714850000074,
+      "finished": false,
+      "text": " data",
+      "token_count": 1
+    },
+    {
+      "elapsed_ms": 1981.846628999989,
+      "finished": false,
+      "text": " retrieval",
+      "token_count": 1
+    },
+    {
+      "elapsed_ms": 2004.0849659999935,
+      "finished": false,
+      "text": " and",
+      "token_count": 1
+    },
+    {
+      "elapsed_ms": 2024.4736550000084,
+      "finished": false,
+      "text": " manipulation",
+      "token_count": 1
+    },
+    {
+      "elapsed_ms": 2045.3817300000026,
+      "finished": false,
+      "text": ".",
+      "token_count": 1
+    },
+    {
+      "elapsed_ms": 2072.614649000002,
+      "finished": true,
+      "text": "",
+      "token_count": 1
+    }
+  ],
+  "decode_after_first_ms": 605.9366549999934,
+  "engine_load_ms": 151070.896602,
+  "execution": "modal",
+  "first_chunk_ms": 1466.6838139999925,
+  "generated_text": "A KV cache in LLM is a data structure that stores the results of a LLM computation, allowing for efficient data retrieval and manipulation.",
+  "generated_tokens": 30,
+  "max_model_len": 1024,
+  "max_new_tokens": 32,
+  "max_num_batched_tokens": 1024,
+  "max_num_seqs": 1,
+  "mode": "vllm-streaming",
+  "model_id": "HuggingFaceTB/SmolLM2-135M-Instruct",
+  "note": "AsyncLLM streaming path using RequestOutputKind.DELTA; first_chunk_ms is measured at first yielded text/token chunk.",
+  "nvidia_smi_after": "Tesla T4, 15360, 14913, 580.95.05",
+  "nvidia_smi_before": "Tesla T4, 15360, 14913, 580.95.05",
+  "output_tokens_per_second": 14.474430050608657,
+  "platform": "Linux-4.4.0-x86_64-with-glibc2.35",
+  "prompt": "Explain KV cache in LLM inference in two concise sentences.",
+  "prompt_format": "chat_template",
+  "prompt_format_ms": 4.198828999999904,
+  "prompt_tokens": 43,
+  "python_version": "3.12.1",
+  "schema_version": 1,
+  "stream_tpot_ms": 20.894367413792875,
+  "stream_wall_ms": 2072.620468999986,
+  "tokenizer_load_ms": 267.65006400000146,
+  "vllm_version": "0.21.0"
+}

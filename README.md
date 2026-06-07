@@ -115,6 +115,12 @@ Run the first Modal vLLM inference baseline:
 modal run modal_app.py --mode vllm-inference
 ```
 
+Run the first Modal vLLM streaming timing:
+
+```bash
+modal run modal_app.py --mode vllm-streaming
+```
+
 Modal training is documented in
 [`docs/modal-training.md`](docs/modal-training.md).
 
