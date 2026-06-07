@@ -2599,3 +2599,63 @@ The next useful milestone is to enable or scrape vLLM prefix-cache/KV-cache
 metrics, if the installed vLLM version exposes them, and attach hit-rate or
 block-reuse counters to each scenario. Without direct cache observability, more
 timing trials will mostly quantify noise rather than explain it.
+
+# Training 026: vLLM Cache-Metrics Surface Probe
+
+Training 026 adds `vllm-cache-metrics-probe`, a no-inference Modal introspection
+mode for the exact vLLM image used by the benchmark.
+
+## Goal
+
+Determine whether the installed vLLM version exposes cache metrics before we
+change the paired benchmark harness. Local Python does not have vLLM installed,
+so this probe runs inside the Modal vLLM image and writes a reproducible JSON
+artifact.
+
+## Command
+
+```bash
+modal run modal_app.py --mode vllm-cache-metrics-probe
+```
+
+## Artifact
+
+```text
+results/modal-vllm-cache-metrics-probe/cache-metrics-probe.json
+```
+
+## Result
+
+The Modal image uses vLLM `0.21.0`. `AsyncEngineArgs` exposes and accepts:
+
+- `kv_cache_metrics=True`
+- `kv_cache_metrics_sample=1.0`
+- `disable_log_stats=False`
+
+The probe also found these relevant `AsyncLLM` methods:
+
+- `do_log_stats`
+- `reset_encoder_cache`
+- `reset_mm_cache`
+- `reset_prefix_cache`
+
+The no-GPU probe logs that CUDA runtime pieces are not available, but that does
+not affect constructor-surface introspection. It does mean the next metrics
+experiment should run on the normal GPU-backed vLLM path.
+
+## Interpretation
+
+This is enough to justify a metrics-enabled GPU smoke. vLLM exposes cache metric
+flags through the same `AsyncEngineArgs` object we already use, but the Python
+object does not obviously expose a direct metrics getter. The likely path is to
+enable `kv_cache_metrics`, sample at `1.0`, keep log stats enabled, call
+`do_log_stats()` around a tiny shared-prefix run, and capture whatever vLLM
+emits.
+
+## Next Step
+
+Training 027 should add a tiny GPU-backed metrics smoke, not a full benchmark:
+one shared-prefix scenario, prefix caching enabled, `kv_cache_metrics=True`,
+`kv_cache_metrics_sample=1.0`, and explicit `do_log_stats()` calls before and
+after the scenario. The artifact should report whether vLLM exposes usable
+hit-rate or block-reuse counters in logs or object state.

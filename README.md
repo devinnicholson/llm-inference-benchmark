@@ -115,6 +115,12 @@ Run the first Modal vLLM inference baseline:
 modal run modal_app.py --mode vllm-inference
 ```
 
+Inspect vLLM cache-metrics support in the Modal image:
+
+```bash
+modal run modal_app.py --mode vllm-cache-metrics-probe
+```
+
 Run the first Modal vLLM streaming timing:
 
 ```bash

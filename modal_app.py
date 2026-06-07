@@ -22,6 +22,7 @@ DEFAULT_INFERENCE_OUTPUT = "results/modal-tiny-inference"
 DEFAULT_VLLM_OUTPUT = "results/modal-vllm-inference"
 DEFAULT_VLLM_STREAMING_OUTPUT = "results/modal-vllm-streaming"
 DEFAULT_VLLM_CONCURRENT_OUTPUT = "results/modal-vllm-concurrent"
+DEFAULT_VLLM_CACHE_METRICS_PROBE_OUTPUT = "results/modal-vllm-cache-metrics-probe"
 DEFAULT_VLLM_SWEEP_OUTPUT = "results/modal-vllm-sweep"
 DEFAULT_VLLM_SERVER_OUTPUT = "results/modal-vllm-server-streaming"
 DEFAULT_VLLM_SERVER_CONCURRENT_OUTPUT = "results/modal-vllm-server-concurrent"
@@ -1208,6 +1209,101 @@ def run_vllm_concurrent_remote(
         "nvidia_smi_before": nvidia_smi_before,
         "nvidia_smi_after": nvidia_smi_after,
         "note": "Concurrent AsyncLLM streaming workload. Request timings are measured from each coroutine start after the shared engine is loaded.",
+    }
+
+
+@app.function(
+    image=vllm_image,
+    timeout=600,
+)
+def run_vllm_cache_metrics_probe_remote(
+    hf_model: str = DEFAULT_HF_MODEL,
+) -> dict[str, Any]:
+    import inspect
+    import platform
+
+    import vllm
+    from vllm.engine.arg_utils import AsyncEngineArgs
+    from vllm.v1.engine.async_llm import AsyncLLM
+
+    def signature_parameters(target: Any) -> list[str]:
+        try:
+            return list(inspect.signature(target).parameters)
+        except (TypeError, ValueError):
+            return []
+
+    def dataclass_fields(target: Any) -> list[str]:
+        fields = getattr(target, "__dataclass_fields__", {})
+        return sorted(fields) if fields else []
+
+    def relevant_names(names: list[str]) -> list[str]:
+        markers = ("cache", "metric", "observ", "stat", "log")
+        return sorted(
+            name for name in names
+            if any(marker in name.lower() for marker in markers)
+        )
+
+    async_engine_args_parameters = signature_parameters(AsyncEngineArgs)
+    async_engine_args_fields = dataclass_fields(AsyncEngineArgs)
+    async_llm_relevant_methods = relevant_names(
+        [name for name in dir(AsyncLLM) if not name.startswith("_")]
+    )
+    observability_parameters: list[str] = []
+    observability_fields: list[str] = []
+    observability_error = ""
+    try:
+        from vllm.config import ObservabilityConfig
+
+        observability_parameters = signature_parameters(ObservabilityConfig)
+        observability_fields = dataclass_fields(ObservabilityConfig)
+    except Exception as error:  # pragma: no cover - remote environment probe
+        observability_error = f"{type(error).__name__}: {error}"
+
+    constructor_checks = []
+    for kwargs in (
+        {"kv_cache_metrics": True},
+        {"kv_cache_metrics": True, "kv_cache_metrics_sample": 1.0},
+        {"disable_log_stats": False},
+    ):
+        try:
+            AsyncEngineArgs(model=hf_model, **kwargs)
+            constructor_checks.append({"kwargs": kwargs, "accepted": True, "error": ""})
+        except Exception as error:  # pragma: no cover - remote environment probe
+            constructor_checks.append(
+                {
+                    "kwargs": kwargs,
+                    "accepted": False,
+                    "error": f"{type(error).__name__}: {error}",
+                }
+            )
+
+    return {
+        "schema_version": 1,
+        "execution": "modal",
+        "mode": "vllm-cache-metrics-probe",
+        "model_id": hf_model,
+        "vllm_version": str(vllm.__version__),
+        "platform": platform.platform(),
+        "python_version": platform.python_version(),
+        "async_engine_args_parameters": async_engine_args_parameters,
+        "async_engine_args_fields": async_engine_args_fields,
+        "async_engine_args_relevant_parameters": relevant_names(
+            async_engine_args_parameters
+        ),
+        "async_engine_args_relevant_fields": relevant_names(async_engine_args_fields),
+        "async_llm_relevant_methods": async_llm_relevant_methods,
+        "observability_config_parameters": observability_parameters,
+        "observability_config_fields": observability_fields,
+        "observability_config_relevant_parameters": relevant_names(
+            observability_parameters
+        ),
+        "observability_config_relevant_fields": relevant_names(observability_fields),
+        "observability_config_error": observability_error,
+        "constructor_checks": constructor_checks,
+        "note": (
+            "Remote introspection of vLLM constructor surfaces related to cache "
+            "metrics, observability, and logging. This does not run inference."
+        ),
     }
 
 
@@ -3245,6 +3341,27 @@ def main(
         print(f"json: {json_path}")
         return
 
+    if mode == "vllm-cache-metrics-probe":
+        payload = run_vllm_cache_metrics_probe_remote.remote(hf_model=hf_model)
+        output_path = Path(output_dir or DEFAULT_VLLM_CACHE_METRICS_PROBE_OUTPUT)
+        output_path.mkdir(parents=True, exist_ok=True)
+        json_path = output_path / "cache-metrics-probe.json"
+        json_path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+
+        print(f"vllm_version: {payload['vllm_version']}")
+        print(
+            "async_engine_args_relevant_parameters: "
+            f"{','.join(payload['async_engine_args_relevant_parameters'])}"
+        )
+        print(
+            "observability_config_relevant_parameters: "
+            f"{','.join(payload['observability_config_relevant_parameters'])}"
+        )
+        for check in payload["constructor_checks"]:
+            print(f"constructor_check {check['kwargs']}: accepted={check['accepted']}")
+        print(f"json: {json_path}")
+        return
+
     if mode == "vllm-inference":
         payload = run_vllm_inference_remote.remote(
             hf_model=hf_model,
@@ -3729,7 +3846,8 @@ def main(
     if mode != "sweep":
         raise ValueError(
             "mode must be 'sweep', 'gpu-probe', 'tiny-inference', "
-            "'vllm-inference', 'vllm-streaming', 'vllm-concurrent', "
+            "'vllm-cache-metrics-probe', 'vllm-inference', "
+            "'vllm-streaming', 'vllm-concurrent', "
             "'vllm-server-streaming', 'vllm-server-concurrent', "
             "'vllm-server-sweep', 'vllm-server-sweep-compare', "
             "'vllm-server-async-paired', "
