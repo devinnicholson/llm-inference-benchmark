@@ -1396,7 +1396,110 @@ large differences, but not sufficient to isolate API transport overhead.
 
 ## Next Step
 
-Build a paired A/B benchmark that runs the server path and the in-process
-`AsyncLLM` path in one Modal function with matched prompts, matched warmups,
-matched scenario order, and per-run paired deltas. That is the benchmark needed
-before we can make a defensible server-overhead claim.
+Training 014 adds the paired same-worker benchmark with matched prompts,
+warmups, scenario order, and per-run deltas.
+
+# Modal Training 014: Paired Server vs AsyncLLM Benchmark
+
+## Goal
+
+Run the in-process `AsyncLLM` path and the OpenAI-compatible server path inside
+one Modal worker, then compare matching `(scenario_id, repeat_index)` pairs.
+This removes a major weakness from Training 013: the server and async rows are
+no longer from unrelated Modal jobs.
+
+This is still not the final overhead benchmark because the phase order is fixed:
+`AsyncLLM` runs first, then the server starts second on the same worker.
+
+## Command
+
+```bash
+modal run modal_app.py --mode vllm-server-async-paired \
+  --prompt-profiles short \
+  --output-tokens 32 \
+  --repeats 3 \
+  --warmup-runs 1 \
+  --scenario-seed 568
+```
+
+The committed result writes:
+
+```text
+results/modal-vllm-server-async-paired/paired-server-async.json
+results/modal-vllm-server-async-paired/paired-server-async-summary.csv
+results/modal-vllm-server-async-paired/paired-server-async-runs.csv
+```
+
+## Method
+
+The paired runner:
+
+- Builds one scenario plan from the seed `568`.
+- Runs the in-process `AsyncLLM` phase first.
+- Runs one one-token warmup pass and discards those timings.
+- Measures `3` repeats for each `short_out32_n{1,2,4,8}` scenario.
+- Shuts down the async engine, runs garbage collection, and clears CUDA cache.
+- Starts `vllm serve` on the same worker.
+- Runs the same warmup and the same measured scenario plan.
+- Pairs rows by `(scenario_id, repeat_index)`.
+
+## Runtime Observations
+
+The paired run logged:
+
+- Async engine load: `154248.278 ms`.
+- Server ready after Async shutdown: `33099.757 ms`.
+- Async warmup: `966.939 ms` across `4` shapes and `15` generated tokens.
+- Server warmup: `362.018 ms` across `4` shapes and `15` generated tokens.
+- Server-side vLLM engine init was only `2.80 s`.
+- Server-side KV-cache capacity matched previous runs: `320,400` GPU KV-cache
+  tokens and `312.89x` maximum concurrency for `1024` tokens/request.
+
+The very short server init is useful, but it is also a caveat: the server phase
+benefits from running second in an already-warmed worker.
+
+## Result
+
+The ratio columns are medians of paired per-run ratios. Throughput ratios above
+`1.0` favor the server. Latency, first-event, and TPOT ratios below `1.0` favor
+the server.
+
+| Requests | Pairs | Server/Async tok/s | Server/Async first event | Server/Async p95 latency | Server/Async TPOT | Async median tok/s | Server median tok/s |
+| ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| 1 | 3 | 0.995 | 1.081 | 1.004 | 0.998 | 47.597 | 48.275 |
+| 2 | 3 | 1.074 | 1.221 | 0.931 | 0.936 | 88.713 | 86.063 |
+| 4 | 3 | 1.082 | 1.170 | 0.924 | 0.900 | 173.843 | 187.393 |
+| 8 | 3 | 1.098 | 1.332 | 0.910 | 0.879 | 333.102 | 359.460 |
+
+Mean ratios across all `12` paired runs:
+
+- Server/Async throughput: `1.099`
+- Server/Async first event: `1.299`
+- Server/Async p95 latency: `0.943`
+- Server/Async p95 TPOT: `0.909`
+
+## Interpretation
+
+The paired run strengthens the finding from Training 013: this setup does not
+show a large server throughput penalty. Server throughput ratios are near or
+above `1.0`, and p95 latency plus TPOT ratios are usually below `1.0`.
+
+The server's first-event latency is consistently worse, especially at higher
+concurrency. That is the metric most likely to expose API/SSE/client-loop
+overhead in this benchmark shape.
+
+There are still paired outliers. In `short_out32_n2_rep02`, AsyncLLM was much
+slower than the server, producing a server/async throughput ratio of `1.903` and
+a latency ratio of `0.524`. In `short_out32_n8_rep02`, the server had a
+first-event outlier with a ratio of `2.716` and a latency ratio of `1.149`.
+
+The main caveat is phase order. Because AsyncLLM runs first, then the server
+runs after model files, kernels, and process-local state have already been
+warmed, this paired benchmark is not enough to claim that the server path is
+faster. It tells us the next control we need.
+
+## Next Step
+
+Add a counterbalanced paired benchmark: run both `async_first` and
+`server_first` orders, then compare paired deltas by order. That will tell us
+how much of the current server advantage comes from phase order and warm state.

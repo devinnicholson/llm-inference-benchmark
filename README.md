@@ -149,6 +149,16 @@ Compare the repeated server sweep against the in-process `AsyncLLM` sweep:
 modal run modal_app.py --mode vllm-server-sweep-compare
 ```
 
+Run a paired same-worker server-vs-`AsyncLLM` benchmark:
+
+```bash
+modal run modal_app.py --mode vllm-server-async-paired \
+  --prompt-profiles short \
+  --output-tokens 32 \
+  --repeats 3 \
+  --warmup-runs 1
+```
+
 Run the first Modal vLLM concurrent workload:
 
 ```bash

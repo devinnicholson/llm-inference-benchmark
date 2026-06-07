@@ -27,6 +27,7 @@ DEFAULT_VLLM_SERVER_OUTPUT = "results/modal-vllm-server-streaming"
 DEFAULT_VLLM_SERVER_CONCURRENT_OUTPUT = "results/modal-vllm-server-concurrent"
 DEFAULT_VLLM_SERVER_SWEEP_OUTPUT = "results/modal-vllm-server-sweep"
 DEFAULT_VLLM_SERVER_SWEEP_COMPARE_OUTPUT = "results/modal-vllm-server-sweep-compare"
+DEFAULT_VLLM_SERVER_ASYNC_PAIRED_OUTPUT = "results/modal-vllm-server-async-paired"
 DEFAULT_VLLM_PREFIX_CACHE_SWEEP_OUTPUT = "results/modal-vllm-prefix-cache-sweep"
 DEFAULT_VLLM_PREFIX_CACHE_COMPARE_OUTPUT = "results/modal-vllm-prefix-cache-compare"
 DEFAULT_VLLM_SWEEP_REQUEST_COUNTS = "1,2,4,8"
@@ -2108,6 +2109,629 @@ def run_vllm_server_sweep_remote(
     }
 
 
+@app.function(
+    image=vllm_image,
+    gpu="T4",
+    timeout=3600,
+    volumes={HF_CACHE_PATH: hf_cache_volume, VLLM_CACHE_PATH: vllm_cache_volume},
+)
+def run_vllm_server_async_paired_remote(
+    hf_model: str = DEFAULT_HF_MODEL,
+    request_counts: str = DEFAULT_VLLM_SWEEP_REQUEST_COUNTS,
+    prompt_profiles: str = DEFAULT_VLLM_SWEEP_PROMPT_PROFILES,
+    output_tokens: str = DEFAULT_VLLM_SWEEP_OUTPUT_TOKENS,
+    repeats: int = DEFAULT_VLLM_SWEEP_REPEATS,
+    scenario_seed: int = DEFAULT_VLLM_SWEEP_SEED,
+    warmup_runs: int = 1,
+    ready_timeout_s: int = 600,
+) -> dict[str, Any]:
+    import asyncio
+    import gc
+    import json
+    import platform
+    import random
+    import subprocess
+    import threading
+    import time
+
+    import httpx
+    import torch
+    from transformers import AutoTokenizer
+    from vllm import SamplingParams
+    from vllm.engine.arg_utils import AsyncEngineArgs
+    from vllm.sampling_params import RequestOutputKind
+    from vllm.v1.engine.async_llm import AsyncLLM
+
+    request_count_values = _split_positive_int_csv(request_counts, "request_counts")
+    prompt_profile_values = [profile.lower() for profile in _split_csv(prompt_profiles)]
+    output_token_values = _split_positive_int_csv(output_tokens, "output_tokens")
+    if repeats <= 0:
+        raise ValueError("repeats must be positive")
+    if warmup_runs < 0:
+        raise ValueError("warmup_runs must be non-negative")
+    if ready_timeout_s <= 0:
+        raise ValueError("ready_timeout_s must be positive")
+    for profile in prompt_profile_values:
+        if profile not in {"short", "long", "mixed"}:
+            raise ValueError("prompt_profiles must contain only short, long, or mixed")
+
+    import vllm
+
+    nvidia_smi_before = _run_command(
+        [
+            "nvidia-smi",
+            "--query-gpu=name,memory.total,memory.free,driver_version",
+            "--format=csv,noheader,nounits",
+        ]
+    )
+
+    started = time.perf_counter()
+    tokenizer = AutoTokenizer.from_pretrained(hf_model)
+    tokenizer_load_ms = (time.perf_counter() - started) * 1000
+
+    scenario_specs = []
+    prompt_format_started = time.perf_counter()
+    for prompt_profile in prompt_profile_values:
+        for max_new_tokens in output_token_values:
+            for request_count in request_count_values:
+                prompt_records = []
+                for index, prompt in enumerate(_select_sweep_prompts(request_count, prompt_profile)):
+                    formatted_prompt, prompt_format = _format_prompt_for_generation(tokenizer, prompt)
+                    prompt_records.append(
+                        {
+                            "request_id": (
+                                f"{prompt_profile}-out{max_new_tokens}-n{request_count}-"
+                                f"{index:02d}"
+                            ),
+                            "prompt": prompt,
+                            "formatted_prompt": formatted_prompt,
+                            "prompt_format": prompt_format,
+                            "prompt_tokens": len(tokenizer.encode(formatted_prompt)),
+                        }
+                    )
+                prompt_tokens = [record["prompt_tokens"] for record in prompt_records]
+                scenario_specs.append(
+                    {
+                        "scenario_id": f"{prompt_profile}_out{max_new_tokens}_n{request_count}",
+                        "prompt_profile": prompt_profile,
+                        "request_count": request_count,
+                        "max_new_tokens": max_new_tokens,
+                        "prompt_format": prompt_records[0]["prompt_format"],
+                        "prompt_tokens_min": min(prompt_tokens),
+                        "prompt_tokens_max": max(prompt_tokens),
+                        "prompt_tokens_mean": sum(prompt_tokens) / len(prompt_tokens),
+                        "total_prompt_tokens": sum(prompt_tokens),
+                        "prompt_records": prompt_records,
+                    }
+                )
+    prompt_format_ms = (time.perf_counter() - prompt_format_started) * 1000
+
+    max_request_count = max(request_count_values)
+    max_output_tokens = max(output_token_values)
+    max_prompt_tokens = max(spec["prompt_tokens_max"] for spec in scenario_specs)
+    max_model_len = max(1024, max_prompt_tokens + max_output_tokens + 32)
+    max_num_batched_tokens = max(2048, max_request_count * max_model_len)
+    scenario_plan = []
+    for repeat_index in range(repeats):
+        for spec in scenario_specs:
+            scenario_plan.append((repeat_index, spec))
+    random.Random(scenario_seed).shuffle(scenario_plan)
+    plan_summary = [
+        {
+            "run_order": run_order,
+            "repeat_index": repeat_index,
+            "scenario_id": spec["scenario_id"],
+        }
+        for run_order, (repeat_index, spec) in enumerate(scenario_plan)
+    ]
+
+    async def run_async_phase() -> dict[str, Any]:
+        started = time.perf_counter()
+        engine_args = AsyncEngineArgs(
+            model=hf_model,
+            dtype="half",
+            max_model_len=max_model_len,
+            max_num_batched_tokens=max_num_batched_tokens,
+            max_num_seqs=max_request_count,
+            gpu_memory_utilization=0.50,
+            enable_prefix_caching=False,
+            enforce_eager=True,
+            trust_remote_code=False,
+        )
+        engine = AsyncLLM.from_engine_args(engine_args)
+        engine_load_ms = (time.perf_counter() - started) * 1000
+
+        async def stream_one(
+            run_id: str,
+            record: dict[str, Any],
+            sampling_params: Any,
+            batch_started: float,
+        ) -> dict[str, Any]:
+            request_started = time.perf_counter()
+            first_chunk_ms: float | None = None
+            finished_ms: float | None = None
+            generated_text_parts = []
+            generated_tokens = 0
+            chunk_count = 0
+
+            async for output in engine.generate(
+                request_id=f"paired-async-{run_id}-{record['request_id']}",
+                prompt=record["formatted_prompt"],
+                sampling_params=sampling_params,
+            ):
+                now = time.perf_counter()
+                elapsed_ms = (now - request_started) * 1000
+                chunk_count += 1
+                for completion in output.outputs:
+                    text = completion.text
+                    token_ids = list(completion.token_ids or [])
+                    if first_chunk_ms is None and (text or token_ids):
+                        first_chunk_ms = elapsed_ms
+                    if text:
+                        generated_text_parts.append(text)
+                    generated_tokens += len(token_ids)
+                if output.finished:
+                    finished_ms = elapsed_ms
+                    break
+
+            stream_wall_ms = finished_ms or ((time.perf_counter() - request_started) * 1000)
+            decode_tokens_after_first = max(generated_tokens - 1, 0)
+            decode_after_first_ms = (
+                stream_wall_ms - first_chunk_ms
+                if first_chunk_ms is not None
+                else None
+            )
+            return {
+                "request_id": record["request_id"],
+                "prompt_tokens": record["prompt_tokens"],
+                "first_chunk_ms": first_chunk_ms,
+                "stream_wall_ms": stream_wall_ms,
+                "decode_after_first_ms": decode_after_first_ms,
+                "stream_tpot_ms": (
+                    decode_after_first_ms / decode_tokens_after_first
+                    if decode_after_first_ms is not None and decode_tokens_after_first
+                    else None
+                ),
+                "generated_tokens": generated_tokens,
+                "total_sequence_tokens": record["prompt_tokens"] + generated_tokens,
+                "chunk_count": chunk_count,
+                "batch_finished_ms": (time.perf_counter() - batch_started) * 1000,
+                "generated_text": "".join(generated_text_parts),
+            }
+
+        async def run_scenario(
+            spec: dict[str, Any],
+            repeat_index: int,
+            run_order: int,
+            max_tokens_override: int | None = None,
+        ) -> dict[str, Any]:
+            max_tokens = max_tokens_override or spec["max_new_tokens"]
+            sampling_params = SamplingParams(
+                max_tokens=max_tokens,
+                temperature=0.0,
+                output_kind=RequestOutputKind.DELTA,
+            )
+            run_id = f"rep{repeat_index:02d}-run{run_order:03d}"
+            batch_started = time.perf_counter()
+            request_results = await asyncio.gather(
+                *(
+                    stream_one(
+                        run_id,
+                        record,
+                        sampling_params,
+                        batch_started,
+                    )
+                    for record in spec["prompt_records"]
+                )
+            )
+            batch_wall_ms = (time.perf_counter() - batch_started) * 1000
+            summary = _summarize_stream_requests(request_results, batch_wall_ms)
+            return {
+                "run_id": run_id,
+                "repeat_index": repeat_index,
+                "run_order": run_order,
+                "scenario_id": spec["scenario_id"],
+                "prompt_profile": spec["prompt_profile"],
+                "request_count": spec["request_count"],
+                "max_new_tokens": max_tokens,
+                "prompt_format": spec["prompt_format"],
+                "prompt_tokens_min": spec["prompt_tokens_min"],
+                "prompt_tokens_max": spec["prompt_tokens_max"],
+                "prompt_tokens_mean": spec["prompt_tokens_mean"],
+                "total_prompt_tokens": spec["total_prompt_tokens"],
+                "estimated_peak_sequence_tokens": sum(
+                    request["total_sequence_tokens"] for request in request_results
+                ),
+                **summary,
+                "requests": request_results,
+            }
+
+        async def run_warmups() -> dict[str, Any]:
+            started = time.perf_counter()
+            warmup_summaries = []
+            run_order = 0
+            for warmup_index in range(warmup_runs):
+                for spec in scenario_specs:
+                    result = await run_scenario(
+                        spec,
+                        repeat_index=-(warmup_index + 1),
+                        run_order=run_order,
+                        max_tokens_override=1,
+                    )
+                    warmup_summaries.append(
+                        {
+                            "warmup_index": warmup_index,
+                            "scenario_id": spec["scenario_id"],
+                            "request_count": spec["request_count"],
+                            "batch_wall_ms": result["batch_wall_ms"],
+                            "total_output_tokens": result["total_output_tokens"],
+                        }
+                    )
+                    run_order += 1
+            return {
+                "warmup_runs": warmup_runs,
+                "warmup_scenario_runs": len(warmup_summaries),
+                "warmup_wall_ms": (time.perf_counter() - started) * 1000,
+                "total_output_tokens": sum(row["total_output_tokens"] for row in warmup_summaries),
+                "summaries": warmup_summaries,
+            }
+
+        try:
+            warmup_result = await run_warmups()
+            scenario_runs = []
+            for run_order, (repeat_index, spec) in enumerate(scenario_plan):
+                scenario_runs.append(
+                    await run_scenario(
+                        spec,
+                        repeat_index=repeat_index,
+                        run_order=run_order,
+                    )
+                )
+        finally:
+            engine.shutdown()
+
+        return {
+            "engine_load_ms": engine_load_ms,
+            "warmup": warmup_result,
+            "scenario_runs": scenario_runs,
+        }
+
+    def run_server_phase() -> dict[str, Any]:
+        port = 8000
+        base_url = f"http://127.0.0.1:{port}"
+        command = [
+            "vllm",
+            "serve",
+            hf_model,
+            "--host",
+            "127.0.0.1",
+            "--port",
+            str(port),
+            "--dtype",
+            "half",
+            "--max-model-len",
+            str(max_model_len),
+            "--max-num-batched-tokens",
+            str(max_num_batched_tokens),
+            "--max-num-seqs",
+            str(max_request_count),
+            "--gpu-memory-utilization",
+            "0.50",
+            "--enforce-eager",
+        ]
+        server_logs: list[str] = []
+        server_started = time.perf_counter()
+        process = subprocess.Popen(
+            command,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            bufsize=1,
+        )
+
+        def drain_logs() -> None:
+            if process.stdout is None:
+                return
+            for line in process.stdout:
+                server_logs.append(line.rstrip())
+
+        log_thread = threading.Thread(target=drain_logs, daemon=True)
+        log_thread.start()
+
+        async def stream_one(
+            client: httpx.AsyncClient,
+            record: dict[str, Any],
+            max_tokens: int,
+            batch_started: float,
+        ) -> dict[str, Any]:
+            request_body = {
+                "model": hf_model,
+                "messages": [{"role": "user", "content": record["prompt"]}],
+                "temperature": 0.0,
+                "max_tokens": max_tokens,
+                "stream": True,
+                "stream_options": {"include_usage": True},
+            }
+            generated_text_parts: list[str] = []
+            usage: dict[str, Any] | None = None
+            response_status_code: int | None = None
+            first_content_ms: float | None = None
+            chunk_count = 0
+            request_started = time.perf_counter()
+            async with client.stream(
+                "POST",
+                f"{base_url}/v1/chat/completions",
+                json=request_body,
+                headers={"Accept": "text/event-stream"},
+            ) as response:
+                response_status_code = response.status_code
+                response.raise_for_status()
+                async for line in response.aiter_lines():
+                    if not line.startswith("data: "):
+                        continue
+                    data = line[len("data: ") :]
+                    if data == "[DONE]":
+                        break
+                    event = json.loads(data)
+                    elapsed_ms = (time.perf_counter() - request_started) * 1000
+                    if event.get("usage") is not None:
+                        usage = event["usage"]
+                    for choice in event.get("choices", []):
+                        delta = choice.get("delta") or {}
+                        content = delta.get("content") or ""
+                        if content and first_content_ms is None:
+                            first_content_ms = elapsed_ms
+                        if content:
+                            generated_text_parts.append(content)
+                        chunk_count += 1
+            request_wall_ms = (time.perf_counter() - request_started) * 1000
+            generated_text = "".join(generated_text_parts)
+            generated_tokens = (
+                int(usage["completion_tokens"])
+                if usage and usage.get("completion_tokens") is not None
+                else len(tokenizer.encode(generated_text, add_special_tokens=False))
+            )
+            prompt_tokens = (
+                int(usage["prompt_tokens"])
+                if usage and usage.get("prompt_tokens") is not None
+                else record["prompt_tokens"]
+            )
+            decode_tokens_after_first = max(generated_tokens - 1, 0)
+            decode_after_first_ms = (
+                request_wall_ms - first_content_ms
+                if first_content_ms is not None
+                else None
+            )
+            return {
+                "request_id": record["request_id"],
+                "prompt_tokens": prompt_tokens,
+                "prompt_tokens_local_estimate": record["prompt_tokens"],
+                "generated_tokens": generated_tokens,
+                "total_sequence_tokens": prompt_tokens + generated_tokens,
+                "generated_text": generated_text,
+                "response_status_code": response_status_code,
+                "first_content_ms": first_content_ms,
+                "request_wall_ms": request_wall_ms,
+                "decode_after_first_ms": decode_after_first_ms,
+                "stream_tpot_ms": (
+                    decode_after_first_ms / decode_tokens_after_first
+                    if decode_after_first_ms is not None and decode_tokens_after_first
+                    else None
+                ),
+                "batch_finished_ms": (time.perf_counter() - batch_started) * 1000,
+                "chunk_count": chunk_count,
+                "usage": usage,
+            }
+
+        async def run_scenario(
+            spec: dict[str, Any],
+            repeat_index: int,
+            run_order: int,
+            max_tokens_override: int | None = None,
+        ) -> dict[str, Any]:
+            max_tokens = max_tokens_override or spec["max_new_tokens"]
+            run_id = f"rep{repeat_index:02d}-run{run_order:03d}"
+            batch_started = time.perf_counter()
+            async with httpx.AsyncClient(timeout=None) as client:
+                request_results = await asyncio.gather(
+                    *(
+                        stream_one(
+                            client,
+                            record,
+                            max_tokens,
+                            batch_started,
+                        )
+                        for record in spec["prompt_records"]
+                    )
+                )
+            batch_wall_ms = (time.perf_counter() - batch_started) * 1000
+            summary = _summarize_server_stream_requests(request_results, batch_wall_ms)
+            return {
+                "run_id": run_id,
+                "repeat_index": repeat_index,
+                "run_order": run_order,
+                "scenario_id": spec["scenario_id"],
+                "prompt_profile": spec["prompt_profile"],
+                "request_count": spec["request_count"],
+                "max_new_tokens": max_tokens,
+                "prompt_format": spec["prompt_format"],
+                "prompt_tokens_min": spec["prompt_tokens_min"],
+                "prompt_tokens_max": spec["prompt_tokens_max"],
+                "prompt_tokens_mean": spec["prompt_tokens_mean"],
+                "total_prompt_tokens": spec["total_prompt_tokens"],
+                "estimated_peak_sequence_tokens": sum(
+                    request["total_sequence_tokens"] for request in request_results
+                ),
+                **summary,
+                "requests": request_results,
+            }
+
+        async def run_warmups() -> dict[str, Any]:
+            started = time.perf_counter()
+            warmup_summaries = []
+            run_order = 0
+            for warmup_index in range(warmup_runs):
+                for spec in scenario_specs:
+                    result = await run_scenario(
+                        spec,
+                        repeat_index=-(warmup_index + 1),
+                        run_order=run_order,
+                        max_tokens_override=1,
+                    )
+                    warmup_summaries.append(
+                        {
+                            "warmup_index": warmup_index,
+                            "scenario_id": spec["scenario_id"],
+                            "request_count": spec["request_count"],
+                            "batch_wall_ms": result["batch_wall_ms"],
+                            "total_output_tokens": result["total_output_tokens"],
+                        }
+                    )
+                    run_order += 1
+            return {
+                "warmup_runs": warmup_runs,
+                "warmup_scenario_runs": len(warmup_summaries),
+                "warmup_wall_ms": (time.perf_counter() - started) * 1000,
+                "total_output_tokens": sum(row["total_output_tokens"] for row in warmup_summaries),
+                "summaries": warmup_summaries,
+            }
+
+        ready_ms: float | None = None
+        warmup_result: dict[str, Any] = {}
+        scenario_runs: list[dict[str, Any]] = []
+        try:
+            with httpx.Client(timeout=2.0) as health_client:
+                while (time.perf_counter() - server_started) < ready_timeout_s:
+                    if process.poll() is not None:
+                        raise RuntimeError(
+                            "vLLM server exited before readiness: "
+                            + "\n".join(_tail_lines(server_logs, 40))
+                        )
+                    try:
+                        response = health_client.get(f"{base_url}/health")
+                        if response.status_code == 200:
+                            ready_ms = (time.perf_counter() - server_started) * 1000
+                            break
+                    except httpx.HTTPError:
+                        pass
+                    time.sleep(1.0)
+            if ready_ms is None:
+                raise TimeoutError(
+                    "vLLM server did not become ready: "
+                    + "\n".join(_tail_lines(server_logs, 40))
+                )
+
+            warmup_result = asyncio.run(run_warmups())
+            for run_order, (repeat_index, spec) in enumerate(scenario_plan):
+                scenario_runs.append(
+                    asyncio.run(
+                        run_scenario(
+                            spec,
+                            repeat_index=repeat_index,
+                            run_order=run_order,
+                        )
+                    )
+                )
+        finally:
+            if process.poll() is None:
+                process.terminate()
+                try:
+                    process.wait(timeout=20)
+                except subprocess.TimeoutExpired:
+                    process.kill()
+                    process.wait(timeout=20)
+            log_thread.join(timeout=5)
+
+        return {
+            "server_ready_ms": ready_ms,
+            "warmup": warmup_result,
+            "scenario_runs": scenario_runs,
+            "server_command": command,
+            "server_logs_head": server_logs[:80],
+            "server_logs_tail": _tail_lines(server_logs, 80),
+        }
+
+    async_result = asyncio.run(run_async_phase())
+    gc.collect()
+    if torch.cuda.is_available():
+        torch.cuda.empty_cache()
+        torch.cuda.synchronize()
+    time.sleep(2.0)
+    server_result = run_server_phase()
+
+    hf_cache_volume.commit()
+    vllm_cache_volume.commit()
+    nvidia_smi_after = _run_command(
+        [
+            "nvidia-smi",
+            "--query-gpu=name,memory.total,memory.free,driver_version",
+            "--format=csv,noheader,nounits",
+        ]
+    )
+
+    paired_runs = _make_vllm_server_async_paired_rows(
+        async_result["scenario_runs"],
+        server_result["scenario_runs"],
+    )
+    paired_scenarios = _aggregate_vllm_server_async_paired_scenarios(paired_runs)
+    return {
+        "schema_version": 1,
+        "execution": "modal",
+        "mode": "vllm-server-async-paired",
+        "backend": "vllm-paired-async-and-openai-server",
+        "model_id": hf_model,
+        "request_counts": request_count_values,
+        "prompt_profiles": prompt_profile_values,
+        "output_tokens": output_token_values,
+        "repeats": int(repeats),
+        "scenario_seed": int(scenario_seed),
+        "warmup_runs": int(warmup_runs),
+        "scenario_count": len(paired_scenarios),
+        "paired_run_count": len(paired_runs),
+        "max_model_len": max_model_len,
+        "max_num_batched_tokens": max_num_batched_tokens,
+        "max_num_seqs": max_request_count,
+        "gpu_memory_utilization": 0.50,
+        "tokenizer_load_ms": tokenizer_load_ms,
+        "prompt_format_ms": prompt_format_ms,
+        "async_engine_load_ms": async_result["engine_load_ms"],
+        "server_ready_ms": server_result["server_ready_ms"],
+        "async_warmup": async_result["warmup"],
+        "server_warmup": server_result["warmup"],
+        "scenario_plan": plan_summary,
+        "summary": _vllm_server_async_paired_summary_rows(paired_scenarios),
+        "paired_runs": paired_runs,
+        "paired_scenarios": paired_scenarios,
+        "async_scenario_runs": async_result["scenario_runs"],
+        "server_scenario_runs": server_result["scenario_runs"],
+        "server_command": server_result["server_command"],
+        "vllm_version": str(vllm.__version__),
+        "platform": platform.platform(),
+        "python_version": platform.python_version(),
+        "nvidia_smi_before": nvidia_smi_before,
+        "nvidia_smi_after": nvidia_smi_after,
+        "server_logs_head": server_result["server_logs_head"],
+        "server_logs_tail": server_result["server_logs_tail"],
+        "mean_server_to_async_throughput_ratio": _mean_present(
+            row["server_to_async_output_tokens_per_second_ratio"] for row in paired_runs
+        ),
+        "mean_server_to_async_first_event_ratio": _mean_present(
+            row["server_to_async_p95_first_event_ms_ratio"] for row in paired_runs
+        ),
+        "mean_server_to_async_latency_ratio": _mean_present(
+            row["server_to_async_p95_latency_ms_ratio"] for row in paired_runs
+        ),
+        "mean_server_to_async_tpot_ratio": _mean_present(
+            row["server_to_async_p95_stream_tpot_ms_ratio"] for row in paired_runs
+        ),
+        "note": (
+            "One Modal worker runs in-process AsyncLLM first, releases the engine, "
+            "then runs the OpenAI-compatible vLLM server with the same scenario "
+            "plan. Paired rows compare matching scenario_id and repeat_index."
+        ),
+    }
+
+
 @app.local_entrypoint()
 def main(
     mode: str = "sweep",
@@ -2331,6 +2955,43 @@ def main(
         print(f"csv: {csv_path}")
         return
 
+    if mode == "vllm-server-async-paired":
+        payload = run_vllm_server_async_paired_remote.remote(
+            hf_model=hf_model,
+            request_counts=request_counts,
+            prompt_profiles=prompt_profiles,
+            output_tokens=output_tokens,
+            repeats=repeats,
+            scenario_seed=scenario_seed,
+            warmup_runs=warmup_runs,
+        )
+        output_path = Path(output_dir or DEFAULT_VLLM_SERVER_ASYNC_PAIRED_OUTPUT)
+        output_path.mkdir(parents=True, exist_ok=True)
+        json_path = output_path / "paired-server-async.json"
+        summary_csv_path = output_path / "paired-server-async-summary.csv"
+        run_csv_path = output_path / "paired-server-async-runs.csv"
+        json_path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+        _write_records_csv(summary_csv_path, payload["summary"])
+        _write_records_csv(run_csv_path, payload["paired_runs"])
+
+        print(f"model: {payload['model_id']}")
+        print(f"scenarios: {payload['scenario_count']}")
+        print(f"paired_runs: {payload['paired_run_count']}")
+        print(f"repeats: {payload['repeats']}")
+        print(f"warmup_runs: {payload['warmup_runs']}")
+        print(
+            "mean_server_to_async_throughput_ratio: "
+            f"{payload['mean_server_to_async_throughput_ratio']:.3f}"
+        )
+        print(
+            "mean_server_to_async_latency_ratio: "
+            f"{payload['mean_server_to_async_latency_ratio']:.3f}"
+        )
+        print(f"json: {json_path}")
+        print(f"summary_csv: {summary_csv_path}")
+        print(f"runs_csv: {run_csv_path}")
+        return
+
     if mode == "vllm-sweep":
         enable_prefix_caching = _parse_bool_choice(prefix_caching, "prefix_caching")
         payload = run_vllm_sweep_remote.remote(
@@ -2394,7 +3055,7 @@ def main(
             "'vllm-inference', 'vllm-streaming', 'vllm-concurrent', "
             "'vllm-server-streaming', 'vllm-server-concurrent', "
             "'vllm-server-sweep', 'vllm-server-sweep-compare', "
-            "'vllm-sweep', or "
+            "'vllm-server-async-paired', 'vllm-sweep', or "
             "'vllm-prefix-cache-compare'"
         )
 
@@ -2980,6 +3641,189 @@ def _compare_vllm_server_async_csvs(
         ),
         "rows": rows,
     }
+
+
+def _make_vllm_server_async_paired_rows(
+    async_runs: list[dict[str, Any]],
+    server_runs: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    async_by_key = {
+        (run["scenario_id"], run["repeat_index"]): run
+        for run in async_runs
+    }
+    server_by_key = {
+        (run["scenario_id"], run["repeat_index"]): run
+        for run in server_runs
+    }
+    keys = sorted(
+        set(async_by_key) & set(server_by_key),
+        key=lambda key: (key[0], key[1]),
+    )
+    if not keys:
+        raise ValueError("No matching paired runs found")
+
+    paired_rows = []
+    for scenario_id, repeat_index in keys:
+        async_run = async_by_key[(scenario_id, repeat_index)]
+        server_run = server_by_key[(scenario_id, repeat_index)]
+        async_throughput = async_run.get("aggregate_output_tokens_per_second")
+        server_throughput = server_run.get("aggregate_output_tokens_per_second")
+        async_first_event = async_run.get("p95_first_chunk_ms")
+        server_first_event = server_run.get("p95_first_content_ms")
+        async_latency = async_run.get("p95_latency_ms")
+        server_latency = server_run.get("p95_latency_ms")
+        async_tpot = async_run.get("p95_stream_tpot_ms")
+        server_tpot = server_run.get("p95_stream_tpot_ms")
+        async_batch_wall = async_run.get("batch_wall_ms")
+        server_batch_wall = server_run.get("batch_wall_ms")
+        paired_rows.append(
+            {
+                "pair_id": f"{scenario_id}_rep{repeat_index:02d}",
+                "scenario_id": scenario_id,
+                "prompt_profile": async_run["prompt_profile"],
+                "request_count": async_run["request_count"],
+                "max_new_tokens": async_run["max_new_tokens"],
+                "repeat_index": repeat_index,
+                "async_run_order": async_run["run_order"],
+                "server_run_order": server_run["run_order"],
+                "prompt_tokens_mean": async_run["prompt_tokens_mean"],
+                "estimated_peak_sequence_tokens_async": async_run.get(
+                    "estimated_peak_sequence_tokens"
+                ),
+                "estimated_peak_sequence_tokens_server": server_run.get(
+                    "estimated_peak_sequence_tokens"
+                ),
+                "async_output_tokens_per_second": async_throughput,
+                "server_output_tokens_per_second": server_throughput,
+                "server_to_async_output_tokens_per_second_delta": _delta(
+                    server_throughput,
+                    async_throughput,
+                ),
+                "server_to_async_output_tokens_per_second_ratio": _ratio(
+                    server_throughput,
+                    async_throughput,
+                ),
+                "async_p95_first_event_ms": async_first_event,
+                "server_p95_first_content_ms": server_first_event,
+                "server_to_async_p95_first_event_ms_delta": _delta(
+                    server_first_event,
+                    async_first_event,
+                ),
+                "server_to_async_p95_first_event_ms_ratio": _ratio(
+                    server_first_event,
+                    async_first_event,
+                ),
+                "async_p95_latency_ms": async_latency,
+                "server_p95_latency_ms": server_latency,
+                "server_to_async_p95_latency_ms_delta": _delta(
+                    server_latency,
+                    async_latency,
+                ),
+                "server_to_async_p95_latency_ms_ratio": _ratio(
+                    server_latency,
+                    async_latency,
+                ),
+                "async_p95_stream_tpot_ms": async_tpot,
+                "server_p95_stream_tpot_ms": server_tpot,
+                "server_to_async_p95_stream_tpot_ms_delta": _delta(
+                    server_tpot,
+                    async_tpot,
+                ),
+                "server_to_async_p95_stream_tpot_ms_ratio": _ratio(
+                    server_tpot,
+                    async_tpot,
+                ),
+                "async_batch_wall_ms": async_batch_wall,
+                "server_batch_wall_ms": server_batch_wall,
+                "server_to_async_batch_wall_ms_delta": _delta(
+                    server_batch_wall,
+                    async_batch_wall,
+                ),
+                "server_to_async_batch_wall_ms_ratio": _ratio(
+                    server_batch_wall,
+                    async_batch_wall,
+                ),
+            }
+        )
+    return paired_rows
+
+
+def _aggregate_vllm_server_async_paired_scenarios(
+    paired_runs: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    pairs_by_scenario: dict[str, list[dict[str, Any]]] = {}
+    for row in paired_runs:
+        pairs_by_scenario.setdefault(row["scenario_id"], []).append(row)
+
+    scenarios = []
+    for scenario_id, pairs in sorted(pairs_by_scenario.items()):
+        first = pairs[0]
+        scenario: dict[str, Any] = {
+            "scenario_id": scenario_id,
+            "prompt_profile": first["prompt_profile"],
+            "request_count": first["request_count"],
+            "max_new_tokens": first["max_new_tokens"],
+            "pairs": len(pairs),
+            "prompt_tokens_mean": first["prompt_tokens_mean"],
+        }
+        for field in (
+            "server_to_async_output_tokens_per_second_ratio",
+            "server_to_async_output_tokens_per_second_delta",
+            "server_to_async_p95_first_event_ms_ratio",
+            "server_to_async_p95_first_event_ms_delta",
+            "server_to_async_p95_latency_ms_ratio",
+            "server_to_async_p95_latency_ms_delta",
+            "server_to_async_p95_stream_tpot_ms_ratio",
+            "server_to_async_p95_stream_tpot_ms_delta",
+            "server_to_async_batch_wall_ms_ratio",
+            "server_to_async_batch_wall_ms_delta",
+            "async_output_tokens_per_second",
+            "server_output_tokens_per_second",
+            "async_p95_first_event_ms",
+            "server_p95_first_content_ms",
+            "async_p95_latency_ms",
+            "server_p95_latency_ms",
+            "async_p95_stream_tpot_ms",
+            "server_p95_stream_tpot_ms",
+        ):
+            scenario.update(_metric_distribution(pairs, field))
+        scenarios.append(scenario)
+    return scenarios
+
+
+def _vllm_server_async_paired_summary_rows(
+    paired_scenarios: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    row_fields = (
+        "scenario_id",
+        "prompt_profile",
+        "request_count",
+        "max_new_tokens",
+        "pairs",
+        "prompt_tokens_mean",
+        "server_to_async_output_tokens_per_second_ratio_median",
+        "server_to_async_output_tokens_per_second_ratio_p95",
+        "server_to_async_p95_first_event_ms_ratio_median",
+        "server_to_async_p95_first_event_ms_ratio_p95",
+        "server_to_async_p95_latency_ms_ratio_median",
+        "server_to_async_p95_latency_ms_ratio_p95",
+        "server_to_async_p95_stream_tpot_ms_ratio_median",
+        "server_to_async_p95_stream_tpot_ms_ratio_p95",
+        "server_to_async_batch_wall_ms_ratio_median",
+        "server_to_async_batch_wall_ms_ratio_p95",
+        "async_output_tokens_per_second_median",
+        "server_output_tokens_per_second_median",
+        "async_p95_first_event_ms_median",
+        "server_p95_first_content_ms_median",
+        "async_p95_latency_ms_median",
+        "server_p95_latency_ms_median",
+        "async_p95_stream_tpot_ms_median",
+        "server_p95_stream_tpot_ms_median",
+    )
+    return [
+        {field: scenario.get(field) for field in row_fields}
+        for scenario in paired_scenarios
+    ]
 
 
 def _compare_vllm_sweep_csvs(
