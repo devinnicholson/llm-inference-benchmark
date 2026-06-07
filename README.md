@@ -202,6 +202,17 @@ modal run modal_app.py --mode vllm-server-async-paired \
   --output-dir results/modal-vllm-server-async-paired-long-server-first
 ```
 
+Compare the long-prompt phase orders and then summarize short-vs-long workload sensitivity:
+
+```bash
+modal run modal_app.py --mode vllm-server-async-phase-order-compare \
+  --async-first-paired-dir results/modal-vllm-server-async-paired-long-async-first \
+  --server-first-paired-dir results/modal-vllm-server-async-paired-long-server-first \
+  --output-dir results/modal-vllm-server-async-phase-order-compare-long
+
+modal run modal_app.py --mode vllm-server-async-workload-compare
+```
+
 Run the first Modal vLLM concurrent workload:
 
 ```bash

@@ -42,6 +42,12 @@ DEFAULT_VLLM_SERVER_ASYNC_PHASE_ORDER_COMPARE_DIRS = (
 DEFAULT_VLLM_SERVER_ASYNC_MULTITRIAL_OUTPUT = (
     "results/modal-vllm-server-async-multitrial-aggregate"
 )
+DEFAULT_VLLM_SERVER_ASYNC_LONG_PHASE_ORDER_COMPARE_OUTPUT = (
+    "results/modal-vllm-server-async-phase-order-compare-long"
+)
+DEFAULT_VLLM_SERVER_ASYNC_WORKLOAD_COMPARE_OUTPUT = (
+    "results/modal-vllm-server-async-workload-compare"
+)
 DEFAULT_VLLM_PREFIX_CACHE_SWEEP_OUTPUT = "results/modal-vllm-prefix-cache-sweep"
 DEFAULT_VLLM_PREFIX_CACHE_COMPARE_OUTPUT = "results/modal-vllm-prefix-cache-compare"
 DEFAULT_VLLM_SWEEP_REQUEST_COUNTS = "1,2,4,8"
@@ -2787,6 +2793,8 @@ def main(
     async_first_paired_dir: str = DEFAULT_VLLM_SERVER_ASYNC_PAIRED_OUTPUT,
     server_first_paired_dir: str = DEFAULT_VLLM_SERVER_ASYNC_PAIRED_SERVER_FIRST_OUTPUT,
     phase_order_compare_dirs: str = DEFAULT_VLLM_SERVER_ASYNC_PHASE_ORDER_COMPARE_DIRS,
+    short_multitrial_dir: str = DEFAULT_VLLM_SERVER_ASYNC_MULTITRIAL_OUTPUT,
+    long_phase_order_compare_dir: str = DEFAULT_VLLM_SERVER_ASYNC_LONG_PHASE_ORDER_COMPARE_OUTPUT,
     output_dir: str = "",
 ) -> None:
     if mode == "gpu-probe":
@@ -3089,6 +3097,33 @@ def main(
         print(f"csv: {csv_path}")
         return
 
+    if mode == "vllm-server-async-workload-compare":
+        payload = _compare_vllm_server_async_workload_profiles(
+            short_multitrial_dir=Path(short_multitrial_dir),
+            long_phase_order_compare_dir=Path(long_phase_order_compare_dir),
+        )
+        output_path = Path(output_dir or DEFAULT_VLLM_SERVER_ASYNC_WORKLOAD_COMPARE_OUTPUT)
+        output_path.mkdir(parents=True, exist_ok=True)
+        json_path = output_path / "workload-compare.json"
+        csv_path = output_path / "workload-compare.csv"
+        json_path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+        _write_records_csv(csv_path, payload["rows"])
+
+        print(f"metrics: {payload['metric_count']}")
+        print(f"short_trials: {payload['short_trial_count']}")
+        print(f"long_paired_runs: {payload['long_paired_run_count']}")
+        for row in payload["rows"]:
+            print(
+                f"{row['metric']}: short_delta_mean="
+                f"{row['short_order_effect_delta_mean']:.3f} long_delta_mean="
+                f"{row['long_order_effect_delta_mean']:.3f} "
+                f"long_minus_short_delta_mean="
+                f"{row['long_minus_short_order_effect_delta_mean']:.3f}"
+            )
+        print(f"json: {json_path}")
+        print(f"csv: {csv_path}")
+        return
+
     if mode == "vllm-sweep":
         enable_prefix_caching = _parse_bool_choice(prefix_caching, "prefix_caching")
         payload = run_vllm_sweep_remote.remote(
@@ -3154,7 +3189,8 @@ def main(
             "'vllm-server-sweep', 'vllm-server-sweep-compare', "
             "'vllm-server-async-paired', "
             "'vllm-server-async-phase-order-compare', "
-            "'vllm-server-async-multitrial-aggregate', 'vllm-sweep', or "
+            "'vllm-server-async-multitrial-aggregate', "
+            "'vllm-server-async-workload-compare', 'vllm-sweep', or "
             "'vllm-prefix-cache-compare'"
         )
 
@@ -3928,6 +3964,126 @@ def _aggregate_vllm_server_async_phase_order_trials(
         "compare_dirs": [str(path) for path in compare_dirs],
         "trials": trials,
         "summary": summary,
+    }
+
+
+def _compare_vllm_server_async_workload_profiles(
+    short_multitrial_dir: Path,
+    long_phase_order_compare_dir: Path,
+) -> dict[str, Any]:
+    short_json = short_multitrial_dir / "phase-order-multitrial.json"
+    short_csv = short_multitrial_dir / "phase-order-multitrial.csv"
+    long_json = long_phase_order_compare_dir / "phase-order-compare.json"
+    long_csv = long_phase_order_compare_dir / "phase-order-compare.csv"
+
+    short_payload = json.loads(short_json.read_text(encoding="utf-8"))
+    long_payload = json.loads(long_json.read_text(encoding="utf-8"))
+    short_csv_rows = _read_csv_by_key(short_csv, "metric")
+    long_csv_rows = _read_csv_by_key(long_csv, "scenario_id")
+    long_profiles = sorted(
+        {
+            row["prompt_profile"]
+            for row in long_csv_rows.values()
+            if row.get("prompt_profile")
+        }
+    )
+    long_profile = ",".join(long_profiles) if long_profiles else "long"
+
+    metric_sources = {
+        "throughput_ratio": "mean_server_to_async_throughput_ratio",
+        "first_event_ratio": "mean_server_to_async_first_event_ratio",
+        "latency_ratio": "mean_server_to_async_latency_ratio",
+        "tpot_ratio": "mean_server_to_async_tpot_ratio",
+    }
+    short_summary_by_metric = {
+        row["metric"]: row
+        for row in short_payload.get("summary", [])
+    }
+    missing_metrics = sorted(set(metric_sources) - set(short_summary_by_metric))
+    if missing_metrics:
+        raise ValueError(
+            "short multitrial aggregate is missing metrics: "
+            + ", ".join(missing_metrics)
+        )
+    missing_csv_metrics = sorted(set(metric_sources) - set(short_csv_rows))
+    if missing_csv_metrics:
+        raise ValueError(
+            "short multitrial csv is missing metrics: "
+            + ", ".join(missing_csv_metrics)
+        )
+
+    rows = []
+    for metric, source_field in metric_sources.items():
+        short_row = short_summary_by_metric[metric]
+        short_async_mean = short_row["async_first_mean"]
+        short_server_mean = short_row["server_first_mean"]
+        short_order_effect_delta_mean = short_row[
+            "server_first_minus_async_first_mean"
+        ]
+        long_async_mean = long_payload["async_first"][source_field]
+        long_server_mean = long_payload["server_first"][source_field]
+        long_order_effect_delta_mean = _delta(long_server_mean, long_async_mean)
+
+        rows.append(
+            {
+                "metric": metric,
+                "short_profile": "short",
+                "long_profile": long_profile,
+                "short_trial_count": short_payload["trial_count"],
+                "long_scenario_count": long_payload["scenario_count"],
+                "long_paired_run_count": min(
+                    long_payload["async_first"]["paired_run_count"],
+                    long_payload["server_first"]["paired_run_count"],
+                ),
+                "short_async_first_mean": short_async_mean,
+                "long_async_first_mean": long_async_mean,
+                "long_minus_short_async_first_mean": _delta(
+                    long_async_mean,
+                    short_async_mean,
+                ),
+                "short_server_first_mean": short_server_mean,
+                "long_server_first_mean": long_server_mean,
+                "long_minus_short_server_first_mean": _delta(
+                    long_server_mean,
+                    short_server_mean,
+                ),
+                "short_order_effect_delta_mean": short_order_effect_delta_mean,
+                "long_order_effect_delta_mean": long_order_effect_delta_mean,
+                "long_minus_short_order_effect_delta_mean": _delta(
+                    long_order_effect_delta_mean,
+                    short_order_effect_delta_mean,
+                ),
+                "short_order_effect_bootstrap_mean_p05": short_row[
+                    "server_first_minus_async_first_bootstrap_mean_p05"
+                ],
+                "short_order_effect_bootstrap_mean_p50": short_row[
+                    "server_first_minus_async_first_bootstrap_mean_p50"
+                ],
+                "short_order_effect_bootstrap_mean_p95": short_row[
+                    "server_first_minus_async_first_bootstrap_mean_p95"
+                ],
+            }
+        )
+
+    return {
+        "schema_version": 1,
+        "mode": "vllm-server-async-workload-compare",
+        "short_profile": "short",
+        "long_profile": long_profile,
+        "short_multitrial_dir": str(short_multitrial_dir),
+        "long_phase_order_compare_dir": str(long_phase_order_compare_dir),
+        "short_json": str(short_json),
+        "short_csv": str(short_csv),
+        "long_json": str(long_json),
+        "long_csv": str(long_csv),
+        "metric_count": len(rows),
+        "short_trial_count": short_payload["trial_count"],
+        "long_scenario_count": long_payload["scenario_count"],
+        "long_paired_run_count": min(
+            long_payload["async_first"]["paired_run_count"],
+            long_payload["server_first"]["paired_run_count"],
+        ),
+        "rows": rows,
     }
 
 

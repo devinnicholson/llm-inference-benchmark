@@ -1996,6 +1996,75 @@ number without workload stratification.
 
 ## Next Step
 
-Add a short-vs-long workload comparison artifact that reads the short-prompt
-three-trial aggregate and the long-prompt comparison artifact, then reports how
-the phase-order effect changes with prompt profile.
+Training 021 adds a short-vs-long workload comparison artifact that reads the
+short-prompt three-trial aggregate and the long-prompt comparison artifact,
+then reports how the phase-order effect changes with prompt profile.
+
+# Modal Training 021: Short-vs-Long Workload Comparison
+
+## Goal
+
+Turn the prompt-profile observation from Training 020 into a compact artifact.
+This is a local comparison step: it does not launch another GPU benchmark. It
+reads the short-prompt three-trial phase-order aggregate and the long-prompt
+phase-order comparison, then reports how the mean server/async ratios change.
+
+## Command
+
+```bash
+modal run modal_app.py --mode vllm-server-async-workload-compare
+```
+
+## Artifacts
+
+```text
+results/modal-vllm-server-async-workload-compare/workload-compare.json
+results/modal-vllm-server-async-workload-compare/workload-compare.csv
+```
+
+## Sources
+
+```text
+results/modal-vllm-server-async-multitrial-aggregate/phase-order-multitrial.json
+results/modal-vllm-server-async-phase-order-compare-long/phase-order-compare.json
+```
+
+## Result
+
+`Delta` is `server_first_mean - async_first_mean`. Positive latency-like deltas
+mean the server-first phase order made the server path worse relative to
+`AsyncLLM`; negative throughput deltas mean the server-first phase order reduced
+server throughput relative to `AsyncLLM`.
+
+| Metric | Short async-first | Long async-first | Long-short async | Short server-first | Long server-first | Long-short server | Short delta | Long delta | Long-short delta |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| Throughput ratio | 1.108 | 1.024 | -0.084 | 0.948 | 0.904 | -0.044 | -0.160 | -0.121 | 0.039 |
+| First-event ratio | 1.253 | 1.333 | 0.080 | 1.347 | 1.433 | 0.086 | 0.094 | 0.100 | 0.007 |
+| p95 latency ratio | 0.940 | 1.001 | 0.060 | 1.079 | 1.125 | 0.046 | 0.139 | 0.125 | -0.015 |
+| TPOT ratio | 0.913 | 0.978 | 0.065 | 1.053 | 1.091 | 0.039 | 0.140 | 0.113 | -0.026 |
+
+## Interpretation
+
+Long prompts weaken the async-first server advantage. In the short aggregate,
+async-first showed server throughput above `AsyncLLM` and p95 latency below
+`AsyncLLM`; in the long run, throughput is only `1.024x` and p95 latency is
+effectively neutral at `1.001x`.
+
+Server-first remains the stricter test. Throughput is below `AsyncLLM` for both
+short and long prompts, and p95 latency stays above `AsyncLLM` for both prompt
+profiles.
+
+First-event latency is the most consistent server penalty. The long-prompt run
+increases the first-event ratio in both phase orders, and the short-vs-long
+delta is nearly identical for async-first and server-first.
+
+The main research implication is that prompt profile is now a required
+stratification axis. The artifact should report server overhead by workload
+shape and phase order instead of collapsing the data into one universal
+server/async number.
+
+## Next Step
+
+Training 022 should shift from interface overhead toward a KV-cache-specific
+experiment: shared-prefix workloads with prefix caching on and off, measured
+with the same paired, phase-order-aware harness.
