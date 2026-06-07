@@ -849,10 +849,143 @@ still has visible variance.
 
 ## Next Step
 
-Add a paired prefix-cache sweep:
+Training 009 adds a paired prefix-cache sweep.
 
-- run the same repeated grid with `enable_prefix_caching=True`
-- keep the current cold-prefix sweep as the control
-- compare first chunk, latency, and throughput deltas
-- explicitly document where repeated prompts make prefix caching a feature
-  rather than a confounder
+# Modal Training 009: Prefix-Cache Comparison
+
+## Goal
+
+Run the same repeated sweep with vLLM prefix caching enabled and compare it
+against the cold-prefix control from Training 008.
+
+This experiment intentionally uses repeated prompts. In Training 008, repeated
+prompts were controlled by disabling prefix caching. In this training run, the
+same repetition becomes the feature under study.
+
+## Commands
+
+Run the prefix-cache sweep:
+
+```bash
+modal run modal_app.py \
+  --mode vllm-sweep \
+  --prefix-caching on \
+  --repeats 3 \
+  --scenario-seed 568
+```
+
+Generate the paired comparison:
+
+```bash
+modal run modal_app.py --mode vllm-prefix-cache-compare
+```
+
+The prefix-cache sweep writes:
+
+```text
+results/modal-vllm-prefix-cache-sweep/vllm-sweep.json
+results/modal-vllm-prefix-cache-sweep/vllm-sweep.csv
+results/modal-vllm-prefix-cache-sweep/vllm-sweep-runs.csv
+```
+
+The comparison writes:
+
+```text
+results/modal-vllm-prefix-cache-compare/prefix-cache-compare.json
+results/modal-vllm-prefix-cache-compare/prefix-cache-compare.csv
+```
+
+## Method
+
+The prefix-cache run uses the same grid, repeats, seed, model, GPU, and scheduler
+limits as the cold-prefix control:
+
+- `3` measured repeats per scenario
+- seed `568`
+- request counts `1`, `2`, `4`, `8`
+- prompt profiles `short`, `long`
+- output budgets `16`, `32`
+- `max_model_len=1024`
+- `max_num_batched_tokens=8192`
+- `max_num_seqs=8`
+- `enable_prefix_caching=True`
+
+The comparison joins the cold and cached aggregate CSVs by `scenario_id` and
+reports median throughput, median p95 first chunk, median p95 latency, median
+p95 TPOT, and repeat-level coefficient of variation.
+
+## Runtime Observations
+
+The prefix-cache sweep logged:
+
+- vLLM engine config had `enable_prefix_caching=True`.
+- FlashInfer selected as the attention backend on T4.
+- vLLM reported `6.88 GiB` available KV-cache memory.
+- vLLM reported `320,400` GPU KV-cache tokens.
+- vLLM reported maximum concurrency of `312.89x` for `1024` tokens/request.
+- Engine initialization took `147.18 s`.
+- Shape warmup generated `60` tokens across `16` scenarios in `1375.001 ms`.
+
+## Result: 32 Output Tokens
+
+Ratios compare prefix-cache enabled against the cold-prefix control. A throughput
+ratio above `1.0` is better. First chunk, latency, and TPOT ratios below `1.0`
+are better.
+
+| Profile | Requests | Peak sequence tokens | Throughput ratio | First chunk ratio | Latency ratio | TPOT ratio | Prefix throughput CV | Prefix latency CV |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| long | 1 | 150 | 1.184 | 0.727 | 0.845 | 0.864 | 0.005 | 0.005 |
+| long | 2 | 299 | 1.202 | 0.759 | 0.832 | 0.845 | 0.008 | 0.008 |
+| long | 4 | 597 | 1.191 | 0.763 | 0.840 | 0.846 | 0.143 | 0.159 |
+| long | 8 | 1210 | 1.362 | 0.582 | 0.734 | 0.728 | 0.020 | 0.020 |
+| short | 1 | 76 | 1.156 | 0.951 | 0.865 | 0.858 | 0.007 | 0.007 |
+| short | 2 | 151 | 1.162 | 0.784 | 0.860 | 0.865 | 0.008 | 0.008 |
+| short | 4 | 301 | 1.109 | 0.869 | 0.902 | 0.907 | 0.005 | 0.005 |
+| short | 8 | 618 | 1.142 | 0.777 | 0.876 | 0.890 | 0.002 | 0.002 |
+
+Across the eight `32` token scenarios, prefix caching averaged:
+
+- `1.188x` throughput ratio
+- `0.844x` p95 latency ratio
+- `0.776x` p95 first chunk ratio
+
+## Result: 16 Output Tokens
+
+| Profile | Requests | Peak sequence tokens | Throughput ratio | First chunk ratio | Latency ratio | TPOT ratio | Prefix throughput CV | Prefix latency CV |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| long | 1 | 134 | 1.183 | 0.857 | 0.845 | 0.853 | 0.007 | 0.007 |
+| long | 2 | 267 | 1.163 | 0.973 | 0.860 | 0.856 | 0.008 | 0.008 |
+| long | 4 | 533 | 1.259 | 0.691 | 0.793 | 0.815 | 0.006 | 0.006 |
+| long | 8 | 1082 | 1.206 | 0.872 | 0.830 | 0.857 | 0.012 | 0.012 |
+| short | 1 | 60 | 1.145 | 0.910 | 0.878 | 0.874 | 0.006 | 0.006 |
+| short | 2 | 119 | 1.273 | 0.776 | 0.786 | 0.777 | 0.350 | 0.466 |
+| short | 4 | 237 | 1.557 | 0.497 | 0.643 | 0.713 | 0.009 | 0.009 |
+| short | 8 | 490 | 1.246 | 0.757 | 0.803 | 0.822 | 0.013 | 0.013 |
+
+Across all `16` scenarios, prefix caching averaged:
+
+- `1.221x` throughput ratio
+- `0.825x` p95 latency ratio
+- `0.784x` p95 first chunk ratio
+
+## Interpretation
+
+Prefix caching improved every scenario in this paired run on median throughput
+and median p95 latency. The largest `32` token improvement was
+`long_out32_n8`, where throughput increased by `1.362x`, p95 first chunk fell
+to `0.582x`, and p95 latency fell to `0.734x` of the cold-prefix control.
+
+The result is strongest on repeated long prompts, which is exactly where prefix
+caching should help: prefill work is reused and the live decode workload becomes
+more dominant. Short prompts still improve, but the ceiling is smaller because
+there is less prefill work to avoid.
+
+The caution is that this benchmark is cache-warmed by design. It should not be
+reported as a general online serving speedup unless the workload actually has
+prefix reuse. It is a prefix-reuse benchmark, not a random-prompt benchmark.
+
+## Next Step
+
+Add explicit cache hit accounting if vLLM exposes it cleanly for this path, or
+move to an OpenAI-compatible vLLM server run where request-level cache metrics
+and streaming behavior can be observed closer to a production API surface.

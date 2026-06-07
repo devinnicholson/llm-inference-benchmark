@@ -23,6 +23,8 @@ DEFAULT_VLLM_OUTPUT = "results/modal-vllm-inference"
 DEFAULT_VLLM_STREAMING_OUTPUT = "results/modal-vllm-streaming"
 DEFAULT_VLLM_CONCURRENT_OUTPUT = "results/modal-vllm-concurrent"
 DEFAULT_VLLM_SWEEP_OUTPUT = "results/modal-vllm-sweep"
+DEFAULT_VLLM_PREFIX_CACHE_SWEEP_OUTPUT = "results/modal-vllm-prefix-cache-sweep"
+DEFAULT_VLLM_PREFIX_CACHE_COMPARE_OUTPUT = "results/modal-vllm-prefix-cache-compare"
 DEFAULT_VLLM_SWEEP_REQUEST_COUNTS = "1,2,4,8"
 DEFAULT_VLLM_SWEEP_PROMPT_PROFILES = "short,long"
 DEFAULT_VLLM_SWEEP_OUTPUT_TOKENS = "16,32"
@@ -786,6 +788,7 @@ def run_vllm_sweep_remote(
     output_tokens: str = DEFAULT_VLLM_SWEEP_OUTPUT_TOKENS,
     repeats: int = DEFAULT_VLLM_SWEEP_REPEATS,
     scenario_seed: int = DEFAULT_VLLM_SWEEP_SEED,
+    enable_prefix_caching: bool = False,
 ) -> dict[str, Any]:
     import asyncio
     import platform
@@ -874,7 +877,7 @@ def run_vllm_sweep_remote(
             max_num_batched_tokens=max_num_batched_tokens,
             max_num_seqs=max_request_count,
             gpu_memory_utilization=0.50,
-            enable_prefix_caching=False,
+            enable_prefix_caching=enable_prefix_caching,
             enforce_eager=True,
             trust_remote_code=False,
         )
@@ -1085,7 +1088,7 @@ def run_vllm_sweep_remote(
         "max_num_batched_tokens": max_num_batched_tokens,
         "max_num_seqs": max_request_count,
         "gpu_memory_utilization": 0.50,
-        "enable_prefix_caching": False,
+        "enable_prefix_caching": bool(enable_prefix_caching),
         "tokenizer_load_ms": tokenizer_load_ms,
         "prompt_format_ms": prompt_format_ms,
         "engine_load_ms": sweep_result["engine_load_ms"],
@@ -1099,7 +1102,11 @@ def run_vllm_sweep_remote(
         "python_version": platform.python_version(),
         "nvidia_smi_before": nvidia_smi_before,
         "nvidia_smi_after": nvidia_smi_after,
-        "note": "One loaded AsyncLLM engine runs a seeded, repeated, shuffled grid over request count, prompt profile, and output token budget after one-token shape warmups with prefix caching disabled.",
+        "note": (
+            "One loaded AsyncLLM engine runs a seeded, repeated, shuffled grid "
+            "over request count, prompt profile, and output token budget after "
+            f"one-token shape warmups with prefix caching {bool(enable_prefix_caching)}."
+        ),
     }
 
 
@@ -1120,6 +1127,9 @@ def main(
     output_tokens: str = DEFAULT_VLLM_SWEEP_OUTPUT_TOKENS,
     repeats: int = DEFAULT_VLLM_SWEEP_REPEATS,
     scenario_seed: int = DEFAULT_VLLM_SWEEP_SEED,
+    prefix_caching: str = "off",
+    cold_sweep_dir: str = DEFAULT_VLLM_SWEEP_OUTPUT,
+    prefix_sweep_dir: str = DEFAULT_VLLM_PREFIX_CACHE_SWEEP_OUTPUT,
     output_dir: str = "",
 ) -> None:
     if mode == "gpu-probe":
@@ -1215,6 +1225,7 @@ def main(
         return
 
     if mode == "vllm-sweep":
+        enable_prefix_caching = _parse_bool_choice(prefix_caching, "prefix_caching")
         payload = run_vllm_sweep_remote.remote(
             hf_model=hf_model,
             request_counts=request_counts,
@@ -1222,8 +1233,14 @@ def main(
             output_tokens=output_tokens,
             repeats=repeats,
             scenario_seed=scenario_seed,
+            enable_prefix_caching=enable_prefix_caching,
         )
-        output_path = Path(output_dir or DEFAULT_VLLM_SWEEP_OUTPUT)
+        default_output = (
+            DEFAULT_VLLM_PREFIX_CACHE_SWEEP_OUTPUT
+            if enable_prefix_caching
+            else DEFAULT_VLLM_SWEEP_OUTPUT
+        )
+        output_path = Path(output_dir or default_output)
         output_path.mkdir(parents=True, exist_ok=True)
         json_path = output_path / "vllm-sweep.json"
         csv_path = output_path / "vllm-sweep.csv"
@@ -1238,17 +1255,37 @@ def main(
         print(f"scenario_runs: {payload['scenario_run_count']}")
         print(f"repeats: {payload['repeats']}")
         print(f"scenario_seed: {payload['scenario_seed']}")
+        print(f"enable_prefix_caching: {payload['enable_prefix_caching']}")
         print(f"max_num_seqs: {payload['max_num_seqs']}")
         print(f"json: {json_path}")
         print(f"csv: {csv_path}")
         print(f"runs_csv: {run_csv_path}")
         return
 
+    if mode == "vllm-prefix-cache-compare":
+        payload = _compare_vllm_sweep_csvs(
+            cold_csv=Path(cold_sweep_dir) / "vllm-sweep.csv",
+            prefix_csv=Path(prefix_sweep_dir) / "vllm-sweep.csv",
+            cold_label="prefix_caching_off",
+            prefix_label="prefix_caching_on",
+        )
+        output_path = Path(output_dir or DEFAULT_VLLM_PREFIX_CACHE_COMPARE_OUTPUT)
+        output_path.mkdir(parents=True, exist_ok=True)
+        json_path = output_path / "prefix-cache-compare.json"
+        csv_path = output_path / "prefix-cache-compare.csv"
+        json_path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+        _write_records_csv(csv_path, payload["rows"])
+
+        print(f"scenarios: {payload['scenario_count']}")
+        print(f"json: {json_path}")
+        print(f"csv: {csv_path}")
+        return
+
     if mode != "sweep":
         raise ValueError(
             "mode must be 'sweep', 'gpu-probe', 'tiny-inference', "
             "'vllm-inference', 'vllm-streaming', 'vllm-concurrent', "
-            "or 'vllm-sweep'"
+            "'vllm-sweep', or 'vllm-prefix-cache-compare'"
         )
 
     payload = run_capacity_sweep_remote.remote(
@@ -1289,6 +1326,15 @@ def _split_positive_int_csv(value: str, label: str) -> list[int]:
             raise ValueError(f"{label} must contain positive integers")
         parsed_values.append(parsed_value)
     return parsed_values
+
+
+def _parse_bool_choice(value: str, label: str) -> bool:
+    normalized = value.strip().lower()
+    if normalized in {"1", "true", "yes", "y", "on", "enabled"}:
+        return True
+    if normalized in {"0", "false", "no", "n", "off", "disabled"}:
+        return False
+    raise ValueError(f"{label} must be on or off")
 
 
 def _select_concurrent_prompts(prompt_count: int) -> list[str]:
@@ -1514,6 +1560,107 @@ def _metric_distribution(
         f"{field}_p95": _percentile(values, 95),
         f"{field}_cv": stddev / mean_value if mean_value else None,
     }
+
+
+def _compare_vllm_sweep_csvs(
+    cold_csv: Path,
+    prefix_csv: Path,
+    cold_label: str,
+    prefix_label: str,
+) -> dict[str, Any]:
+    cold_rows = _read_csv_by_key(cold_csv, "scenario_id")
+    prefix_rows = _read_csv_by_key(prefix_csv, "scenario_id")
+    scenario_ids = sorted(set(cold_rows) & set(prefix_rows))
+    if not scenario_ids:
+        raise ValueError("No matching scenario_id values found for comparison")
+
+    rows = []
+    for scenario_id in scenario_ids:
+        cold = cold_rows[scenario_id]
+        prefix = prefix_rows[scenario_id]
+        throughput_cold = _float_field(cold, "aggregate_output_tokens_per_second_median")
+        throughput_prefix = _float_field(prefix, "aggregate_output_tokens_per_second_median")
+        first_chunk_cold = _float_field(cold, "p95_first_chunk_ms_median")
+        first_chunk_prefix = _float_field(prefix, "p95_first_chunk_ms_median")
+        latency_cold = _float_field(cold, "p95_latency_ms_median")
+        latency_prefix = _float_field(prefix, "p95_latency_ms_median")
+        tpot_cold = _float_field(cold, "p95_stream_tpot_ms_median")
+        tpot_prefix = _float_field(prefix, "p95_stream_tpot_ms_median")
+        rows.append(
+            {
+                "scenario_id": scenario_id,
+                "prompt_profile": cold["prompt_profile"],
+                "request_count": int(cold["request_count"]),
+                "max_new_tokens": int(cold["max_new_tokens"]),
+                "prompt_tokens_mean": _float_field(cold, "prompt_tokens_mean"),
+                "estimated_peak_sequence_tokens_median": _float_field(
+                    cold,
+                    "estimated_peak_sequence_tokens_median",
+                ),
+                "cold_output_tokens_per_second_median": throughput_cold,
+                "prefix_output_tokens_per_second_median": throughput_prefix,
+                "output_tokens_per_second_delta": _delta(throughput_prefix, throughput_cold),
+                "output_tokens_per_second_ratio": _ratio(throughput_prefix, throughput_cold),
+                "cold_p95_first_chunk_ms_median": first_chunk_cold,
+                "prefix_p95_first_chunk_ms_median": first_chunk_prefix,
+                "p95_first_chunk_ms_delta": _delta(first_chunk_prefix, first_chunk_cold),
+                "p95_first_chunk_ms_ratio": _ratio(first_chunk_prefix, first_chunk_cold),
+                "cold_p95_latency_ms_median": latency_cold,
+                "prefix_p95_latency_ms_median": latency_prefix,
+                "p95_latency_ms_delta": _delta(latency_prefix, latency_cold),
+                "p95_latency_ms_ratio": _ratio(latency_prefix, latency_cold),
+                "cold_p95_stream_tpot_ms_median": tpot_cold,
+                "prefix_p95_stream_tpot_ms_median": tpot_prefix,
+                "p95_stream_tpot_ms_delta": _delta(tpot_prefix, tpot_cold),
+                "p95_stream_tpot_ms_ratio": _ratio(tpot_prefix, tpot_cold),
+                "cold_throughput_cv": _float_field(
+                    cold,
+                    "aggregate_output_tokens_per_second_cv",
+                ),
+                "prefix_throughput_cv": _float_field(
+                    prefix,
+                    "aggregate_output_tokens_per_second_cv",
+                ),
+                "cold_latency_cv": _float_field(cold, "p95_latency_ms_cv"),
+                "prefix_latency_cv": _float_field(prefix, "p95_latency_ms_cv"),
+            }
+        )
+
+    return {
+        "schema_version": 1,
+        "mode": "vllm-prefix-cache-compare",
+        "cold_label": cold_label,
+        "prefix_label": prefix_label,
+        "cold_csv": str(cold_csv),
+        "prefix_csv": str(prefix_csv),
+        "scenario_count": len(rows),
+        "rows": rows,
+    }
+
+
+def _read_csv_by_key(path: Path, key: str) -> dict[str, dict[str, str]]:
+    with path.open("r", encoding="utf-8", newline="") as handle:
+        reader = csv.DictReader(handle)
+        return {row[key]: row for row in reader}
+
+
+def _float_field(row: dict[str, str], field: str) -> float | None:
+    value = row.get(field)
+    if value in {None, ""}:
+        return None
+    return float(value)
+
+
+def _delta(new_value: float | None, baseline_value: float | None) -> float | None:
+    if new_value is None or baseline_value is None:
+        return None
+    return new_value - baseline_value
+
+
+def _ratio(new_value: float | None, baseline_value: float | None) -> float | None:
+    if new_value is None or baseline_value in {None, 0.0}:
+        return None
+    return new_value / baseline_value
 
 
 def _model_config_path(name: str, root: Path = ROOT) -> Path:

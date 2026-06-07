@@ -139,6 +139,13 @@ Run the repeated sweep with an explicit shuffle seed:
 modal run modal_app.py --mode vllm-sweep --repeats 3 --scenario-seed 568
 ```
 
+Run the paired prefix-cache sweep and comparison:
+
+```bash
+modal run modal_app.py --mode vllm-sweep --prefix-caching on
+modal run modal_app.py --mode vllm-prefix-cache-compare
+```
+
 Modal training is documented in
 [`docs/modal-training.md`](docs/modal-training.md).
 
