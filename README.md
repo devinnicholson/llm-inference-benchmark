@@ -133,6 +133,16 @@ Run the first OpenAI-compatible vLLM server concurrent streaming workload:
 modal run modal_app.py --mode vllm-server-concurrent
 ```
 
+Run the repeated OpenAI-compatible vLLM server sweep:
+
+```bash
+modal run modal_app.py --mode vllm-server-sweep \
+  --prompt-profiles short \
+  --output-tokens 32 \
+  --repeats 3 \
+  --warmup-runs 1
+```
+
 Run the first Modal vLLM concurrent workload:
 
 ```bash

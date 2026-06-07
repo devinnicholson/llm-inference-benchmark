@@ -1209,7 +1209,116 @@ JSON parsing, one run per scenario, and scenario-order effects.
 
 ## Next Step
 
-Add a repeated server concurrent sweep or a matched server-vs-`AsyncLLM`
-comparison with warmup/discard runs, repeated scenarios, and fixed scenario
-ordering. That is the next step before treating the API-server path as a
-benchmark instead of a training milestone.
+Training 012 adds the repeated server sweep with warmup/discard runs and seeded
+scenario ordering.
+
+# Modal Training 012: Repeated vLLM Server Sweep
+
+## Goal
+
+Turn the one-shot server concurrent run into a repeatable benchmark shape. This
+milestone keeps one OpenAI-compatible vLLM server alive, runs warmup requests
+that are discarded, then measures a seeded and shuffled set of server-side
+concurrency scenarios.
+
+The key methodology change is that first-request JIT and route-level startup
+effects are no longer mixed directly into the first measured scenario.
+
+## Command
+
+```bash
+modal run modal_app.py --mode vllm-server-sweep \
+  --prompt-profiles short \
+  --output-tokens 32 \
+  --repeats 3 \
+  --warmup-runs 1 \
+  --scenario-seed 568
+```
+
+The committed result writes:
+
+```text
+results/modal-vllm-server-sweep/vllm-server-sweep.json
+results/modal-vllm-server-sweep/vllm-server-sweep.csv
+results/modal-vllm-server-sweep/vllm-server-sweep-runs.csv
+```
+
+## Method
+
+This run uses the same server configuration as Training 011:
+
+```bash
+vllm serve HuggingFaceTB/SmolLM2-135M-Instruct \
+  --host 127.0.0.1 \
+  --port 8000 \
+  --dtype half \
+  --max-model-len 1024 \
+  --max-num-batched-tokens 8192 \
+  --max-num-seqs 8 \
+  --gpu-memory-utilization 0.50 \
+  --enforce-eager
+```
+
+The measured grid is intentionally focused:
+
+- Prompt profile: `short`
+- Output tokens: `32`
+- Concurrent request counts: `1`, `2`, `4`, `8`
+- Warmup passes: `1`
+- Measured repeats: `3`
+- Scenario order seed: `568`
+
+The warmup pass sends one-token streaming requests for every shape and discards
+those timings. The measured pass then shuffles the scenario plan and records
+both aggregate rows and per-run rows.
+
+## Runtime Observations
+
+The server run logged:
+
+- vLLM server started on `http://127.0.0.1:8000`.
+- `/health` returned `200 OK`.
+- `/v1/chat/completions` returned `200 OK` for all warmup and measured
+  requests.
+- vLLM reported `6.88 GiB` available KV-cache memory.
+- vLLM reported `320,400` GPU KV-cache tokens.
+- vLLM reported maximum concurrency of `312.89x` for `1024` tokens/request.
+- Engine initialization took `136.33 s`.
+- Server health was ready after `168349.012 ms`.
+- The warmup pass took `789.441 ms` across `4` scenario shapes and `15`
+  generated warmup tokens.
+- Triton JIT for `_compute_slot_mapping_kernel` appeared during the warmup
+  requests rather than inside the first measured one-request scenario.
+
+## Result
+
+| Requests | Repeats | Median batch wall ms | Repeat p95 batch wall ms | Median p95 first-content ms | Repeat p95 first-content ms | Median p95 latency ms | Repeat p95 latency ms | Median p95 TPOT ms | Median output tok/s |
+| ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| 1 | 3 | 664.399 | 691.134 | 51.586 | 51.745 | 663.513 | 690.301 | 19.789 | 48.164 |
+| 2 | 3 | 688.926 | 1163.510 | 74.549 | 75.688 | 687.936 | 1162.658 | 20.454 | 92.898 |
+| 4 | 3 | 697.589 | 717.109 | 78.515 | 92.006 | 695.757 | 716.070 | 20.178 | 183.489 |
+| 8 | 3 | 733.485 | 871.041 | 97.006 | 226.732 | 732.474 | 869.423 | 21.296 | 349.019 |
+
+## Interpretation
+
+Warmup materially changes the server story. The one-shot Training 011
+single-request first-content value was `1026.232 ms`; in this repeated run the
+single-request median p95 first-content value is `51.586 ms`. That confirms the
+earlier one-shot result was polluted by first measured request effects.
+
+Throughput scales from `48.164` median output tokens/sec at one request to
+`349.019` at eight concurrent requests. That is close to the earlier in-process
+`AsyncLLM` short `32` token, eight-request median of `375.332` output tokens/sec,
+but the server comparison is still not controlled enough to claim parity: the
+server path includes HTTP, SSE, JSON parsing, and a different client loop.
+
+The `n=2` case had one measured latency outlier: `rep02-run000` reported
+`1162.658 ms` p95 latency and `35.751 ms` p95 TPOT while the other `n=2` runs
+were near `659-688 ms`. Keeping the per-run CSV is useful because it makes this
+visible instead of hiding it inside an average.
+
+## Next Step
+
+Add a matched server-vs-`AsyncLLM` comparison using the same prompt profiles,
+request counts, output tokens, repeats, warmup policy, and scenario seed. That
+will let us separate engine scheduling behavior from API transport overhead.
