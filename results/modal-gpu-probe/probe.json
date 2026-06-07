@@ -1,0 +1,20 @@
+{
+  "cuda_available": true,
+  "device_count": 1,
+  "device_major": 7,
+  "device_minor": 5,
+  "device_name": "Tesla T4",
+  "device_total_memory_mib": 14912.6875,
+  "execution": "modal",
+  "matmul_checksum": 46.90625,
+  "matmul_shape": "1024x1024_fp16",
+  "matmul_wall_ms": 111.51059200000013,
+  "nvidia_smi_head": "Sun Jun  7 04:55:46 2026       \n+-----------------------------------------------------------------------------------------+\n| NVIDIA-SMI 580.95.05              Driver Version: 580.95.05      CUDA Version: 13.0     |\n+-----------------------------------------+------------------------+----------------------+\n| GPU  Name                 Persistence-M | Bus-Id          Disp.A | Volatile Uncorr. ECC |\n| Fan  Temp   Perf          Pwr:Usage/Cap |           Memory-Usage | GPU-Util  Compute M. |\n|                                         |                        |               MIG M. |\n|=========================================+========================+======================|",
+  "nvidia_smi_query": "Tesla T4, 15360, 14913, 580.95.05",
+  "platform": "Linux-4.4.0-x86_64-with-glibc2.36",
+  "probe": "gpu",
+  "python_version": "3.12.10",
+  "schema_version": 1,
+  "torch_cuda_version": "13.0",
+  "torch_version": "2.12.0+cu130"
+}

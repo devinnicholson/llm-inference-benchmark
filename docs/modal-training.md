@@ -110,20 +110,76 @@ CPU sweeps lets us validate packaging, arguments, returned artifacts, and
 reproducibility before adding GPU dependencies such as PyTorch, vLLM, SGLang,
 TensorRT-LLM, or Triton kernels.
 
-## Next Modal Step
+# Modal Training 002: GPU Probe
 
-After the smoke sweep works, add a GPU probe function:
+## Goal
 
-```python
-@app.function(gpu="A10")
-def gpu_probe() -> dict[str, str | bool]:
-    import torch
+Prove that this repo can allocate a real Modal GPU, inspect the CUDA stack, run
+a tiny PyTorch CUDA kernel, and save the probe result as a reproducible artifact.
 
-    return {
-        "cuda_available": torch.cuda.is_available(),
-        "device": torch.cuda.get_device_name(0),
-    }
+This is still not model inference. It is a deliberately small bridge between
+remote CPU sweeps and GPU-backed serving experiments.
+
+## Command
+
+```bash
+modal run modal_app.py --mode gpu-probe
 ```
 
-That probe should become the bridge from synthetic simulation to real inference
-backend measurements.
+The probe currently requests a `T4` GPU. That is enough to validate CUDA access
+while keeping the first GPU run small.
+
+## Output
+
+The local entrypoint writes:
+
+- `results/modal-gpu-probe/probe.json`
+
+The probe records:
+
+- Modal execution marker
+- Python version
+- PyTorch version
+- PyTorch CUDA runtime version
+- `torch.cuda.is_available()`
+- `nvidia-smi` query output
+- GPU device name
+- GPU memory
+- compute capability
+- one `1024x1024` FP16 matmul wall-clock timing
+
+## Probe Result
+
+The first successful run wrote `results/modal-gpu-probe/probe.json`.
+
+| Field | Value |
+| --- | --- |
+| CUDA available | `true` |
+| Device | `Tesla T4` |
+| GPU memory | `14912.6875 MiB` |
+| Compute capability | `7.5` |
+| NVIDIA driver | `580.95.05` |
+| CUDA runtime | `13.0` |
+| PyTorch | `2.12.0+cu130` |
+| Matmul smoke | `1024x1024_fp16` |
+| Matmul wall time | `111.511 ms` |
+
+The first attempted run also exposed a Modal serialization rule that matters for
+future experiments: remote functions should return JSON-native values or local
+code must have matching deserialization dependencies. Returning
+`str(torch.__version__)` instead of the Torch version object keeps the local
+environment free of Torch.
+
+## Why This Matters
+
+The synthetic scheduler is useful only if we can later compare it with real
+backend behavior. A working GPU probe proves the repo can now run on the same
+kind of remote accelerator that a real vLLM, SGLang, TensorRT-LLM, or Triton
+experiment would need.
+
+## Next Step After Probe
+
+Add a tiny real inference run on Modal GPU. The first backend should be chosen
+for packaging simplicity, not final performance. A small Hugging Face
+`transformers` run is acceptable if it gets us clean TTFT and decode timing
+hooks quickly. After that, move to vLLM or SGLang.

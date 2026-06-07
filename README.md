@@ -97,6 +97,12 @@ Run the first Modal remote sweep:
 modal run modal_app.py
 ```
 
+Run the first Modal GPU probe:
+
+```bash
+modal run modal_app.py --mode gpu-probe
+```
+
 Modal training is documented in
 [`docs/modal-training.md`](docs/modal-training.md).
 
