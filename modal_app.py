@@ -21,8 +21,15 @@ DEFAULT_GPU_PROBE_OUTPUT = "results/modal-gpu-probe"
 DEFAULT_INFERENCE_OUTPUT = "results/modal-tiny-inference"
 DEFAULT_VLLM_OUTPUT = "results/modal-vllm-inference"
 DEFAULT_VLLM_STREAMING_OUTPUT = "results/modal-vllm-streaming"
+DEFAULT_VLLM_CONCURRENT_OUTPUT = "results/modal-vllm-concurrent"
 DEFAULT_HF_MODEL = "HuggingFaceTB/SmolLM2-135M-Instruct"
 DEFAULT_INFERENCE_PROMPT = "Explain KV cache in LLM inference in two concise sentences."
+DEFAULT_CONCURRENT_PROMPTS = (
+    "Explain KV cache pressure in LLM serving in two concise sentences.",
+    "Explain why batching can improve GPU utilization for LLM inference.",
+    "Explain the difference between prefill and decode in LLM inference.",
+    "Explain why long prompts can hurt tail latency in an inference server.",
+)
 HF_CACHE_PATH = "/cache"
 VLLM_CACHE_PATH = "/vllm-cache"
 
@@ -552,6 +559,214 @@ def run_vllm_streaming_remote(
     }
 
 
+@app.function(
+    image=vllm_image,
+    gpu="T4",
+    timeout=1200,
+    volumes={HF_CACHE_PATH: hf_cache_volume, VLLM_CACHE_PATH: vllm_cache_volume},
+)
+def run_vllm_concurrent_remote(
+    hf_model: str = DEFAULT_HF_MODEL,
+    prompt_count: int = 4,
+    max_new_tokens: int = 32,
+) -> dict[str, Any]:
+    import asyncio
+    import platform
+    import time
+
+    from transformers import AutoTokenizer
+    from vllm import SamplingParams
+    from vllm.engine.arg_utils import AsyncEngineArgs
+    from vllm.sampling_params import RequestOutputKind
+    from vllm.v1.engine.async_llm import AsyncLLM
+
+    if max_new_tokens <= 0:
+        raise ValueError("max_new_tokens must be positive")
+    if prompt_count <= 0:
+        raise ValueError("prompt_count must be positive")
+
+    import vllm
+
+    prompts = _select_concurrent_prompts(prompt_count)
+    nvidia_smi_before = _run_command(
+        [
+            "nvidia-smi",
+            "--query-gpu=name,memory.total,memory.free,driver_version",
+            "--format=csv,noheader,nounits",
+        ]
+    )
+
+    started = time.perf_counter()
+    tokenizer = AutoTokenizer.from_pretrained(hf_model)
+    tokenizer_load_ms = (time.perf_counter() - started) * 1000
+
+    prompt_records = []
+    prompt_format_started = time.perf_counter()
+    for index, prompt in enumerate(prompts):
+        formatted_prompt, prompt_format = _format_prompt_for_generation(tokenizer, prompt)
+        prompt_records.append(
+            {
+                "request_id": f"concurrent-{index:02d}",
+                "prompt": prompt,
+                "formatted_prompt": formatted_prompt,
+                "prompt_format": prompt_format,
+                "prompt_tokens": len(tokenizer.encode(formatted_prompt)),
+            }
+        )
+    prompt_format_ms = (time.perf_counter() - prompt_format_started) * 1000
+
+    async def run_concurrent() -> dict[str, Any]:
+        started = time.perf_counter()
+        engine_args = AsyncEngineArgs(
+            model=hf_model,
+            dtype="half",
+            max_model_len=1024,
+            max_num_batched_tokens=2048,
+            max_num_seqs=prompt_count,
+            gpu_memory_utilization=0.50,
+            enforce_eager=True,
+            trust_remote_code=False,
+        )
+        engine = AsyncLLM.from_engine_args(engine_args)
+        engine_load_ms = (time.perf_counter() - started) * 1000
+        sampling_params = SamplingParams(
+            max_tokens=max_new_tokens,
+            temperature=0.0,
+            output_kind=RequestOutputKind.DELTA,
+        )
+
+        async def stream_one(record: dict[str, Any], batch_started: float) -> dict[str, Any]:
+            request_started = time.perf_counter()
+            first_chunk_ms: float | None = None
+            finished_ms: float | None = None
+            chunks = []
+            generated_text_parts = []
+            generated_tokens = 0
+            async for output in engine.generate(
+                request_id=record["request_id"],
+                prompt=record["formatted_prompt"],
+                sampling_params=sampling_params,
+            ):
+                now = time.perf_counter()
+                elapsed_ms = (now - request_started) * 1000
+                batch_elapsed_ms = (now - batch_started) * 1000
+                for completion in output.outputs:
+                    text = completion.text
+                    token_ids = list(completion.token_ids or [])
+                    if first_chunk_ms is None and (text or token_ids):
+                        first_chunk_ms = elapsed_ms
+                    if text:
+                        generated_text_parts.append(text)
+                    generated_tokens += len(token_ids)
+                    chunks.append(
+                        {
+                            "elapsed_ms": elapsed_ms,
+                            "batch_elapsed_ms": batch_elapsed_ms,
+                            "token_count": len(token_ids),
+                            "text": text,
+                            "finished": bool(output.finished),
+                        }
+                    )
+                if output.finished:
+                    finished_ms = elapsed_ms
+                    break
+
+            stream_wall_ms = finished_ms or ((time.perf_counter() - request_started) * 1000)
+            decode_tokens_after_first = max(generated_tokens - 1, 0)
+            decode_after_first_ms = (
+                stream_wall_ms - first_chunk_ms
+                if first_chunk_ms is not None
+                else None
+            )
+            return {
+                "request_id": record["request_id"],
+                "prompt": record["prompt"],
+                "prompt_tokens": record["prompt_tokens"],
+                "first_chunk_ms": first_chunk_ms,
+                "stream_wall_ms": stream_wall_ms,
+                "decode_after_first_ms": decode_after_first_ms,
+                "stream_tpot_ms": (
+                    decode_after_first_ms / decode_tokens_after_first
+                    if decode_after_first_ms is not None and decode_tokens_after_first
+                    else None
+                ),
+                "generated_tokens": generated_tokens,
+                "generated_text": "".join(generated_text_parts),
+                "chunks": chunks,
+            }
+
+        batch_started = time.perf_counter()
+        try:
+            request_results = await asyncio.gather(
+                *(stream_one(record, batch_started) for record in prompt_records)
+            )
+        finally:
+            engine.shutdown()
+        batch_wall_ms = (time.perf_counter() - batch_started) * 1000
+        return {
+            "engine_load_ms": engine_load_ms,
+            "batch_wall_ms": batch_wall_ms,
+            "requests": request_results,
+        }
+
+    batch_result = asyncio.run(run_concurrent())
+    hf_cache_volume.commit()
+    vllm_cache_volume.commit()
+    nvidia_smi_after = _run_command(
+        [
+            "nvidia-smi",
+            "--query-gpu=name,memory.total,memory.free,driver_version",
+            "--format=csv,noheader,nounits",
+        ]
+    )
+
+    requests = batch_result["requests"]
+    total_output_tokens = sum(request["generated_tokens"] for request in requests)
+    first_chunks = [
+        request["first_chunk_ms"]
+        for request in requests
+        if request["first_chunk_ms"] is not None
+    ]
+    latencies = [request["stream_wall_ms"] for request in requests]
+    tpot_values = [
+        request["stream_tpot_ms"]
+        for request in requests
+        if request["stream_tpot_ms"] is not None
+    ]
+    batch_wall_ms = float(batch_result["batch_wall_ms"])
+    return {
+        "schema_version": 1,
+        "execution": "modal",
+        "mode": "vllm-concurrent",
+        "backend": "vllm",
+        "model_id": hf_model,
+        "request_count": len(requests),
+        "max_new_tokens": int(max_new_tokens),
+        "max_model_len": 1024,
+        "max_num_batched_tokens": 2048,
+        "max_num_seqs": prompt_count,
+        "prompt_format_ms": prompt_format_ms,
+        "tokenizer_load_ms": tokenizer_load_ms,
+        "engine_load_ms": batch_result["engine_load_ms"],
+        "batch_wall_ms": batch_wall_ms,
+        "total_output_tokens": total_output_tokens,
+        "aggregate_output_tokens_per_second": total_output_tokens / max(batch_wall_ms / 1000, 1e-9),
+        "p50_first_chunk_ms": _percentile(first_chunks, 50),
+        "p95_first_chunk_ms": _percentile(first_chunks, 95),
+        "p50_latency_ms": _percentile(latencies, 50),
+        "p95_latency_ms": _percentile(latencies, 95),
+        "p50_stream_tpot_ms": _percentile(tpot_values, 50),
+        "p95_stream_tpot_ms": _percentile(tpot_values, 95),
+        "requests": requests,
+        "vllm_version": str(vllm.__version__),
+        "platform": platform.platform(),
+        "python_version": platform.python_version(),
+        "nvidia_smi_before": nvidia_smi_before,
+        "nvidia_smi_after": nvidia_smi_after,
+        "note": "Concurrent AsyncLLM streaming workload. Request timings are measured from each coroutine start after the shared engine is loaded.",
+    }
+
+
 @app.local_entrypoint()
 def main(
     mode: str = "sweep",
@@ -563,6 +778,7 @@ def main(
     concurrency: str = DEFAULT_CONCURRENCY,
     policies: str = DEFAULT_POLICIES,
     max_new_tokens: int = 32,
+    prompt_count: int = 4,
     output_dir: str = "",
 ) -> None:
     if mode == "gpu-probe":
@@ -637,10 +853,30 @@ def main(
         print(f"json: {json_path}")
         return
 
+    if mode == "vllm-concurrent":
+        payload = run_vllm_concurrent_remote.remote(
+            hf_model=hf_model,
+            prompt_count=prompt_count,
+            max_new_tokens=max_new_tokens,
+        )
+        output_path = Path(output_dir or DEFAULT_VLLM_CONCURRENT_OUTPUT)
+        output_path.mkdir(parents=True, exist_ok=True)
+        json_path = output_path / "vllm-concurrent.json"
+        json_path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+
+        print(f"model: {payload['model_id']}")
+        print(f"backend: {payload['backend']} {payload['vllm_version']}")
+        print(f"requests: {payload['request_count']}")
+        print(f"batch_wall_ms: {payload['batch_wall_ms']:.3f}")
+        print(f"p95_first_chunk_ms: {payload['p95_first_chunk_ms']:.3f}")
+        print(f"aggregate_output_tokens_per_second: {payload['aggregate_output_tokens_per_second']:.3f}")
+        print(f"json: {json_path}")
+        return
+
     if mode != "sweep":
         raise ValueError(
             "mode must be 'sweep', 'gpu-probe', 'tiny-inference', "
-            "'vllm-inference', or 'vllm-streaming'"
+            "'vllm-inference', 'vllm-streaming', or 'vllm-concurrent'"
         )
 
     payload = run_capacity_sweep_remote.remote(
@@ -667,6 +903,17 @@ def _split_csv(value: str) -> list[str]:
     if not values:
         raise ValueError("comma-separated argument must contain at least one value")
     return values
+
+
+def _select_concurrent_prompts(prompt_count: int) -> list[str]:
+    prompts = []
+    for index in range(prompt_count):
+        base_prompt = DEFAULT_CONCURRENT_PROMPTS[index % len(DEFAULT_CONCURRENT_PROMPTS)]
+        if index < len(DEFAULT_CONCURRENT_PROMPTS):
+            prompts.append(base_prompt)
+        else:
+            prompts.append(f"{base_prompt} Variation {index + 1}.")
+    return prompts
 
 
 def _model_config_path(name: str, root: Path = ROOT) -> Path:
@@ -815,6 +1062,14 @@ def _duration_from_metrics_ms(
     if start is None or end is None:
         return None
     return max(0.0, (end - start) * 1000)
+
+
+def _percentile(values: list[float | None], percentile: int) -> float | None:
+    clean_values = sorted(value for value in values if value is not None)
+    if not clean_values:
+        return None
+    rank = max(1, int((percentile / 100) * len(clean_values) + 0.999999))
+    return clean_values[min(rank - 1, len(clean_values) - 1)]
 
 
 def _run_command(command: list[str]) -> str:

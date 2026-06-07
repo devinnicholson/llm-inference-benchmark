@@ -121,6 +121,12 @@ Run the first Modal vLLM streaming timing:
 modal run modal_app.py --mode vllm-streaming
 ```
 
+Run the first Modal vLLM concurrent workload:
+
+```bash
+modal run modal_app.py --mode vllm-concurrent
+```
+
 Modal training is documented in
 [`docs/modal-training.md`](docs/modal-training.md).
 

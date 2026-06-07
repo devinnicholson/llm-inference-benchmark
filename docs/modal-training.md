@@ -484,3 +484,125 @@ The next research step should stop optimizing the single prompt and instead run
 a small concurrent workload through vLLM. That is where a serving engine should
 start to differ from the raw Transformers baseline in a way that matters for
 KV-cache scheduling.
+
+# Modal Training 006: vLLM Concurrent Streaming
+
+## Goal
+
+Run a small simultaneous workload through one vLLM `AsyncLLM` engine and measure
+per-request first output, per-request completion latency, and aggregate output
+throughput.
+
+This is the first Modal training run that exercises vLLM like a serving engine
+rather than a single-prompt inference script.
+
+## Command
+
+```bash
+modal run modal_app.py --mode vllm-concurrent
+```
+
+Change request count:
+
+```bash
+modal run modal_app.py --mode vllm-concurrent --prompt-count 8
+```
+
+The first committed concurrent result is:
+
+```text
+results/modal-vllm-concurrent/vllm-concurrent.json
+```
+
+## Workload
+
+The default concurrent workload uses four short prompts:
+
+- KV-cache pressure in LLM serving
+- batching and GPU utilization
+- prefill versus decode
+- long prompts and tail latency
+
+All four requests are started against the same loaded vLLM engine with:
+
+- `max_model_len=1024`
+- `max_num_batched_tokens=2048`
+- `max_num_seqs=4`
+- `gpu_memory_utilization=0.50`
+- `enforce_eager=True`
+
+## Result
+
+| Field | Value |
+| --- | ---: |
+| Backend | `vllm 0.21.0` |
+| GPU | `Tesla T4` |
+| Requests | `4` |
+| Total output tokens | `128` |
+| Batch wall time | `1866.175 ms` |
+| Aggregate output tokens/sec | `68.589` |
+| p50 first chunk | `678.972 ms` |
+| p95 first chunk | `679.163 ms` |
+| p50 latency | `1295.784 ms` |
+| p95 latency | `1296.581 ms` |
+| p50 stream TPOT | `19.894 ms` |
+| p95 stream TPOT | `20.526 ms` |
+| Engine load/init | `137300.286 ms` |
+
+## Comparison
+
+| Field | vLLM single streaming | vLLM 4-request concurrent |
+| --- | ---: | ---: |
+| Requests | `1` | `4` |
+| Output tokens | `30` | `128` |
+| Wall time | `2072.620 ms` | `1866.175 ms` |
+| Output tokens/sec | `14.474` | `68.589` |
+| First output p95 | `1466.684 ms` | `679.163 ms` |
+| Completion p95 | `2072.620 ms` | `1296.581 ms` |
+| TPOT p95 | `20.894 ms` | `20.526 ms` |
+
+The prompt set is not identical to the single-prompt streaming run, so this is
+not a controlled speedup claim. It is still the first strong signal that vLLM's
+serving engine becomes more interesting under concurrency: aggregate throughput
+improves materially while per-token decode time remains in the same range.
+
+## Runtime Observations
+
+The concurrent run repeated the same hardware/backend behavior:
+
+- FlashAttention 2 was unavailable on T4 compute capability `7.5`.
+- vLLM selected FlashInfer attention.
+- vLLM reported approximately `6.95 GiB` available KV-cache memory.
+- vLLM reported `323,824` GPU KV-cache tokens.
+- vLLM reported maximum concurrency of `316.23x` for `1024` tokens/request.
+- Engine initialization took `129.62 s`.
+- A Triton JIT compilation happened during inference for
+  `_compute_slot_mapping_kernel`.
+
+## Interpretation
+
+This is the first result that connects back to the simulator's original purpose.
+The synthetic scheduler studies were about how request concurrency, deadlines,
+and KV-cache pressure interact. The concurrent vLLM run shows where real serving
+engines expose the same surfaces:
+
+- prompt token counts
+- generated token counts
+- first output latency
+- tail completion latency
+- aggregate throughput
+- KV-cache capacity reported by the engine
+- scheduler limits such as `max_num_seqs` and `max_num_batched_tokens`
+
+## Next Step
+
+Turn this into a real experiment sweep:
+
+- run prompt counts `1`, `2`, `4`, and `8`
+- keep the prompt set and generation length fixed
+- compare p95 first output, p95 completion latency, aggregate throughput, and
+  vLLM-reported KV-cache capacity
+- save one CSV/JSON result table instead of one ad hoc JSON artifact
+
+That sweep will finally give a clean bridge between the synthetic capacity
+sweep and real vLLM serving behavior.

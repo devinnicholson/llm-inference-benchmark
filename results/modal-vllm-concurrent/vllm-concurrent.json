@@ -1,0 +1,959 @@
+{
+  "aggregate_output_tokens_per_second": 68.5894962818093,
+  "backend": "vllm",
+  "batch_wall_ms": 1866.1749530000122,
+  "engine_load_ms": 137300.286176,
+  "execution": "modal",
+  "max_model_len": 1024,
+  "max_new_tokens": 32,
+  "max_num_batched_tokens": 2048,
+  "max_num_seqs": 4,
+  "mode": "vllm-concurrent",
+  "model_id": "HuggingFaceTB/SmolLM2-135M-Instruct",
+  "note": "Concurrent AsyncLLM streaming workload. Request timings are measured from each coroutine start after the shared engine is loaded.",
+  "nvidia_smi_after": "Tesla T4, 15360, 14913, 580.95.05",
+  "nvidia_smi_before": "Tesla T4, 15360, 14913, 580.95.05",
+  "p50_first_chunk_ms": 678.9719819999789,
+  "p50_latency_ms": 1295.7836900000075,
+  "p50_stream_tpot_ms": 19.894152387097062,
+  "p95_first_chunk_ms": 679.1631789999997,
+  "p95_latency_ms": 1296.5806330000191,
+  "p95_stream_tpot_ms": 20.52571054838748,
+  "platform": "Linux-4.4.0-x86_64-with-glibc2.35",
+  "prompt_format_ms": 16.22120999999943,
+  "python_version": "3.12.1",
+  "request_count": 4,
+  "requests": [
+    {
+      "chunks": [
+        {
+          "batch_elapsed_ms": 660.9179550000022,
+          "elapsed_ms": 660.2836060000072,
+          "finished": false,
+          "text": "In",
+          "token_count": 1
+        },
+        {
+          "batch_elapsed_ms": 680.5656589999955,
+          "elapsed_ms": 679.9313100000006,
+          "finished": false,
+          "text": " L",
+          "token_count": 1
+        },
+        {
+          "batch_elapsed_ms": 700.6592909999938,
+          "elapsed_ms": 700.0249419999989,
+          "finished": false,
+          "text": "LM",
+          "token_count": 1
+        },
+        {
+          "batch_elapsed_ms": 722.5585850000016,
+          "elapsed_ms": 721.9242360000067,
+          "finished": false,
+          "text": " serving",
+          "token_count": 1
+        },
+        {
+          "batch_elapsed_ms": 743.8435319999996,
+          "elapsed_ms": 743.2091830000047,
+          "finished": false,
+          "text": ",",
+          "token_count": 1
+        },
+        {
+          "batch_elapsed_ms": 764.4960949999984,
+          "elapsed_ms": 763.8617460000034,
+          "finished": false,
+          "text": " K",
+          "token_count": 1
+        },
+        {
+          "batch_elapsed_ms": 784.7676210000145,
+          "elapsed_ms": 784.1332720000196,
+          "finished": false,
+          "text": "V",
+          "token_count": 1
+        },
+        {
+          "batch_elapsed_ms": 805.290011000011,
+          "elapsed_ms": 804.655662000016,
+          "finished": false,
+          "text": " (",
+          "token_count": 1
+        },
+        {
+          "batch_elapsed_ms": 827.1999389999962,
+          "elapsed_ms": 826.5655900000013,
+          "finished": false,
+          "text": "K",
+          "token_count": 1
+        },
+        {
+          "batch_elapsed_ms": 848.510067999996,
+          "elapsed_ms": 847.875719000001,
+          "finished": false,
+          "text": "ernel",
+          "token_count": 1
+        },
+        {
+          "batch_elapsed_ms": 868.7036059999969,
+          "elapsed_ms": 868.0692570000019,
+          "finished": false,
+          "text": " Volume",
+          "token_count": 1
+        },
+        {
+          "batch_elapsed_ms": 888.8149370000065,
+          "elapsed_ms": 888.1805880000115,
+          "finished": false,
+          "text": ")",
+          "token_count": 1
+        },
+        {
+          "batch_elapsed_ms": 909.166756000019,
+          "elapsed_ms": 908.532407000024,
+          "finished": false,
+          "text": " pressure",
+          "token_count": 1
+        },
+        {
+          "batch_elapsed_ms": 930.3295800000058,
+          "elapsed_ms": 929.6952310000108,
+          "finished": false,
+          "text": " is",
+          "token_count": 1
+        },
+        {
+          "batch_elapsed_ms": 950.4027339999936,
+          "elapsed_ms": 949.7683849999987,
+          "finished": false,
+          "text": " the",
+          "token_count": 1
+        },
+        {
+          "batch_elapsed_ms": 970.746250000019,
+          "elapsed_ms": 970.1119010000241,
+          "finished": false,
+          "text": " amount",
+          "token_count": 1
+        },
+        {
+          "batch_elapsed_ms": 990.5156760000011,
+          "elapsed_ms": 989.8813270000062,
+          "finished": false,
+          "text": " of",
+          "token_count": 1
+        },
+        {
+          "batch_elapsed_ms": 1010.7764450000047,
+          "elapsed_ms": 1010.1420960000098,
+          "finished": false,
+          "text": " data",
+          "token_count": 1
+        },
+        {
+          "batch_elapsed_ms": 1031.2354330000062,
+          "elapsed_ms": 1030.6010840000113,
+          "finished": false,
+          "text": " that",
+          "token_count": 1
+        },
+        {
+          "batch_elapsed_ms": 1051.14334000001,
+          "elapsed_ms": 1050.5089910000152,
+          "finished": false,
+          "text": " needs",
+          "token_count": 1
+        },
+        {
+          "batch_elapsed_ms": 1071.5607829999954,
+          "elapsed_ms": 1070.9264340000004,
+          "finished": false,
+          "text": " to",
+          "token_count": 1
+        },
+        {
+          "batch_elapsed_ms": 1092.350793999998,
+          "elapsed_ms": 1091.716445000003,
+          "finished": false,
+          "text": " be",
+          "token_count": 1
+        },
+        {
+          "batch_elapsed_ms": 1112.5082469999938,
+          "elapsed_ms": 1111.873897999999,
+          "finished": false,
+          "text": " processed",
+          "token_count": 1
+        },
+        {
+          "batch_elapsed_ms": 1133.0047830000183,
+          "elapsed_ms": 1132.3704340000234,
+          "finished": false,
+          "text": " per",
+          "token_count": 1
+        },
+        {
+          "batch_elapsed_ms": 1160.643977999996,
+          "elapsed_ms": 1160.009629000001,
+          "finished": false,
+          "text": " second",
+          "token_count": 1
+        },
+        {
+          "batch_elapsed_ms": 1174.2546350000111,
+          "elapsed_ms": 1173.6202860000162,
+          "finished": false,
+          "text": ".",
+          "token_count": 1
+        },
+        {
+          "batch_elapsed_ms": 1194.470186000018,
+          "elapsed_ms": 1193.835837000023,
+          "finished": false,
+          "text": " It",
+          "token_count": 1
+        },
+        {
+          "batch_elapsed_ms": 1215.0240610000083,
+          "elapsed_ms": 1214.3897120000133,
+          "finished": false,
+          "text": " is",
+          "token_count": 1
+        },
+        {
+          "batch_elapsed_ms": 1234.8177860000078,
+          "elapsed_ms": 1234.1834370000129,
+          "finished": false,
+          "text": " a",
+          "token_count": 1
+        },
+        {
+          "batch_elapsed_ms": 1255.327784000002,
+          "elapsed_ms": 1254.6934350000072,
+          "finished": false,
+          "text": " measure",
+          "token_count": 1
+        },
+        {
+          "batch_elapsed_ms": 1275.494051999999,
+          "elapsed_ms": 1274.8597030000042,
+          "finished": false,
+          "text": " of",
+          "token_count": 1
+        },
+        {
+          "batch_elapsed_ms": 1297.214982000014,
+          "elapsed_ms": 1296.5806330000191,
+          "finished": true,
+          "text": " the",
+          "token_count": 1
+        }
+      ],
+      "decode_after_first_ms": 636.2970270000119,
+      "first_chunk_ms": 660.2836060000072,
+      "generated_text": "In LLM serving, KV (Kernel Volume) pressure is the amount of data that needs to be processed per second. It is a measure of the",
+      "generated_tokens": 32,
+      "prompt": "Explain KV cache pressure in LLM serving in two concise sentences.",
+      "prompt_tokens": 44,
+      "request_id": "concurrent-00",
+      "stream_tpot_ms": 20.52571054838748,
+      "stream_wall_ms": 1296.5806330000191
+    },
+    {
+      "chunks": [
+        {
+          "batch_elapsed_ms": 680.5815419999988,
+          "elapsed_ms": 679.1631789999997,
+          "finished": false,
+          "text": "Batch",
+          "token_count": 1
+        },
+        {
+          "batch_elapsed_ms": 700.6720800000039,
+          "elapsed_ms": 699.2537170000048,
+          "finished": false,
+          "text": "ing",
+          "token_count": 1
+        },
+        {
+          "batch_elapsed_ms": 722.5720229999979,
+          "elapsed_ms": 721.1536599999988,
+          "finished": false,
+          "text": " can",
+          "token_count": 1
+        },
+        {
+          "batch_elapsed_ms": 743.8566769999966,
+          "elapsed_ms": 742.4383139999975,
+          "finished": false,
+          "text": " improve",
+          "token_count": 1
+        },
+        {
+          "batch_elapsed_ms": 764.5095599999934,
+          "elapsed_ms": 763.0911969999943,
+          "finished": false,
+          "text": " GPU",
+          "token_count": 1
+        },
+        {
+          "batch_elapsed_ms": 784.7810910000135,
+          "elapsed_ms": 783.3627280000144,
+          "finished": false,
+          "text": " utilization",
+          "token_count": 1
+        },
+        {
+          "batch_elapsed_ms": 805.3027500000098,
+          "elapsed_ms": 803.8843870000107,
+          "finished": false,
+          "text": " for",
+          "token_count": 1
+        },
+        {
+          "batch_elapsed_ms": 827.2137339999972,
+          "elapsed_ms": 825.7953709999981,
+          "finished": false,
+          "text": " L",
+          "token_count": 1
+        },
+        {
+          "batch_elapsed_ms": 848.5245920000182,
+          "elapsed_ms": 847.1062290000191,
+          "finished": false,
+          "text": "LM",
+          "token_count": 1
+        },
+        {
+          "batch_elapsed_ms": 868.7158580000016,
+          "elapsed_ms": 867.2974950000025,
+          "finished": false,
+          "text": " inference",
+          "token_count": 1
+        },
+        {
+          "batch_elapsed_ms": 888.8277199999948,
+          "elapsed_ms": 887.4093569999957,
+          "finished": false,
+          "text": " by",
+          "token_count": 1
+        },
+        {
+          "batch_elapsed_ms": 909.180675000016,
+          "elapsed_ms": 907.7623120000169,
+          "finished": false,
+          "text": " reducing",
+          "token_count": 1
+        },
+        {
+          "batch_elapsed_ms": 930.3432039999961,
+          "elapsed_ms": 928.9248409999971,
+          "finished": false,
+          "text": " the",
+          "token_count": 1
+        },
+        {
+          "batch_elapsed_ms": 950.4163470000151,
+          "elapsed_ms": 948.997984000016,
+          "finished": false,
+          "text": " number",
+          "token_count": 1
+        },
+        {
+          "batch_elapsed_ms": 970.7594559999961,
+          "elapsed_ms": 969.341092999997,
+          "finished": false,
+          "text": " of",
+          "token_count": 1
+        },
+        {
+          "batch_elapsed_ms": 990.528022999996,
+          "elapsed_ms": 989.1096599999969,
+          "finished": false,
+          "text": " cores",
+          "token_count": 1
+        },
+        {
+          "batch_elapsed_ms": 1010.7958780000104,
+          "elapsed_ms": 1009.3775150000113,
+          "finished": false,
+          "text": " and",
+          "token_count": 1
+        },
+        {
+          "batch_elapsed_ms": 1031.2485430000038,
+          "elapsed_ms": 1029.8301800000047,
+          "finished": false,
+          "text": " threads",
+          "token_count": 1
+        },
+        {
+          "batch_elapsed_ms": 1051.1550570000168,
+          "elapsed_ms": 1049.7366940000177,
+          "finished": false,
+          "text": " in",
+          "token_count": 1
+        },
+        {
+          "batch_elapsed_ms": 1071.5738450000174,
+          "elapsed_ms": 1070.1554820000183,
+          "finished": false,
+          "text": " the",
+          "token_count": 1
+        },
+        {
+          "batch_elapsed_ms": 1092.3638369999935,
+          "elapsed_ms": 1090.9454739999944,
+          "finished": false,
+          "text": " GPU",
+          "token_count": 1
+        },
+        {
+          "batch_elapsed_ms": 1112.5217550000173,
+          "elapsed_ms": 1111.1033920000182,
+          "finished": false,
+          "text": ",",
+          "token_count": 1
+        },
+        {
+          "batch_elapsed_ms": 1133.0182930000205,
+          "elapsed_ms": 1131.5999300000215,
+          "finished": false,
+          "text": " which",
+          "token_count": 1
+        },
+        {
+          "batch_elapsed_ms": 1160.6586260000142,
+          "elapsed_ms": 1159.2402630000151,
+          "finished": false,
+          "text": " can",
+          "token_count": 1
+        },
+        {
+          "batch_elapsed_ms": 1174.26737400001,
+          "elapsed_ms": 1172.849011000011,
+          "finished": false,
+          "text": " lead",
+          "token_count": 1
+        },
+        {
+          "batch_elapsed_ms": 1194.4838310000137,
+          "elapsed_ms": 1193.0654680000146,
+          "finished": false,
+          "text": " to",
+          "token_count": 1
+        },
+        {
+          "batch_elapsed_ms": 1215.0390220000133,
+          "elapsed_ms": 1213.6206590000143,
+          "finished": false,
+          "text": " lower",
+          "token_count": 1
+        },
+        {
+          "batch_elapsed_ms": 1234.8305659999994,
+          "elapsed_ms": 1233.4122030000003,
+          "finished": false,
+          "text": " overall",
+          "token_count": 1
+        },
+        {
+          "batch_elapsed_ms": 1255.343616999994,
+          "elapsed_ms": 1253.925253999995,
+          "finished": false,
+          "text": " system",
+          "token_count": 1
+        },
+        {
+          "batch_elapsed_ms": 1275.5083240000147,
+          "elapsed_ms": 1274.0899610000156,
+          "finished": false,
+          "text": " utilization",
+          "token_count": 1
+        },
+        {
+          "batch_elapsed_ms": 1297.2816900000055,
+          "elapsed_ms": 1295.8633270000064,
+          "finished": true,
+          "text": ". Here",
+          "token_count": 2
+        }
+      ],
+      "decode_after_first_ms": 616.7001480000067,
+      "first_chunk_ms": 679.1631789999997,
+      "generated_text": "Batching can improve GPU utilization for LLM inference by reducing the number of cores and threads in the GPU, which can lead to lower overall system utilization. Here",
+      "generated_tokens": 32,
+      "prompt": "Explain why batching can improve GPU utilization for LLM inference.",
+      "prompt_tokens": 43,
+      "request_id": "concurrent-01",
+      "stream_tpot_ms": 19.89355316129054,
+      "stream_wall_ms": 1295.8633270000064
+    },
+    {
+      "chunks": [
+        {
+          "batch_elapsed_ms": 680.5885560000036,
+          "elapsed_ms": 679.0649659999985,
+          "finished": false,
+          "text": "In",
+          "token_count": 1
+        },
+        {
+          "batch_elapsed_ms": 700.6783129999974,
+          "elapsed_ms": 699.1547229999924,
+          "finished": false,
+          "text": " L",
+          "token_count": 1
+        },
+        {
+          "batch_elapsed_ms": 722.5795570000173,
+          "elapsed_ms": 721.0559670000123,
+          "finished": false,
+          "text": "LM",
+          "token_count": 1
+        },
+        {
+          "batch_elapsed_ms": 743.86468900002,
+          "elapsed_ms": 742.341099000015,
+          "finished": false,
+          "text": " inference",
+          "token_count": 1
+        },
+        {
+          "batch_elapsed_ms": 764.5170210000174,
+          "elapsed_ms": 762.9934310000124,
+          "finished": false,
+          "text": ",",
+          "token_count": 1
+        },
+        {
+          "batch_elapsed_ms": 784.794450000021,
+          "elapsed_ms": 783.270860000016,
+          "finished": false,
+          "text": " the",
+          "token_count": 1
+        },
+        {
+          "batch_elapsed_ms": 805.3096950000054,
+          "elapsed_ms": 803.7861050000004,
+          "finished": false,
+          "text": " difference",
+          "token_count": 1
+        },
+        {
+          "batch_elapsed_ms": 827.2215249999988,
+          "elapsed_ms": 825.6979349999938,
+          "finished": false,
+          "text": " between",
+          "token_count": 1
+        },
+        {
+          "batch_elapsed_ms": 848.5313829999939,
+          "elapsed_ms": 847.0077929999889,
+          "finished": false,
+          "text": " pref",
+          "token_count": 1
+        },
+        {
+          "batch_elapsed_ms": 868.7222599999984,
+          "elapsed_ms": 867.1986699999934,
+          "finished": false,
+          "text": "ill",
+          "token_count": 1
+        },
+        {
+          "batch_elapsed_ms": 888.8350109999976,
+          "elapsed_ms": 887.3114209999926,
+          "finished": false,
+          "text": " and",
+          "token_count": 1
+        },
+        {
+          "batch_elapsed_ms": 909.1871560000016,
+          "elapsed_ms": 907.6635659999965,
+          "finished": false,
+          "text": " decode",
+          "token_count": 1
+        },
+        {
+          "batch_elapsed_ms": 930.3510150000136,
+          "elapsed_ms": 928.8274250000086,
+          "finished": false,
+          "text": " is",
+          "token_count": 1
+        },
+        {
+          "batch_elapsed_ms": 950.4228229999967,
+          "elapsed_ms": 948.8992329999917,
+          "finished": false,
+          "text": " crucial",
+          "token_count": 1
+        },
+        {
+          "batch_elapsed_ms": 970.7662060000075,
+          "elapsed_ms": 969.2426160000025,
+          "finished": false,
+          "text": ".",
+          "token_count": 1
+        },
+        {
+          "batch_elapsed_ms": 990.5350900000087,
+          "elapsed_ms": 989.0115000000037,
+          "finished": false,
+          "text": "\n",
+          "token_count": 1
+        },
+        {
+          "batch_elapsed_ms": 1010.8040620000054,
+          "elapsed_ms": 1009.2804720000004,
+          "finished": false,
+          "text": "\n",
+          "token_count": 1
+        },
+        {
+          "batch_elapsed_ms": 1031.2553400000013,
+          "elapsed_ms": 1029.7317499999963,
+          "finished": false,
+          "text": "**",
+          "token_count": 1
+        },
+        {
+          "batch_elapsed_ms": 1051.1619030000077,
+          "elapsed_ms": 1049.6383130000027,
+          "finished": false,
+          "text": "Pre",
+          "token_count": 1
+        },
+        {
+          "batch_elapsed_ms": 1071.580799000003,
+          "elapsed_ms": 1070.057208999998,
+          "finished": false,
+          "text": "fill",
+          "token_count": 1
+        },
+        {
+          "batch_elapsed_ms": 1092.371197999995,
+          "elapsed_ms": 1090.84760799999,
+          "finished": false,
+          "text": ":**",
+          "token_count": 1
+        },
+        {
+          "batch_elapsed_ms": 1112.529622000011,
+          "elapsed_ms": 1111.006032000006,
+          "finished": false,
+          "text": "\n",
+          "token_count": 1
+        },
+        {
+          "batch_elapsed_ms": 1133.0262419999997,
+          "elapsed_ms": 1131.5026519999947,
+          "finished": false,
+          "text": "\n",
+          "token_count": 1
+        },
+        {
+          "batch_elapsed_ms": 1160.6655209999985,
+          "elapsed_ms": 1159.1419309999935,
+          "finished": false,
+          "text": "Pre",
+          "token_count": 1
+        },
+        {
+          "batch_elapsed_ms": 1174.2751390000024,
+          "elapsed_ms": 1172.7515489999973,
+          "finished": false,
+          "text": "fill",
+          "token_count": 1
+        },
+        {
+          "batch_elapsed_ms": 1194.490989000002,
+          "elapsed_ms": 1192.967398999997,
+          "finished": false,
+          "text": " is",
+          "token_count": 1
+        },
+        {
+          "batch_elapsed_ms": 1215.046507000011,
+          "elapsed_ms": 1213.522917000006,
+          "finished": false,
+          "text": " a",
+          "token_count": 1
+        },
+        {
+          "batch_elapsed_ms": 1234.8387309999964,
+          "elapsed_ms": 1233.3151409999914,
+          "finished": false,
+          "text": " type",
+          "token_count": 1
+        },
+        {
+          "batch_elapsed_ms": 1255.3512340000168,
+          "elapsed_ms": 1253.8276440000118,
+          "finished": false,
+          "text": " of",
+          "token_count": 1
+        },
+        {
+          "batch_elapsed_ms": 1275.515702000007,
+          "elapsed_ms": 1273.992112000002,
+          "finished": false,
+          "text": " inference",
+          "token_count": 1
+        },
+        {
+          "batch_elapsed_ms": 1297.3072800000125,
+          "elapsed_ms": 1295.7836900000075,
+          "finished": true,
+          "text": " that involves",
+          "token_count": 2
+        }
+      ],
+      "decode_after_first_ms": 616.7187240000089,
+      "first_chunk_ms": 679.0649659999985,
+      "generated_text": "In LLM inference, the difference between prefill and decode is crucial.\n\n**Prefill:**\n\nPrefill is a type of inference that involves",
+      "generated_tokens": 32,
+      "prompt": "Explain the difference between prefill and decode in LLM inference.",
+      "prompt_tokens": 43,
+      "request_id": "concurrent-02",
+      "stream_tpot_ms": 19.894152387097062,
+      "stream_wall_ms": 1295.7836900000075
+    },
+    {
+      "chunks": [
+        {
+          "batch_elapsed_ms": 680.5937459999996,
+          "elapsed_ms": 678.9719819999789,
+          "finished": false,
+          "text": "Long",
+          "token_count": 1
+        },
+        {
+          "batch_elapsed_ms": 700.6838370000139,
+          "elapsed_ms": 699.0620729999932,
+          "finished": false,
+          "text": ",",
+          "token_count": 1
+        },
+        {
+          "batch_elapsed_ms": 722.5856120000174,
+          "elapsed_ms": 720.9638479999967,
+          "finished": false,
+          "text": " complex",
+          "token_count": 1
+        },
+        {
+          "batch_elapsed_ms": 743.8700470000015,
+          "elapsed_ms": 742.2482829999808,
+          "finished": false,
+          "text": ",",
+          "token_count": 1
+        },
+        {
+          "batch_elapsed_ms": 764.5224679999956,
+          "elapsed_ms": 762.9007039999749,
+          "finished": false,
+          "text": " or",
+          "token_count": 1
+        },
+        {
+          "batch_elapsed_ms": 784.801195,
+          "elapsed_ms": 783.1794309999793,
+          "finished": false,
+          "text": " overly",
+          "token_count": 1
+        },
+        {
+          "batch_elapsed_ms": 805.3161930000101,
+          "elapsed_ms": 803.6944289999894,
+          "finished": false,
+          "text": " complex",
+          "token_count": 1
+        },
+        {
+          "batch_elapsed_ms": 827.227009000012,
+          "elapsed_ms": 825.6052449999913,
+          "finished": false,
+          "text": " prompts",
+          "token_count": 1
+        },
+        {
+          "batch_elapsed_ms": 848.5365580000064,
+          "elapsed_ms": 846.9147939999857,
+          "finished": false,
+          "text": " can",
+          "token_count": 1
+        },
+        {
+          "batch_elapsed_ms": 868.7279240000123,
+          "elapsed_ms": 867.1061599999916,
+          "finished": false,
+          "text": " negatively",
+          "token_count": 1
+        },
+        {
+          "batch_elapsed_ms": 888.8406680000003,
+          "elapsed_ms": 887.2189039999796,
+          "finished": false,
+          "text": " impact",
+          "token_count": 1
+        },
+        {
+          "batch_elapsed_ms": 909.193670999997,
+          "elapsed_ms": 907.5719069999764,
+          "finished": false,
+          "text": " the",
+          "token_count": 1
+        },
+        {
+          "batch_elapsed_ms": 930.3633700000091,
+          "elapsed_ms": 928.7416059999885,
+          "finished": false,
+          "text": " tail",
+          "token_count": 1
+        },
+        {
+          "batch_elapsed_ms": 950.4287139999974,
+          "elapsed_ms": 948.8069499999767,
+          "finished": false,
+          "text": " latency",
+          "token_count": 1
+        },
+        {
+          "batch_elapsed_ms": 970.7725359999984,
+          "elapsed_ms": 969.1507719999777,
+          "finished": false,
+          "text": " of",
+          "token_count": 1
+        },
+        {
+          "batch_elapsed_ms": 990.5414110000095,
+          "elapsed_ms": 988.9196469999888,
+          "finished": false,
+          "text": " an",
+          "token_count": 1
+        },
+        {
+          "batch_elapsed_ms": 1010.8105650000141,
+          "elapsed_ms": 1009.1888009999934,
+          "finished": false,
+          "text": " inference",
+          "token_count": 1
+        },
+        {
+          "batch_elapsed_ms": 1031.26145600001,
+          "elapsed_ms": 1029.6396919999893,
+          "finished": false,
+          "text": " server",
+          "token_count": 1
+        },
+        {
+          "batch_elapsed_ms": 1051.1674500000083,
+          "elapsed_ms": 1049.5456859999877,
+          "finished": false,
+          "text": ".",
+          "token_count": 1
+        },
+        {
+          "batch_elapsed_ms": 1071.5866470000037,
+          "elapsed_ms": 1069.964882999983,
+          "finished": false,
+          "text": " Here",
+          "token_count": 1
+        },
+        {
+          "batch_elapsed_ms": 1092.3776300000156,
+          "elapsed_ms": 1090.755865999995,
+          "finished": false,
+          "text": "'s",
+          "token_count": 1
+        },
+        {
+          "batch_elapsed_ms": 1112.535835000017,
+          "elapsed_ms": 1110.9140709999963,
+          "finished": false,
+          "text": " why",
+          "token_count": 1
+        },
+        {
+          "batch_elapsed_ms": 1133.0332090000184,
+          "elapsed_ms": 1131.4114449999977,
+          "finished": false,
+          "text": ":",
+          "token_count": 1
+        },
+        {
+          "batch_elapsed_ms": 1160.6721530000073,
+          "elapsed_ms": 1159.0503889999866,
+          "finished": false,
+          "text": "\n\n",
+          "token_count": 1
+        },
+        {
+          "batch_elapsed_ms": 1174.281327000017,
+          "elapsed_ms": 1172.6595629999963,
+          "finished": false,
+          "text": "1",
+          "token_count": 1
+        },
+        {
+          "batch_elapsed_ms": 1194.4969259999993,
+          "elapsed_ms": 1192.8751619999787,
+          "finished": false,
+          "text": ".",
+          "token_count": 1
+        },
+        {
+          "batch_elapsed_ms": 1215.0525119999998,
+          "elapsed_ms": 1213.430747999979,
+          "finished": false,
+          "text": " **",
+          "token_count": 1
+        },
+        {
+          "batch_elapsed_ms": 1234.8453200000051,
+          "elapsed_ms": 1233.2235559999845,
+          "finished": false,
+          "text": "Complex",
+          "token_count": 1
+        },
+        {
+          "batch_elapsed_ms": 1255.3575139999964,
+          "elapsed_ms": 1253.7357499999757,
+          "finished": false,
+          "text": "ity",
+          "token_count": 1
+        },
+        {
+          "batch_elapsed_ms": 1275.5218750000097,
+          "elapsed_ms": 1273.900110999989,
+          "finished": false,
+          "text": "**:",
+          "token_count": 1
+        },
+        {
+          "batch_elapsed_ms": 1297.323946000006,
+          "elapsed_ms": 1295.7021819999852,
+          "finished": true,
+          "text": " Long,",
+          "token_count": 2
+        }
+      ],
+      "decode_after_first_ms": 616.7302000000063,
+      "first_chunk_ms": 678.9719819999789,
+      "generated_text": "Long, complex, or overly complex prompts can negatively impact the tail latency of an inference server. Here's why:\n\n1. **Complexity**: Long,",
+      "generated_tokens": 32,
+      "prompt": "Explain why long prompts can hurt tail latency in an inference server.",
+      "prompt_tokens": 43,
+      "request_id": "concurrent-03",
+      "stream_tpot_ms": 19.894522580645365,
+      "stream_wall_ms": 1295.7021819999852
+    }
+  ],
+  "schema_version": 1,
+  "tokenizer_load_ms": 337.60062900000065,
+  "total_output_tokens": 128,
+  "vllm_version": "0.21.0"
+}
