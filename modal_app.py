@@ -26,6 +26,7 @@ DEFAULT_VLLM_SWEEP_OUTPUT = "results/modal-vllm-sweep"
 DEFAULT_VLLM_SERVER_OUTPUT = "results/modal-vllm-server-streaming"
 DEFAULT_VLLM_SERVER_CONCURRENT_OUTPUT = "results/modal-vllm-server-concurrent"
 DEFAULT_VLLM_SERVER_SWEEP_OUTPUT = "results/modal-vllm-server-sweep"
+DEFAULT_VLLM_SERVER_SWEEP_COMPARE_OUTPUT = "results/modal-vllm-server-sweep-compare"
 DEFAULT_VLLM_PREFIX_CACHE_SWEEP_OUTPUT = "results/modal-vllm-prefix-cache-sweep"
 DEFAULT_VLLM_PREFIX_CACHE_COMPARE_OUTPUT = "results/modal-vllm-prefix-cache-compare"
 DEFAULT_VLLM_SWEEP_REQUEST_COUNTS = "1,2,4,8"
@@ -2129,6 +2130,8 @@ def main(
     prefix_caching: str = "off",
     cold_sweep_dir: str = DEFAULT_VLLM_SWEEP_OUTPUT,
     prefix_sweep_dir: str = DEFAULT_VLLM_PREFIX_CACHE_SWEEP_OUTPUT,
+    async_sweep_dir: str = DEFAULT_VLLM_SWEEP_OUTPUT,
+    server_sweep_dir: str = DEFAULT_VLLM_SERVER_SWEEP_OUTPUT,
     output_dir: str = "",
 ) -> None:
     if mode == "gpu-probe":
@@ -2301,6 +2304,33 @@ def main(
         print(f"runs_csv: {run_csv_path}")
         return
 
+    if mode == "vllm-server-sweep-compare":
+        payload = _compare_vllm_server_async_csvs(
+            async_csv=Path(async_sweep_dir) / "vllm-sweep.csv",
+            server_csv=Path(server_sweep_dir) / "vllm-server-sweep.csv",
+            async_label="in_process_async_llm",
+            server_label="openai_compatible_server",
+        )
+        output_path = Path(output_dir or DEFAULT_VLLM_SERVER_SWEEP_COMPARE_OUTPUT)
+        output_path.mkdir(parents=True, exist_ok=True)
+        json_path = output_path / "server-vs-async.json"
+        csv_path = output_path / "server-vs-async.csv"
+        json_path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+        _write_records_csv(csv_path, payload["rows"])
+
+        print(f"scenarios: {payload['scenario_count']}")
+        print(
+            "mean_server_to_async_throughput_ratio: "
+            f"{payload['mean_server_to_async_throughput_ratio']:.3f}"
+        )
+        print(
+            "mean_server_to_async_latency_ratio: "
+            f"{payload['mean_server_to_async_latency_ratio']:.3f}"
+        )
+        print(f"json: {json_path}")
+        print(f"csv: {csv_path}")
+        return
+
     if mode == "vllm-sweep":
         enable_prefix_caching = _parse_bool_choice(prefix_caching, "prefix_caching")
         payload = run_vllm_sweep_remote.remote(
@@ -2363,7 +2393,8 @@ def main(
             "mode must be 'sweep', 'gpu-probe', 'tiny-inference', "
             "'vllm-inference', 'vllm-streaming', 'vllm-concurrent', "
             "'vllm-server-streaming', 'vllm-server-concurrent', "
-            "'vllm-server-sweep', 'vllm-sweep', or "
+            "'vllm-server-sweep', 'vllm-server-sweep-compare', "
+            "'vllm-sweep', or "
             "'vllm-prefix-cache-compare'"
         )
 
@@ -2820,6 +2851,137 @@ def _metric_distribution(
     }
 
 
+def _compare_vllm_server_async_csvs(
+    async_csv: Path,
+    server_csv: Path,
+    async_label: str,
+    server_label: str,
+) -> dict[str, Any]:
+    async_rows = _read_csv_by_key(async_csv, "scenario_id")
+    server_rows = _read_csv_by_key(server_csv, "scenario_id")
+    scenario_ids = sorted(set(async_rows) & set(server_rows))
+    if not scenario_ids:
+        raise ValueError("No matching scenario_id values found for comparison")
+
+    rows = []
+    for scenario_id in scenario_ids:
+        async_row = async_rows[scenario_id]
+        server_row = server_rows[scenario_id]
+
+        async_throughput = _float_field(
+            async_row,
+            "aggregate_output_tokens_per_second_median",
+        )
+        server_throughput = _float_field(
+            server_row,
+            "aggregate_output_tokens_per_second_median",
+        )
+        async_first_event = _float_field(async_row, "p95_first_chunk_ms_median")
+        server_first_event = _float_field(server_row, "p95_first_content_ms_median")
+        async_latency = _float_field(async_row, "p95_latency_ms_median")
+        server_latency = _float_field(server_row, "p95_latency_ms_median")
+        async_tpot = _float_field(async_row, "p95_stream_tpot_ms_median")
+        server_tpot = _float_field(server_row, "p95_stream_tpot_ms_median")
+        async_batch_wall = _float_field(async_row, "batch_wall_ms_median")
+        server_batch_wall = _float_field(server_row, "batch_wall_ms_median")
+
+        rows.append(
+            {
+                "scenario_id": scenario_id,
+                "prompt_profile": async_row["prompt_profile"],
+                "request_count": int(async_row["request_count"]),
+                "max_new_tokens": int(async_row["max_new_tokens"]),
+                "async_repeats": int(async_row["repeats"]),
+                "server_repeats": int(server_row["repeats"]),
+                "async_prompt_tokens_mean": _float_field(async_row, "prompt_tokens_mean"),
+                "server_prompt_tokens_mean": _float_field(server_row, "prompt_tokens_mean"),
+                "async_output_tokens_per_second_median": async_throughput,
+                "server_output_tokens_per_second_median": server_throughput,
+                "server_to_async_output_tokens_per_second_delta": _delta(
+                    server_throughput,
+                    async_throughput,
+                ),
+                "server_to_async_output_tokens_per_second_ratio": _ratio(
+                    server_throughput,
+                    async_throughput,
+                ),
+                "async_p95_first_event_ms_median": async_first_event,
+                "server_p95_first_content_ms_median": server_first_event,
+                "server_to_async_p95_first_event_ms_delta": _delta(
+                    server_first_event,
+                    async_first_event,
+                ),
+                "server_to_async_p95_first_event_ms_ratio": _ratio(
+                    server_first_event,
+                    async_first_event,
+                ),
+                "async_p95_latency_ms_median": async_latency,
+                "server_p95_latency_ms_median": server_latency,
+                "server_to_async_p95_latency_ms_delta": _delta(
+                    server_latency,
+                    async_latency,
+                ),
+                "server_to_async_p95_latency_ms_ratio": _ratio(
+                    server_latency,
+                    async_latency,
+                ),
+                "async_p95_stream_tpot_ms_median": async_tpot,
+                "server_p95_stream_tpot_ms_median": server_tpot,
+                "server_to_async_p95_stream_tpot_ms_delta": _delta(
+                    server_tpot,
+                    async_tpot,
+                ),
+                "server_to_async_p95_stream_tpot_ms_ratio": _ratio(
+                    server_tpot,
+                    async_tpot,
+                ),
+                "async_batch_wall_ms_median": async_batch_wall,
+                "server_batch_wall_ms_median": server_batch_wall,
+                "server_to_async_batch_wall_ms_delta": _delta(
+                    server_batch_wall,
+                    async_batch_wall,
+                ),
+                "server_to_async_batch_wall_ms_ratio": _ratio(
+                    server_batch_wall,
+                    async_batch_wall,
+                ),
+                "async_throughput_cv": _float_field(
+                    async_row,
+                    "aggregate_output_tokens_per_second_cv",
+                ),
+                "server_throughput_cv": _float_field(
+                    server_row,
+                    "aggregate_output_tokens_per_second_cv",
+                ),
+                "async_latency_cv": _float_field(async_row, "p95_latency_ms_cv"),
+                "server_latency_cv": _float_field(server_row, "p95_latency_ms_cv"),
+            }
+        )
+
+    return {
+        "schema_version": 1,
+        "mode": "vllm-server-sweep-compare",
+        "async_label": async_label,
+        "server_label": server_label,
+        "async_csv": str(async_csv),
+        "server_csv": str(server_csv),
+        "scenario_count": len(rows),
+        "mean_server_to_async_throughput_ratio": _mean_present(
+            row["server_to_async_output_tokens_per_second_ratio"] for row in rows
+        ),
+        "mean_server_to_async_first_event_ratio": _mean_present(
+            row["server_to_async_p95_first_event_ms_ratio"] for row in rows
+        ),
+        "mean_server_to_async_latency_ratio": _mean_present(
+            row["server_to_async_p95_latency_ms_ratio"] for row in rows
+        ),
+        "mean_server_to_async_tpot_ratio": _mean_present(
+            row["server_to_async_p95_stream_tpot_ms_ratio"] for row in rows
+        ),
+        "rows": rows,
+    }
+
+
 def _compare_vllm_sweep_csvs(
     cold_csv: Path,
     prefix_csv: Path,
@@ -2919,6 +3081,13 @@ def _ratio(new_value: float | None, baseline_value: float | None) -> float | Non
     if new_value is None or baseline_value in {None, 0.0}:
         return None
     return new_value / baseline_value
+
+
+def _mean_present(values: Any) -> float:
+    present = [float(value) for value in values if value is not None]
+    if not present:
+        raise ValueError("Cannot compute mean for empty values")
+    return sum(present) / len(present)
 
 
 def _tail_lines(lines: list[str], count: int) -> list[str]:

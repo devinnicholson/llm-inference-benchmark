@@ -143,6 +143,12 @@ modal run modal_app.py --mode vllm-server-sweep \
   --warmup-runs 1
 ```
 
+Compare the repeated server sweep against the in-process `AsyncLLM` sweep:
+
+```bash
+modal run modal_app.py --mode vllm-server-sweep-compare
+```
+
 Run the first Modal vLLM concurrent workload:
 
 ```bash

@@ -1319,6 +1319,84 @@ visible instead of hiding it inside an average.
 
 ## Next Step
 
-Add a matched server-vs-`AsyncLLM` comparison using the same prompt profiles,
-request counts, output tokens, repeats, warmup policy, and scenario seed. That
-will let us separate engine scheduling behavior from API transport overhead.
+Training 013 adds a local comparison artifact between the repeated server sweep
+and the matched in-process `AsyncLLM` sweep.
+
+# Modal Training 013: Server vs AsyncLLM Comparison
+
+## Goal
+
+Compare the repeated OpenAI-compatible server sweep against the existing
+in-process `AsyncLLM` sweep for the overlapping scenarios. This is an artifact
+comparison, not a final overhead benchmark: it compares two separate Modal runs
+with matching scenario definitions.
+
+The purpose is to make the next fair experiment obvious. If separate runs do
+not show the expected API overhead, we need a paired A/B run before making any
+claim about server transport cost.
+
+## Command
+
+```bash
+modal run modal_app.py --mode vllm-server-sweep-compare
+```
+
+The committed result writes:
+
+```text
+results/modal-vllm-server-sweep-compare/server-vs-async.json
+results/modal-vllm-server-sweep-compare/server-vs-async.csv
+```
+
+## Compared Artifacts
+
+The comparison reads:
+
+```text
+results/modal-vllm-sweep/vllm-sweep.csv
+results/modal-vllm-server-sweep/vllm-server-sweep.csv
+```
+
+The overlapping scenario set is:
+
+- Prompt profile: `short`
+- Output tokens: `32`
+- Concurrent request counts: `1`, `2`, `4`, `8`
+- Repeats per scenario: `3`
+
+## Result
+
+| Requests | Async tok/s | Server tok/s | Server/Async tok/s | Async first event ms | Server first content ms | Server/Async first event | Async p95 latency ms | Server p95 latency ms | Server/Async latency | Async p95 TPOT ms | Server p95 TPOT ms | Server/Async TPOT |
+| ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| 1 | 44.118 | 48.164 | 1.092 | 43.641 | 51.586 | 1.182 | 725.110 | 663.513 | 0.915 | 22.061 | 19.789 | 0.897 |
+| 2 | 82.016 | 92.898 | 1.133 | 80.396 | 74.549 | 0.927 | 779.962 | 687.936 | 0.882 | 23.317 | 20.454 | 0.877 |
+| 4 | 172.321 | 183.489 | 1.065 | 75.088 | 78.515 | 1.046 | 742.276 | 695.757 | 0.937 | 22.179 | 20.178 | 0.910 |
+| 8 | 328.727 | 349.019 | 1.062 | 86.379 | 97.006 | 1.123 | 778.291 | 732.474 | 0.941 | 22.961 | 21.296 | 0.927 |
+
+Mean ratios across the four matched scenarios:
+
+- Server/Async throughput: `1.088`
+- Server/Async first event: `1.070`
+- Server/Async p95 latency: `0.919`
+- Server/Async p95 TPOT: `0.903`
+
+## Interpretation
+
+This comparison does not show a simple HTTP/SSE overhead penalty. The server
+artifact is slightly higher throughput on all four matched scenarios and lower
+p95 latency on all four matched scenarios, while first-event latency is worse on
+three of four scenarios.
+
+That does not mean the server is intrinsically faster than in-process
+`AsyncLLM`. These rows come from separate Modal runs, so they include run-to-run
+GPU variance, scenario order differences, different client loops, server warmup
+behavior, and different measurement boundaries. The result is best interpreted
+as a methodology finding: artifact-level CSV comparison is useful for spotting
+large differences, but not sufficient to isolate API transport overhead.
+
+## Next Step
+
+Build a paired A/B benchmark that runs the server path and the in-process
+`AsyncLLM` path in one Modal function with matched prompts, matched warmups,
+matched scenario order, and per-run paired deltas. That is the benchmark needed
+before we can make a defensible server-overhead claim.
