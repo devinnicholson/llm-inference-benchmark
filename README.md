@@ -103,6 +103,12 @@ Run the first Modal GPU probe:
 modal run modal_app.py --mode gpu-probe
 ```
 
+Run the first Modal tiny inference timing:
+
+```bash
+modal run modal_app.py --mode tiny-inference
+```
+
 Modal training is documented in
 [`docs/modal-training.md`](docs/modal-training.md).
 

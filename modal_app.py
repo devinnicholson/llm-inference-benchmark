@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import csv
 import json
+import time
 from pathlib import Path
 from typing import Any
 
@@ -17,6 +18,10 @@ DEFAULT_CONCURRENCY = "4"
 DEFAULT_POLICIES = "deadline,memory-aware-deadline"
 DEFAULT_SWEEP_OUTPUT = "results/modal-training-smoke"
 DEFAULT_GPU_PROBE_OUTPUT = "results/modal-gpu-probe"
+DEFAULT_INFERENCE_OUTPUT = "results/modal-tiny-inference"
+DEFAULT_HF_MODEL = "HuggingFaceTB/SmolLM2-135M-Instruct"
+DEFAULT_INFERENCE_PROMPT = "Explain KV cache in LLM inference in two concise sentences."
+HF_CACHE_PATH = "/cache"
 
 image = (
     modal.Image.debian_slim(python_version="3.12")
@@ -25,6 +30,12 @@ image = (
     .add_local_dir(ROOT / "workloads", remote_path="/root/workloads")
 )
 gpu_probe_image = modal.Image.debian_slim(python_version="3.12").uv_pip_install("torch", "numpy")
+inference_image = (
+    modal.Image.debian_slim(python_version="3.12")
+    .uv_pip_install("accelerate", "numpy", "safetensors", "torch", "transformers")
+    .env({"HF_HOME": HF_CACHE_PATH})
+)
+hf_cache_volume = modal.Volume.from_name("llmbench-hf-cache", create_if_missing=True)
 app = modal.App(name="llmbench-modal-training", image=image)
 
 
@@ -118,14 +129,138 @@ def run_gpu_probe_remote() -> dict[str, Any]:
     return result
 
 
+@app.function(
+    image=inference_image,
+    gpu="T4",
+    timeout=900,
+    volumes={HF_CACHE_PATH: hf_cache_volume},
+)
+def run_tiny_inference_remote(
+    hf_model: str = DEFAULT_HF_MODEL,
+    prompt: str = DEFAULT_INFERENCE_PROMPT,
+    max_new_tokens: int = 32,
+    warmup_new_tokens: int = 4,
+) -> dict[str, Any]:
+    import platform
+
+    import torch
+    import transformers
+    from transformers import AutoModelForCausalLM, AutoTokenizer
+
+    if max_new_tokens <= 0:
+        raise ValueError("max_new_tokens must be positive")
+    if warmup_new_tokens <= 0:
+        raise ValueError("warmup_new_tokens must be positive")
+
+    nvidia_smi_query = _run_command(
+        [
+            "nvidia-smi",
+            "--query-gpu=name,memory.total,memory.free,driver_version",
+            "--format=csv,noheader,nounits",
+        ]
+    )
+    cuda_available = torch.cuda.is_available()
+    device = torch.device("cuda:0" if cuda_available else "cpu")
+    dtype = torch.float16 if cuda_available else torch.float32
+
+    started = time.perf_counter()
+    tokenizer = AutoTokenizer.from_pretrained(hf_model)
+    tokenizer_load_ms = (time.perf_counter() - started) * 1000
+
+    started = time.perf_counter()
+    model = AutoModelForCausalLM.from_pretrained(
+        hf_model,
+        dtype=dtype,
+        low_cpu_mem_usage=True,
+    )
+    model.to(device)
+    model.eval()
+    model_load_ms = (time.perf_counter() - started) * 1000
+    hf_cache_volume.commit()
+
+    tokenization_started = time.perf_counter()
+    tokenized, prompt_format = _tokenize_prompt(tokenizer, prompt)
+    inputs = {key: value.to(device) for key, value in tokenized.items()}
+    tokenization_ms = (time.perf_counter() - tokenization_started) * 1000
+    prompt_tokens = int(inputs["input_ids"].shape[-1])
+
+    _synchronize_if_cuda(torch)
+    warmup_started = time.perf_counter()
+    _manual_greedy_decode(
+        model,
+        inputs,
+        max_new_tokens=warmup_new_tokens,
+        torch_module=torch,
+    )
+    _synchronize_if_cuda(torch)
+    warmup_ms = (time.perf_counter() - warmup_started) * 1000
+
+    if cuda_available:
+        torch.cuda.reset_peak_memory_stats()
+
+    decode_result = _manual_greedy_decode(
+        model,
+        inputs,
+        max_new_tokens=max_new_tokens,
+        torch_module=torch,
+    )
+    generated_ids = decode_result["generated_ids"]
+    generated_text = tokenizer.decode(generated_ids[0], skip_special_tokens=True)
+    generated_tokens = int(generated_ids.shape[-1])
+    decode_tokens = max(generated_tokens - 1, 0)
+    decode_ms = float(decode_result["decode_ms"])
+    ttft_ms = float(decode_result["ttft_ms"])
+    total_generation_ms = ttft_ms + decode_ms
+
+    peak_memory_allocated_mib = None
+    if cuda_available:
+        peak_memory_allocated_mib = torch.cuda.max_memory_allocated() / (1024 * 1024)
+
+    return {
+        "schema_version": 1,
+        "execution": "modal",
+        "mode": "tiny-inference",
+        "model_id": hf_model,
+        "prompt": prompt,
+        "prompt_format": prompt_format,
+        "prompt_tokens": prompt_tokens,
+        "max_new_tokens": int(max_new_tokens),
+        "generated_tokens": generated_tokens,
+        "generated_text": generated_text,
+        "device": str(device),
+        "device_name": torch.cuda.get_device_name(0) if cuda_available else "cpu",
+        "cuda_available": bool(cuda_available),
+        "nvidia_smi_query": nvidia_smi_query,
+        "platform": platform.platform(),
+        "python_version": platform.python_version(),
+        "torch_version": str(torch.__version__),
+        "torch_cuda_version": str(torch.version.cuda) if torch.version.cuda else None,
+        "transformers_version": str(transformers.__version__),
+        "dtype": str(dtype),
+        "tokenizer_load_ms": tokenizer_load_ms,
+        "model_load_ms": model_load_ms,
+        "tokenization_ms": tokenization_ms,
+        "warmup_ms": warmup_ms,
+        "ttft_ms": ttft_ms,
+        "decode_ms": decode_ms,
+        "total_generation_ms": total_generation_ms,
+        "tpot_ms": decode_ms / decode_tokens if decode_tokens else 0.0,
+        "output_tokens_per_second": generated_tokens / max(total_generation_ms / 1000, 1e-9),
+        "peak_memory_allocated_mib": peak_memory_allocated_mib,
+    }
+
+
 @app.local_entrypoint()
 def main(
     mode: str = "sweep",
     workload: str = DEFAULT_WORKLOAD,
     model: str = DEFAULT_MODEL,
+    hf_model: str = DEFAULT_HF_MODEL,
+    prompt: str = DEFAULT_INFERENCE_PROMPT,
     capacities: str = DEFAULT_CAPACITIES,
     concurrency: str = DEFAULT_CONCURRENCY,
     policies: str = DEFAULT_POLICIES,
+    max_new_tokens: int = 32,
     output_dir: str = "",
 ) -> None:
     if mode == "gpu-probe":
@@ -141,8 +276,26 @@ def main(
         print(f"json: {json_path}")
         return
 
+    if mode == "tiny-inference":
+        payload = run_tiny_inference_remote.remote(
+            hf_model=hf_model,
+            prompt=prompt,
+            max_new_tokens=max_new_tokens,
+        )
+        output_path = Path(output_dir or DEFAULT_INFERENCE_OUTPUT)
+        output_path.mkdir(parents=True, exist_ok=True)
+        json_path = output_path / "inference.json"
+        json_path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+
+        print(f"model: {payload['model_id']}")
+        print(f"device: {payload['device_name']}")
+        print(f"ttft_ms: {payload['ttft_ms']:.3f}")
+        print(f"tpot_ms: {payload['tpot_ms']:.3f}")
+        print(f"json: {json_path}")
+        return
+
     if mode != "sweep":
-        raise ValueError("mode must be 'sweep' or 'gpu-probe'")
+        raise ValueError("mode must be 'sweep', 'gpu-probe', or 'tiny-inference'")
 
     payload = run_capacity_sweep_remote.remote(
         workload=workload,
@@ -190,6 +343,85 @@ def _write_records_csv(path: Path, records: list[dict[str, Any]]) -> None:
         writer = csv.DictWriter(handle, fieldnames=[*fieldnames, *extra_fields])
         writer.writeheader()
         writer.writerows(records)
+
+
+def _tokenize_prompt(tokenizer: Any, prompt: str) -> tuple[dict[str, Any], str]:
+    if getattr(tokenizer, "chat_template", None):
+        messages = [{"role": "user", "content": prompt}]
+        return (
+            tokenizer.apply_chat_template(
+                messages,
+                add_generation_prompt=True,
+                tokenize=True,
+                return_dict=True,
+                return_tensors="pt",
+            ),
+            "chat_template",
+        )
+    return tokenizer(prompt, return_tensors="pt"), "plain"
+
+
+def _manual_greedy_decode(
+    model: Any,
+    inputs: dict[str, Any],
+    max_new_tokens: int,
+    torch_module: Any,
+) -> dict[str, Any]:
+    input_ids = inputs["input_ids"]
+    attention_mask = inputs.get("attention_mask")
+    if attention_mask is None:
+        attention_mask = torch_module.ones_like(input_ids)
+
+    generated_tokens = []
+    with torch_module.inference_mode():
+        _synchronize_if_cuda(torch_module)
+        started = time.perf_counter()
+        outputs = model(
+            input_ids=input_ids,
+            attention_mask=attention_mask,
+            use_cache=True,
+        )
+        next_token = outputs.logits[:, -1, :].argmax(dim=-1, keepdim=True)
+        generated_tokens.append(next_token)
+        past_key_values = outputs.past_key_values
+        _synchronize_if_cuda(torch_module)
+        ttft_ms = (time.perf_counter() - started) * 1000
+
+        decode_started = time.perf_counter()
+        for _ in range(max_new_tokens - 1):
+            attention_mask = torch_module.cat(
+                [
+                    attention_mask,
+                    torch_module.ones(
+                        (attention_mask.shape[0], 1),
+                        device=attention_mask.device,
+                        dtype=attention_mask.dtype,
+                    ),
+                ],
+                dim=-1,
+            )
+            outputs = model(
+                input_ids=next_token,
+                attention_mask=attention_mask,
+                past_key_values=past_key_values,
+                use_cache=True,
+            )
+            next_token = outputs.logits[:, -1, :].argmax(dim=-1, keepdim=True)
+            generated_tokens.append(next_token)
+            past_key_values = outputs.past_key_values
+        _synchronize_if_cuda(torch_module)
+        decode_ms = (time.perf_counter() - decode_started) * 1000
+
+    return {
+        "generated_ids": torch_module.cat(generated_tokens, dim=-1),
+        "ttft_ms": ttft_ms,
+        "decode_ms": decode_ms,
+    }
+
+
+def _synchronize_if_cuda(torch_module: Any) -> None:
+    if torch_module.cuda.is_available():
+        torch_module.cuda.synchronize()
 
 
 def _run_command(command: list[str]) -> str:

@@ -183,3 +183,110 @@ Add a tiny real inference run on Modal GPU. The first backend should be chosen
 for packaging simplicity, not final performance. A small Hugging Face
 `transformers` run is acceptable if it gets us clean TTFT and decode timing
 hooks quickly. After that, move to vLLM or SGLang.
+
+# Modal Training 003: Tiny Inference Timing
+
+## Goal
+
+Run the first real GPU-backed text generation path and record timing fields that
+map back to the simulator vocabulary: prompt tokens, generated tokens, TTFT,
+decode time, TPOT, output tokens/sec, and peak allocated GPU memory.
+
+This is not a serving benchmark yet. It is a single-request backend smoke test
+using Hugging Face Transformers.
+
+## Model
+
+Default model:
+
+```text
+HuggingFaceTB/SmolLM2-135M-Instruct
+```
+
+This was chosen because it is small enough for cheap Modal training runs while
+still using a real chat template, tokenizer, causal LM, KV cache, and CUDA
+execution path.
+
+## Command
+
+```bash
+modal run modal_app.py --mode tiny-inference
+```
+
+Override the prompt or generation length:
+
+```bash
+modal run modal_app.py \
+  --mode tiny-inference \
+  --prompt "Explain why KV cache memory grows with sequence length." \
+  --max-new-tokens 64
+```
+
+## Modal Pieces Learned
+
+This milestone adds:
+
+- a separate inference image with `torch`, `transformers`, `accelerate`,
+  `safetensors`, and `numpy`
+- a Modal `Volume` mounted at `/cache`
+- `HF_HOME=/cache` so Hugging Face model files persist between runs
+- a `tiny-inference` local entrypoint mode
+- JSON-only return values for local deserialization safety
+
+The first run downloads model files into the volume. Later runs can reuse the
+cache, which is why the recorded final artifact has lower load times than the
+uncached first attempt.
+
+## Measurement Method
+
+The remote function avoids the high-level `pipeline()` helper so the timing
+points are explicit:
+
+1. Load tokenizer.
+2. Load model in `float16` on `cuda:0`.
+3. Tokenize the prompt using the model chat template.
+4. Run a short warmup decode.
+5. Run one manual greedy prefill/first-token step with `use_cache=True`.
+6. Decode the remaining tokens one at a time using `past_key_values`.
+7. Record TTFT, decode time, TPOT, total generation time, throughput, and peak
+   allocated GPU memory.
+
+`ttft_ms` here is a single-request proxy for prefill plus first-token selection.
+`tpot_ms` is computed over tokens after the first generated token.
+
+## Result
+
+The first committed result is
+`results/modal-tiny-inference/inference.json`.
+
+| Field | Value |
+| --- | --- |
+| Model | `HuggingFaceTB/SmolLM2-135M-Instruct` |
+| GPU | `Tesla T4` |
+| Prompt tokens | `43` |
+| Generated tokens | `32` |
+| TTFT | `37.221 ms` |
+| Decode time | `1005.135 ms` |
+| TPOT | `32.424 ms` |
+| Output tokens/sec | `30.700` |
+| Peak allocated GPU memory | `270.084 MiB` |
+| Tokenizer load | `381.488 ms` |
+| Model load | `1512.843 ms` |
+| Warmup | `907.659 ms` |
+
+Generated text:
+
+```text
+A KV cache in LLM is a data structure that stores the results of a LLM computation, allowing for efficient retrieval of the results of subsequent computations.
+```
+
+## Interpretation
+
+This gives us the first bridge from synthetic scheduling to a real backend. The
+numbers are not comparable to vLLM or SGLang yet because this path is a
+single-request manual decode loop in Transformers. That limitation is useful:
+it makes the next step clear.
+
+The next training milestone should run the same prompt through a backend with a
+serving-oriented scheduler and paged/block KV cache, then compare measurement
+fields against this raw Transformers baseline.
