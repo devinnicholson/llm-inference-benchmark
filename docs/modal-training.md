@@ -1645,6 +1645,91 @@ in machine-readable form.
 
 ## Next Step
 
-Run independent repetitions of both phase orders across fresh Modal workers.
-The next benchmark should report confidence intervals for the order effect, not
-just one async-first run and one server-first run.
+Training 017 adds a second independent phase-order trial across fresh Modal
+workers.
+
+# Modal Training 017: Second Phase-Order Trial
+
+## Goal
+
+Start estimating whether the phase-order effect from Training 016 is stable
+across fresh Modal workers. This milestone repeats both paired phase orders in
+new output directories and generates a second phase-order comparison artifact.
+
+## Commands
+
+```bash
+modal run modal_app.py --mode vllm-server-async-paired \
+  --phase-order async_first \
+  --prompt-profiles short \
+  --output-tokens 32 \
+  --repeats 3 \
+  --warmup-runs 1 \
+  --scenario-seed 568 \
+  --output-dir results/modal-vllm-server-async-paired-async-first-trial2
+```
+
+```bash
+modal run modal_app.py --mode vllm-server-async-paired \
+  --phase-order server_first \
+  --prompt-profiles short \
+  --output-tokens 32 \
+  --repeats 3 \
+  --warmup-runs 1 \
+  --scenario-seed 568 \
+  --output-dir results/modal-vllm-server-async-paired-server-first-trial2
+```
+
+```bash
+modal run modal_app.py --mode vllm-server-async-phase-order-compare \
+  --async-first-paired-dir results/modal-vllm-server-async-paired-async-first-trial2 \
+  --server-first-paired-dir results/modal-vllm-server-async-paired-server-first-trial2 \
+  --output-dir results/modal-vllm-server-async-phase-order-compare-trial2
+```
+
+## Artifacts
+
+```text
+results/modal-vllm-server-async-paired-async-first-trial2/paired-server-async.json
+results/modal-vllm-server-async-paired-server-first-trial2/paired-server-async.json
+results/modal-vllm-server-async-phase-order-compare-trial2/phase-order-compare.json
+results/modal-vllm-server-async-phase-order-compare-trial2/phase-order-compare.csv
+```
+
+## Result
+
+Mean server/async ratios:
+
+| Trial | Async-first tok/s | Server-first tok/s | Delta | Async-first latency | Server-first latency | Delta | Async-first TPOT | Server-first TPOT | Delta |
+| ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| 1 | 1.099 | 0.880 | -0.219 | 0.943 | 1.154 | 0.211 | 0.909 | 1.133 | 0.224 |
+| 2 | 1.047 | 0.981 | -0.066 | 0.975 | 1.040 | 0.065 | 0.938 | 1.007 | 0.069 |
+
+First-event ratios:
+
+| Trial | Async-first first event | Server-first first event | Delta |
+| ---: | ---: | ---: | ---: |
+| 1 | 1.299 | 1.409 | 0.110 |
+| 2 | 1.365 | 1.357 | -0.008 |
+
+## Interpretation
+
+Trial 2 repeats the direction of the throughput, latency, and TPOT order effect,
+but the magnitude is smaller than Trial 1. That means phase order is real, but
+the size of the effect is noisy at this sample count.
+
+The first-event result remains the most robust server penalty: both phase
+orders in both trials have server/async first-event ratios above `1.0`.
+
+The current evidence is now better than a single benchmark number:
+
+- `async_first` makes the server look better on throughput and p95 latency.
+- `server_first` makes the server look worse on throughput and p95 latency.
+- The effect is visible across two independent trial pairs, but the magnitude
+  changes enough that we should not report a single overhead number yet.
+
+## Next Step
+
+Add a multi-trial phase-order aggregate that reads all phase-order comparison
+artifacts and reports mean, min, max, and coefficient of variation for each
+order-effect metric. Then run at least one more trial pair.
