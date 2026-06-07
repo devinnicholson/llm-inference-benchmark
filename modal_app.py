@@ -827,13 +827,18 @@ def run_vllm_sweep_remote(
     from vllm.v1.engine.async_llm import AsyncLLM
 
     request_count_values = _split_positive_int_csv(request_counts, "request_counts")
-    prompt_profile_values = [profile.lower() for profile in _split_csv(prompt_profiles)]
+    prompt_profile_values = [
+        profile.lower().replace("-", "_")
+        for profile in _split_csv(prompt_profiles)
+    ]
     output_token_values = _split_positive_int_csv(output_tokens, "output_tokens")
     if repeats <= 0:
         raise ValueError("repeats must be positive")
     for profile in prompt_profile_values:
-        if profile not in {"short", "long", "mixed"}:
-            raise ValueError("prompt_profiles must contain only short, long, or mixed")
+        if profile not in {"short", "long", "mixed", "shared_prefix"}:
+            raise ValueError(
+                "prompt_profiles must contain only short, long, mixed, or shared_prefix"
+            )
 
     import vllm
 
@@ -1395,9 +1400,9 @@ def run_vllm_server_concurrent_remote(
     from transformers import AutoTokenizer
 
     request_count_values = _split_positive_int_csv(request_counts, "request_counts")
-    prompt_profile = prompt_profile.lower()
-    if prompt_profile not in {"short", "long", "mixed"}:
-        raise ValueError("prompt_profile must be short, long, or mixed")
+    prompt_profile = prompt_profile.lower().replace("-", "_")
+    if prompt_profile not in {"short", "long", "mixed", "shared_prefix"}:
+        raise ValueError("prompt_profile must be short, long, mixed, or shared_prefix")
     if max_new_tokens <= 0:
         raise ValueError("max_new_tokens must be positive")
     if ready_timeout_s <= 0:
@@ -1744,7 +1749,10 @@ def run_vllm_server_sweep_remote(
     from transformers import AutoTokenizer
 
     request_count_values = _split_positive_int_csv(request_counts, "request_counts")
-    prompt_profile_values = [profile.lower() for profile in _split_csv(prompt_profiles)]
+    prompt_profile_values = [
+        profile.lower().replace("-", "_")
+        for profile in _split_csv(prompt_profiles)
+    ]
     output_token_values = _split_positive_int_csv(output_tokens, "output_tokens")
     if repeats <= 0:
         raise ValueError("repeats must be positive")
@@ -1753,8 +1761,10 @@ def run_vllm_server_sweep_remote(
     if ready_timeout_s <= 0:
         raise ValueError("ready_timeout_s must be positive")
     for profile in prompt_profile_values:
-        if profile not in {"short", "long", "mixed"}:
-            raise ValueError("prompt_profiles must contain only short, long, or mixed")
+        if profile not in {"short", "long", "mixed", "shared_prefix"}:
+            raise ValueError(
+                "prompt_profiles must contain only short, long, mixed, or shared_prefix"
+            )
 
     import vllm
 
@@ -2164,7 +2174,10 @@ def run_vllm_server_async_paired_remote(
     from vllm.v1.engine.async_llm import AsyncLLM
 
     request_count_values = _split_positive_int_csv(request_counts, "request_counts")
-    prompt_profile_values = [profile.lower() for profile in _split_csv(prompt_profiles)]
+    prompt_profile_values = [
+        profile.lower().replace("-", "_")
+        for profile in _split_csv(prompt_profiles)
+    ]
     output_token_values = _split_positive_int_csv(output_tokens, "output_tokens")
     if repeats <= 0:
         raise ValueError("repeats must be positive")
@@ -2176,8 +2189,10 @@ def run_vllm_server_async_paired_remote(
     if phase_order not in {"async_first", "server_first"}:
         raise ValueError("phase_order must be async_first or server_first")
     for profile in prompt_profile_values:
-        if profile not in {"short", "long", "mixed"}:
-            raise ValueError("prompt_profiles must contain only short, long, or mixed")
+        if profile not in {"short", "long", "mixed", "shared_prefix"}:
+            raise ValueError(
+                "prompt_profiles must contain only short, long, mixed, or shared_prefix"
+            )
 
     import vllm
 
@@ -3255,7 +3270,7 @@ def _select_concurrent_prompts(prompt_count: int) -> list[str]:
 
 
 def _select_sweep_prompts(prompt_count: int, prompt_profile: str) -> list[str]:
-    prompt_profile = prompt_profile.lower()
+    prompt_profile = prompt_profile.lower().replace("-", "_")
     short_prompts = _select_concurrent_prompts(prompt_count)
     if prompt_profile == "short":
         return short_prompts
@@ -3270,7 +3285,42 @@ def _select_sweep_prompts(prompt_count: int, prompt_profile: str) -> list[str]:
             prompt if index % 2 == 0 else long_prompts[index]
             for index, prompt in enumerate(short_prompts)
         ]
-    raise ValueError("prompt_profile must be short, long, or mixed")
+    if prompt_profile == "shared_prefix":
+        return _select_shared_prefix_prompts(prompt_count)
+    raise ValueError("prompt_profile must be short, long, mixed, or shared_prefix")
+
+
+def _select_shared_prefix_prompts(prompt_count: int) -> list[str]:
+    common_prefix = (
+        "You are evaluating a GPU inference platform during a capacity incident. "
+        "Every request in this batch shares the same incident brief, model "
+        "deployment notes, and operational constraints. The service runs an "
+        "OpenAI-compatible endpoint backed by vLLM on one memory-constrained GPU. "
+        "Traffic arrives in bursts, responses stream to users, prefill competes "
+        "with decode for scheduler time, and the KV cache can dominate available "
+        "memory when many long contexts overlap. Operators care about p95 time to "
+        "first token, p95 end-to-end latency, output tokens per second, and the "
+        "amount of reusable prefix work. The common incident facts are: model "
+        "weights are already resident, requests use deterministic decoding, "
+        "prefix cache blocks can be reused only when leading prompt tokens match "
+        "exactly, and request-specific details appear only after this shared "
+        "brief. Use the shared context as ground truth and answer the final task."
+    )
+    suffixes = [
+        "Task A: explain how prefix caching changes prefill cost for this batch.",
+        "Task B: identify which metric should move first if KV reuse is effective.",
+        "Task C: describe the failure mode if cache blocks fragment under load.",
+        "Task D: compare throughput impact at one, two, four, and eight requests.",
+        "Task E: explain why decode may dominate after prefill is avoided.",
+        "Task F: name one measurement that would separate cache reuse from noise.",
+        "Task G: summarize how phase order could confound this experiment.",
+        "Task H: recommend the next benchmark to validate the observed effect.",
+    ]
+    prompts = []
+    for index in range(prompt_count):
+        suffix = suffixes[index % len(suffixes)]
+        prompts.append(f"{common_prefix}\n\n{suffix}")
+    return prompts
 
 
 def _extend_prompt_for_context(prompt: str, index: int) -> str:

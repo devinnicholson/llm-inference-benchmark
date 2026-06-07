@@ -2065,6 +2065,117 @@ server/async number.
 
 ## Next Step
 
-Training 022 should shift from interface overhead toward a KV-cache-specific
-experiment: shared-prefix workloads with prefix caching on and off, measured
-with the same paired, phase-order-aware harness.
+Training 022 shifts from interface overhead toward a KV-cache-specific pilot:
+shared-prefix workloads with prefix caching on and off.
+
+# Modal Training 022: Shared-Prefix KV-Cache Pilot
+
+## Goal
+
+Create an explicit prefix-reuse workload instead of relying on accidental prompt
+repetition. The new `shared_prefix` profile gives every request the same long
+incident brief and changes only the final task suffix. This should make the
+cacheability assumption visible in the artifact.
+
+This is still a two-run comparison, not a same-worker paired control. It is a
+pilot for the next, stricter experiment.
+
+## Commands
+
+```bash
+modal run modal_app.py --mode vllm-sweep \
+  --prompt-profiles shared_prefix \
+  --output-tokens 32 \
+  --request-counts 1,2,4,8 \
+  --repeats 3 \
+  --scenario-seed 568 \
+  --prefix-caching off \
+  --output-dir results/modal-vllm-shared-prefix-cold
+```
+
+```bash
+modal run modal_app.py --mode vllm-sweep \
+  --prompt-profiles shared_prefix \
+  --output-tokens 32 \
+  --request-counts 1,2,4,8 \
+  --repeats 3 \
+  --scenario-seed 568 \
+  --prefix-caching on \
+  --output-dir results/modal-vllm-shared-prefix-cache
+```
+
+```bash
+modal run modal_app.py --mode vllm-prefix-cache-compare \
+  --cold-sweep-dir results/modal-vllm-shared-prefix-cold \
+  --prefix-sweep-dir results/modal-vllm-shared-prefix-cache \
+  --output-dir results/modal-vllm-shared-prefix-cache-compare
+```
+
+## Artifacts
+
+```text
+results/modal-vllm-shared-prefix-cold/vllm-sweep.json
+results/modal-vllm-shared-prefix-cold/vllm-sweep.csv
+results/modal-vllm-shared-prefix-cache/vllm-sweep.json
+results/modal-vllm-shared-prefix-cache/vllm-sweep.csv
+results/modal-vllm-shared-prefix-cache-compare/prefix-cache-compare.json
+results/modal-vllm-shared-prefix-cache-compare/prefix-cache-compare.csv
+```
+
+## Runtime Observations
+
+Both runs used the same `shared_prefix_out32_n{1,2,4,8}` scenarios with `3`
+repeats and seed `568`.
+
+- Cold-prefix engine load: `145944.214 ms`
+- Prefix-cache engine load: `150721.970 ms`
+- Cold warmup wall time: `781.469 ms`
+- Prefix-cache warmup wall time: `852.615 ms`
+- Prompt tokens per request: about `226`
+- `max_model_len=1024`
+- `max_num_batched_tokens=8192`
+- `max_num_seqs=8`
+
+## Result
+
+Ratios compare prefix caching on against prefix caching off. Throughput ratios
+above `1.0` are better. First-token, latency, and TPOT ratios below `1.0` are
+better.
+
+| Requests | Peak sequence tokens | Throughput ratio | First-token ratio | p95 latency ratio | TPOT ratio | Cold throughput CV | Prefix throughput CV |
+| ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| 1 | 258 | 0.958 | 1.069 | 1.044 | 1.040 | 0.017 | 0.050 |
+| 2 | 517 | 0.993 | 0.993 | 1.007 | 1.016 | 0.255 | 0.275 |
+| 4 | 1034 | 0.960 | 1.023 | 1.041 | 1.042 | 0.018 | 0.008 |
+| 8 | 2043 | 0.990 | 1.040 | 1.011 | 1.014 | 0.029 | 0.039 |
+
+Mean ratios across the four scenarios:
+
+- Throughput ratio: `0.975`
+- First-token ratio: `1.032`
+- p95 latency ratio: `1.026`
+- TPOT ratio: `1.028`
+
+## Interpretation
+
+This pilot is a negative result. The explicit shared-prefix workload did not
+show a prefix-cache win. Median throughput was slightly lower with prefix
+caching enabled, and latency-like metrics were slightly worse.
+
+That does not invalidate the broader KV-cache direction. It means this
+two-run comparison is not strong enough to support a speedup claim. Training
+009 showed large gains on repeated ordinary prompts, while this run shows no
+gain on explicit shared-prefix prompts. The difference could be workload shape,
+cache warmup behavior, vLLM prefix-cache overhead on a small T4 model, or
+ordinary cross-run variance.
+
+The useful research outcome is methodological: KV-cache experiments need the
+same phase-order discipline we added for server-vs-`AsyncLLM`. A separate cold
+Modal run and a separate cached Modal run are not enough.
+
+## Next Step
+
+Training 023 should add a same-worker paired prefix-cache benchmark. Run cold
+and cached `AsyncLLM` engines in both phase orders, write paired rows by
+`scenario_id` and `repeat_index`, then compare `cold_first` against
+`cache_first`.

@@ -238,6 +238,33 @@ modal run modal_app.py --mode vllm-sweep --prefix-caching on
 modal run modal_app.py --mode vllm-prefix-cache-compare
 ```
 
+Run the shared-prefix KV-cache pilot:
+
+```bash
+modal run modal_app.py --mode vllm-sweep \
+  --prompt-profiles shared_prefix \
+  --output-tokens 32 \
+  --request-counts 1,2,4,8 \
+  --repeats 3 \
+  --scenario-seed 568 \
+  --prefix-caching off \
+  --output-dir results/modal-vllm-shared-prefix-cold
+
+modal run modal_app.py --mode vllm-sweep \
+  --prompt-profiles shared_prefix \
+  --output-tokens 32 \
+  --request-counts 1,2,4,8 \
+  --repeats 3 \
+  --scenario-seed 568 \
+  --prefix-caching on \
+  --output-dir results/modal-vllm-shared-prefix-cache
+
+modal run modal_app.py --mode vllm-prefix-cache-compare \
+  --cold-sweep-dir results/modal-vllm-shared-prefix-cold \
+  --prefix-sweep-dir results/modal-vllm-shared-prefix-cache \
+  --output-dir results/modal-vllm-shared-prefix-cache-compare
+```
+
 Modal training is documented in
 [`docs/modal-training.md`](docs/modal-training.md).
 
