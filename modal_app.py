@@ -23,6 +23,7 @@ DEFAULT_VLLM_OUTPUT = "results/modal-vllm-inference"
 DEFAULT_VLLM_STREAMING_OUTPUT = "results/modal-vllm-streaming"
 DEFAULT_VLLM_CONCURRENT_OUTPUT = "results/modal-vllm-concurrent"
 DEFAULT_VLLM_SWEEP_OUTPUT = "results/modal-vllm-sweep"
+DEFAULT_VLLM_SERVER_OUTPUT = "results/modal-vllm-server-streaming"
 DEFAULT_VLLM_PREFIX_CACHE_SWEEP_OUTPUT = "results/modal-vllm-prefix-cache-sweep"
 DEFAULT_VLLM_PREFIX_CACHE_COMPARE_OUTPUT = "results/modal-vllm-prefix-cache-compare"
 DEFAULT_VLLM_SWEEP_REQUEST_COUNTS = "1,2,4,8"
@@ -56,7 +57,7 @@ inference_image = (
 vllm_image = (
     modal.Image.from_registry("nvidia/cuda:12.9.0-devel-ubuntu22.04", add_python="3.12")
     .entrypoint([])
-    .uv_pip_install("vllm==0.21.0", "huggingface-hub==0.36.0")
+    .uv_pip_install("vllm==0.21.0", "huggingface-hub==0.36.0", "httpx==0.28.1")
     .env(
         {
             "HF_HOME": HF_CACHE_PATH,
@@ -1110,6 +1111,242 @@ def run_vllm_sweep_remote(
     }
 
 
+@app.function(
+    image=vllm_image,
+    gpu="T4",
+    timeout=1800,
+    volumes={HF_CACHE_PATH: hf_cache_volume, VLLM_CACHE_PATH: vllm_cache_volume},
+)
+def run_vllm_server_streaming_remote(
+    hf_model: str = DEFAULT_HF_MODEL,
+    prompt: str = DEFAULT_INFERENCE_PROMPT,
+    max_new_tokens: int = 32,
+    ready_timeout_s: int = 600,
+) -> dict[str, Any]:
+    import json
+    import platform
+    import subprocess
+    import threading
+    import time
+
+    import httpx
+    from transformers import AutoTokenizer
+
+    if max_new_tokens <= 0:
+        raise ValueError("max_new_tokens must be positive")
+    if ready_timeout_s <= 0:
+        raise ValueError("ready_timeout_s must be positive")
+
+    import vllm
+
+    nvidia_smi_before = _run_command(
+        [
+            "nvidia-smi",
+            "--query-gpu=name,memory.total,memory.free,driver_version",
+            "--format=csv,noheader,nounits",
+        ]
+    )
+
+    started = time.perf_counter()
+    tokenizer = AutoTokenizer.from_pretrained(hf_model)
+    tokenizer_load_ms = (time.perf_counter() - started) * 1000
+
+    formatted_prompt, prompt_format = _format_prompt_for_generation(tokenizer, prompt)
+    prompt_tokens = len(tokenizer.encode(formatted_prompt))
+
+    port = 8000
+    base_url = f"http://127.0.0.1:{port}"
+    command = [
+        "vllm",
+        "serve",
+        hf_model,
+        "--host",
+        "127.0.0.1",
+        "--port",
+        str(port),
+        "--dtype",
+        "half",
+        "--max-model-len",
+        "1024",
+        "--max-num-batched-tokens",
+        "1024",
+        "--max-num-seqs",
+        "1",
+        "--gpu-memory-utilization",
+        "0.50",
+        "--enforce-eager",
+    ]
+
+    server_logs: list[str] = []
+    server_started = time.perf_counter()
+    process = subprocess.Popen(
+        command,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
+        bufsize=1,
+    )
+
+    def drain_logs() -> None:
+        if process.stdout is None:
+            return
+        for line in process.stdout:
+            server_logs.append(line.rstrip())
+
+    log_thread = threading.Thread(target=drain_logs, daemon=True)
+    log_thread.start()
+
+    ready_ms: float | None = None
+    usage: dict[str, Any] | None = None
+    response_status_code: int | None = None
+    chunks: list[dict[str, Any]] = []
+    generated_text_parts: list[str] = []
+
+    try:
+        with httpx.Client(timeout=2.0) as health_client:
+            while (time.perf_counter() - server_started) < ready_timeout_s:
+                if process.poll() is not None:
+                    raise RuntimeError(
+                        "vLLM server exited before readiness: "
+                        + "\n".join(_tail_lines(server_logs, 40))
+                    )
+                try:
+                    response = health_client.get(f"{base_url}/health")
+                    if response.status_code == 200:
+                        ready_ms = (time.perf_counter() - server_started) * 1000
+                        break
+                except httpx.HTTPError:
+                    pass
+                time.sleep(1.0)
+        if ready_ms is None:
+            raise TimeoutError(
+                "vLLM server did not become ready: "
+                + "\n".join(_tail_lines(server_logs, 40))
+            )
+
+        request_body = {
+            "model": hf_model,
+            "messages": [{"role": "user", "content": prompt}],
+            "temperature": 0.0,
+            "max_tokens": max_new_tokens,
+            "stream": True,
+            "stream_options": {"include_usage": True},
+        }
+        first_content_ms: float | None = None
+        request_started = time.perf_counter()
+        with httpx.Client(timeout=None) as client:
+            with client.stream(
+                "POST",
+                f"{base_url}/v1/chat/completions",
+                json=request_body,
+                headers={"Accept": "text/event-stream"},
+            ) as response:
+                response_status_code = response.status_code
+                response.raise_for_status()
+                for line in response.iter_lines():
+                    if not line.startswith("data: "):
+                        continue
+                    data = line[len("data: ") :]
+                    if data == "[DONE]":
+                        break
+                    event = json.loads(data)
+                    elapsed_ms = (time.perf_counter() - request_started) * 1000
+                    if event.get("usage") is not None:
+                        usage = event["usage"]
+                    choices = event.get("choices", [])
+                    for choice in choices:
+                        delta = choice.get("delta") or {}
+                        content = delta.get("content") or ""
+                        if content and first_content_ms is None:
+                            first_content_ms = elapsed_ms
+                        if content:
+                            generated_text_parts.append(content)
+                        chunks.append(
+                            {
+                                "elapsed_ms": elapsed_ms,
+                                "content": content,
+                                "finish_reason": choice.get("finish_reason"),
+                            }
+                        )
+        request_wall_ms = (time.perf_counter() - request_started) * 1000
+    finally:
+        if process.poll() is None:
+            process.terminate()
+            try:
+                process.wait(timeout=20)
+            except subprocess.TimeoutExpired:
+                process.kill()
+                process.wait(timeout=20)
+        log_thread.join(timeout=5)
+
+    generated_text = "".join(generated_text_parts)
+    generated_tokens = (
+        int(usage["completion_tokens"])
+        if usage and usage.get("completion_tokens") is not None
+        else len(tokenizer.encode(generated_text, add_special_tokens=False))
+    )
+    measured_prompt_tokens = (
+        int(usage["prompt_tokens"])
+        if usage and usage.get("prompt_tokens") is not None
+        else prompt_tokens
+    )
+    decode_tokens_after_first = max(generated_tokens - 1, 0)
+    decode_after_first_ms = (
+        request_wall_ms - first_content_ms
+        if first_content_ms is not None
+        else None
+    )
+
+    hf_cache_volume.commit()
+    vllm_cache_volume.commit()
+    nvidia_smi_after = _run_command(
+        [
+            "nvidia-smi",
+            "--query-gpu=name,memory.total,memory.free,driver_version",
+            "--format=csv,noheader,nounits",
+        ]
+    )
+
+    return {
+        "schema_version": 1,
+        "execution": "modal",
+        "mode": "vllm-server-streaming",
+        "backend": "vllm-openai-server",
+        "model_id": hf_model,
+        "prompt": prompt,
+        "prompt_format": prompt_format,
+        "prompt_tokens": measured_prompt_tokens,
+        "prompt_tokens_local_estimate": prompt_tokens,
+        "max_new_tokens": int(max_new_tokens),
+        "generated_tokens": generated_tokens,
+        "generated_text": generated_text,
+        "response_status_code": response_status_code,
+        "server_ready_ms": ready_ms,
+        "request_wall_ms": request_wall_ms,
+        "first_content_ms": first_content_ms,
+        "decode_after_first_ms": decode_after_first_ms,
+        "stream_tpot_ms": (
+            decode_after_first_ms / decode_tokens_after_first
+            if decode_after_first_ms is not None and decode_tokens_after_first
+            else None
+        ),
+        "output_tokens_per_second": generated_tokens / max(request_wall_ms / 1000, 1e-9),
+        "chunk_count": len(chunks),
+        "chunks": chunks,
+        "usage": usage,
+        "server_command": command,
+        "tokenizer_load_ms": tokenizer_load_ms,
+        "vllm_version": str(vllm.__version__),
+        "platform": platform.platform(),
+        "python_version": platform.python_version(),
+        "nvidia_smi_before": nvidia_smi_before,
+        "nvidia_smi_after": nvidia_smi_after,
+        "server_logs_head": server_logs[:80],
+        "server_logs_tail": _tail_lines(server_logs, 80),
+        "note": "OpenAI-compatible vLLM server smoke using /v1/chat/completions with SSE streaming.",
+    }
+
+
 @app.local_entrypoint()
 def main(
     mode: str = "sweep",
@@ -1224,6 +1461,28 @@ def main(
         print(f"json: {json_path}")
         return
 
+    if mode == "vllm-server-streaming":
+        payload = run_vllm_server_streaming_remote.remote(
+            hf_model=hf_model,
+            prompt=prompt,
+            max_new_tokens=max_new_tokens,
+        )
+        output_path = Path(output_dir or DEFAULT_VLLM_SERVER_OUTPUT)
+        output_path.mkdir(parents=True, exist_ok=True)
+        json_path = output_path / "vllm-server-streaming.json"
+        json_path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+
+        print(f"model: {payload['model_id']}")
+        print(f"backend: {payload['backend']} {payload['vllm_version']}")
+        print(f"server_ready_ms: {payload['server_ready_ms']:.3f}")
+        if payload.get("first_content_ms") is not None:
+            print(f"first_content_ms: {payload['first_content_ms']:.3f}")
+        if payload.get("stream_tpot_ms") is not None:
+            print(f"stream_tpot_ms: {payload['stream_tpot_ms']:.3f}")
+        print(f"output_tokens_per_second: {payload['output_tokens_per_second']:.3f}")
+        print(f"json: {json_path}")
+        return
+
     if mode == "vllm-sweep":
         enable_prefix_caching = _parse_bool_choice(prefix_caching, "prefix_caching")
         payload = run_vllm_sweep_remote.remote(
@@ -1285,7 +1544,8 @@ def main(
         raise ValueError(
             "mode must be 'sweep', 'gpu-probe', 'tiny-inference', "
             "'vllm-inference', 'vllm-streaming', 'vllm-concurrent', "
-            "'vllm-sweep', or 'vllm-prefix-cache-compare'"
+            "'vllm-server-streaming', 'vllm-sweep', or "
+            "'vllm-prefix-cache-compare'"
         )
 
     payload = run_capacity_sweep_remote.remote(
@@ -1661,6 +1921,12 @@ def _ratio(new_value: float | None, baseline_value: float | None) -> float | Non
     if new_value is None or baseline_value in {None, 0.0}:
         return None
     return new_value / baseline_value
+
+
+def _tail_lines(lines: list[str], count: int) -> list[str]:
+    if count <= 0:
+        return []
+    return lines[-count:]
 
 
 def _model_config_path(name: str, root: Path = ROOT) -> Path:

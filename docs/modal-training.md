@@ -986,6 +986,127 @@ prefix reuse. It is a prefix-reuse benchmark, not a random-prompt benchmark.
 
 ## Next Step
 
-Add explicit cache hit accounting if vLLM exposes it cleanly for this path, or
-move to an OpenAI-compatible vLLM server run where request-level cache metrics
-and streaming behavior can be observed closer to a production API surface.
+Training 010 moves to an OpenAI-compatible vLLM server smoke.
+
+# Modal Training 010: OpenAI-Compatible vLLM Server Streaming
+
+## Goal
+
+Move from in-process `AsyncLLM` calls to the vLLM OpenAI-compatible HTTP server.
+This is the first benchmark artifact that exercises a production-shaped API
+surface: server startup, `/health`, `/v1/chat/completions`, SSE streaming, and
+OpenAI-style usage accounting.
+
+This is still a smoke test, not a server benchmark. It sends one streaming chat
+request after the server is healthy.
+
+## Command
+
+```bash
+modal run modal_app.py --mode vllm-server-streaming
+```
+
+The committed result writes:
+
+```text
+results/modal-vllm-server-streaming/vllm-server-streaming.json
+```
+
+## Method
+
+The Modal worker starts:
+
+```bash
+vllm serve HuggingFaceTB/SmolLM2-135M-Instruct \
+  --host 127.0.0.1 \
+  --port 8000 \
+  --dtype half \
+  --max-model-len 1024 \
+  --max-num-batched-tokens 1024 \
+  --max-num-seqs 1 \
+  --gpu-memory-utilization 0.50 \
+  --enforce-eager
+```
+
+The local worker logic then:
+
+1. Starts the server as a subprocess.
+2. Captures server logs into the JSON artifact.
+3. Polls `GET /health` until the server is ready.
+4. Sends `POST /v1/chat/completions` with `stream=true`.
+5. Parses SSE `data:` events and records first content, total stream wall time,
+   TPOT, chunks, generated text, and OpenAI-compatible usage.
+6. Terminates the server process.
+
+## Runtime Observations
+
+The server run logged:
+
+- vLLM server started on `http://127.0.0.1:8000`.
+- `/health` returned `200 OK`.
+- `/v1/chat/completions` returned `200 OK`.
+- vLLM exposed `/metrics`, `/v1/models`, `/v1/chat/completions`,
+  `/v1/completions`, `/v1/responses`, `/tokenize`, and `/detokenize`.
+- FlashInfer selected as the attention backend on T4.
+- vLLM reported `6.96 GiB` available KV-cache memory.
+- vLLM reported `324,320` GPU KV-cache tokens.
+- vLLM reported maximum concurrency of `316.72x` for `1024` tokens/request.
+- Engine initialization took `125.32 s`.
+- Server health was ready after `161326.565 ms`.
+- A Triton JIT compilation happened during the streamed request for
+  `_compute_slot_mapping_kernel`.
+
+## Result
+
+| Field | Value |
+| --- | ---: |
+| Backend | `vllm-openai-server 0.21.0` |
+| GPU | `Tesla T4` |
+| Prompt tokens | `43` |
+| Completion tokens | `30` |
+| Total tokens | `73` |
+| Server ready | `161326.565 ms` |
+| First content | `925.424 ms` |
+| Request wall time | `1500.791 ms` |
+| Decode after first content | `575.367 ms` |
+| Stream TPOT | `19.840 ms` |
+| Output tokens/sec | `19.989` |
+| SSE chunks | `31` |
+
+Generated text:
+
+```text
+A KV cache in LLM is a data structure that stores the results of a LLM computation, allowing for efficient data retrieval and manipulation.
+```
+
+## Interpretation
+
+The server path gives us two metrics that the earlier in-process runs did not:
+
+- API readiness latency: model load, profiling, KV-cache allocation, server
+  startup, route registration, and health availability.
+- API-facing streaming latency: the user-visible delay between sending a chat
+  completions request and receiving the first content-bearing SSE event.
+
+The first content time was `925.424 ms`, lower than the earlier single-request
+`AsyncLLM` streaming first chunk result, but this is not a controlled speedup
+claim. The server smoke uses a different process boundary and captures one run.
+Its value is that the measurement now matches the API surface an ML infra system
+would expose.
+
+The server artifact also confirms that OpenAI-compatible usage accounting is
+available for this route: `43` prompt tokens, `30` completion tokens, and `73`
+total tokens.
+
+## Next Step
+
+Add a server-side concurrent streaming workload against
+`/v1/chat/completions`:
+
+- start one vLLM server
+- wait for `/health`
+- send `1`, `2`, `4`, and `8` concurrent streaming chat requests
+- record per-request first content, p95 latency, TPOT, token usage, and aggregate
+  throughput
+- compare the API-server path against the in-process `AsyncLLM` concurrent
+  sweep
