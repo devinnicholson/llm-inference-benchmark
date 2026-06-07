@@ -36,7 +36,8 @@ DEFAULT_VLLM_SERVER_ASYNC_PHASE_ORDER_COMPARE_OUTPUT = (
 )
 DEFAULT_VLLM_SERVER_ASYNC_PHASE_ORDER_COMPARE_DIRS = (
     "results/modal-vllm-server-async-phase-order-compare,"
-    "results/modal-vllm-server-async-phase-order-compare-trial2"
+    "results/modal-vllm-server-async-phase-order-compare-trial2,"
+    "results/modal-vllm-server-async-phase-order-compare-trial3"
 )
 DEFAULT_VLLM_SERVER_ASYNC_MULTITRIAL_OUTPUT = (
     "results/modal-vllm-server-async-multitrial-aggregate"
@@ -3878,6 +3879,12 @@ def _aggregate_vllm_server_async_phase_order_trials(
             trials,
             f"server_first_minus_async_first_{metric}",
         )
+        delta_values = [
+            trial[f"server_first_minus_async_first_{metric}"]
+            for trial in trials
+            if trial.get(f"server_first_minus_async_first_{metric}") is not None
+        ]
+        bootstrap_interval = _bootstrap_mean_interval(delta_values)
         summary.append(
             {
                 "metric": metric,
@@ -3902,6 +3909,15 @@ def _aggregate_vllm_server_async_phase_order_trials(
                 "server_first_minus_async_first_cv": delta_stats[
                     f"server_first_minus_async_first_{metric}_cv"
                 ],
+                "server_first_minus_async_first_bootstrap_mean_p05": bootstrap_interval[
+                    "mean_p05"
+                ],
+                "server_first_minus_async_first_bootstrap_mean_p50": bootstrap_interval[
+                    "mean_p50"
+                ],
+                "server_first_minus_async_first_bootstrap_mean_p95": bootstrap_interval[
+                    "mean_p95"
+                ],
             }
         )
 
@@ -3912,6 +3928,34 @@ def _aggregate_vllm_server_async_phase_order_trials(
         "compare_dirs": [str(path) for path in compare_dirs],
         "trials": trials,
         "summary": summary,
+    }
+
+
+def _bootstrap_mean_interval(
+    values: list[float],
+    samples: int = 4096,
+    seed: int = DEFAULT_VLLM_SWEEP_SEED,
+) -> dict[str, float | None]:
+    if not values:
+        return {"mean_p05": None, "mean_p50": None, "mean_p95": None}
+    if len(values) == 1:
+        return {
+            "mean_p05": values[0],
+            "mean_p50": values[0],
+            "mean_p95": values[0],
+        }
+
+    import random
+
+    rng = random.Random(seed)
+    means = []
+    for _ in range(samples):
+        draw = [values[rng.randrange(len(values))] for _ in values]
+        means.append(sum(draw) / len(draw))
+    return {
+        "mean_p05": _percentile(means, 5),
+        "mean_p50": _percentile(means, 50),
+        "mean_p95": _percentile(means, 95),
     }
 
 
@@ -4229,7 +4273,11 @@ def _write_records_csv(path: Path, records: list[dict[str, Any]]) -> None:
     fieldnames = list(records[0])
     extra_fields = sorted(set().union(*(record.keys() for record in records)) - set(fieldnames))
     with path.open("w", encoding="utf-8", newline="") as handle:
-        writer = csv.DictWriter(handle, fieldnames=[*fieldnames, *extra_fields])
+        writer = csv.DictWriter(
+            handle,
+            fieldnames=[*fieldnames, *extra_fields],
+            lineterminator="\n",
+        )
         writer.writeheader()
         writer.writerows(records)
 

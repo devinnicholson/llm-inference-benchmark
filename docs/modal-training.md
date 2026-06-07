@@ -1736,7 +1736,7 @@ Training 018 adds the multi-trial phase-order aggregate.
 
 ## Goal
 
-Summarize the two phase-order comparison artifacts in one machine-readable
+Summarize the first two phase-order comparison artifacts in one machine-readable
 table. This is the first artifact that treats the phase-order effect as a
 distribution across independent trial pairs instead of a single result.
 
@@ -1746,7 +1746,7 @@ distribution across independent trial pairs instead of a single result.
 modal run modal_app.py --mode vllm-server-async-multitrial-aggregate
 ```
 
-The default input is:
+The first aggregate input was:
 
 ```text
 results/modal-vllm-server-async-phase-order-compare
@@ -1760,7 +1760,7 @@ results/modal-vllm-server-async-multitrial-aggregate/phase-order-multitrial.json
 results/modal-vllm-server-async-multitrial-aggregate/phase-order-multitrial.csv
 ```
 
-## Result
+## Initial Result
 
 | Metric | Async-first mean | Async-first min | Async-first max | Server-first mean | Server-first min | Server-first max | Server-first minus async-first mean |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
@@ -1771,7 +1771,7 @@ results/modal-vllm-server-async-multitrial-aggregate/phase-order-multitrial.csv
 
 ## Interpretation
 
-Across two independent trial pairs:
+Across the first two independent trial pairs:
 
 - `async_first` averages above `1.0` for throughput ratio and below `1.0` for
   latency and TPOT ratios.
@@ -1787,6 +1787,109 @@ two trial pairs.
 
 ## Next Step
 
-Run at least one more trial pair and regenerate this aggregate. With three or
-more trial pairs, add confidence intervals or bootstrap intervals for the order
-effect.
+Training 019 adds one more trial pair and regenerates this aggregate with
+bootstrap intervals for the order effect.
+
+# Modal Training 019: Third Trial and Bootstrap Aggregate
+
+## Goal
+
+Run a third independent phase-order trial pair, then regenerate the multi-trial
+aggregate with bootstrap percentile intervals for the signed order effect. This
+makes the benchmark less dependent on one lucky or unlucky fresh Modal worker.
+
+## Commands
+
+```bash
+modal run modal_app.py --mode vllm-server-async-paired \
+  --phase-order async_first \
+  --prompt-profiles short \
+  --output-tokens 32 \
+  --repeats 3 \
+  --warmup-runs 1 \
+  --scenario-seed 568 \
+  --output-dir results/modal-vllm-server-async-paired-async-first-trial3
+```
+
+```bash
+modal run modal_app.py --mode vllm-server-async-paired \
+  --phase-order server_first \
+  --prompt-profiles short \
+  --output-tokens 32 \
+  --repeats 3 \
+  --warmup-runs 1 \
+  --scenario-seed 568 \
+  --output-dir results/modal-vllm-server-async-paired-server-first-trial3
+```
+
+```bash
+modal run modal_app.py --mode vllm-server-async-phase-order-compare \
+  --async-first-paired-dir results/modal-vllm-server-async-paired-async-first-trial3 \
+  --server-first-paired-dir results/modal-vllm-server-async-paired-server-first-trial3 \
+  --output-dir results/modal-vllm-server-async-phase-order-compare-trial3
+```
+
+```bash
+modal run modal_app.py --mode vllm-server-async-multitrial-aggregate
+```
+
+The aggregate default now reads:
+
+```text
+results/modal-vllm-server-async-phase-order-compare
+results/modal-vllm-server-async-phase-order-compare-trial2
+results/modal-vllm-server-async-phase-order-compare-trial3
+```
+
+## Artifacts
+
+```text
+results/modal-vllm-server-async-paired-async-first-trial3/paired-server-async.json
+results/modal-vllm-server-async-paired-server-first-trial3/paired-server-async.json
+results/modal-vllm-server-async-phase-order-compare-trial3/phase-order-compare.json
+results/modal-vllm-server-async-multitrial-aggregate/phase-order-multitrial.json
+results/modal-vllm-server-async-multitrial-aggregate/phase-order-multitrial.csv
+```
+
+## Trial 3 Result
+
+Mean server/async ratios:
+
+| Phase order | Server/Async tok/s | Server/Async first event | Server/Async p95 latency | Server/Async TPOT |
+| --- | ---: | ---: | ---: | ---: |
+| `async_first` | 1.178 | 1.095 | 0.903 | 0.892 |
+| `server_first` | 0.982 | 1.275 | 1.044 | 1.018 |
+
+## Three-Trial Aggregate
+
+The interval columns are deterministic bootstrap percentile intervals over the
+mean signed order effect using `4096` resamples. They are not final confidence
+claims; with only three trial pairs they are a compact uncertainty check.
+
+| Metric | Async-first mean | Server-first mean | Delta mean | Bootstrap p05 | Bootstrap p50 | Bootstrap p95 |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| Throughput ratio | 1.108 | 0.948 | -0.160 | -0.211 | -0.160 | -0.109 |
+| First-event ratio | 1.253 | 1.347 | 0.094 | 0.031 | 0.094 | 0.157 |
+| Latency ratio | 0.940 | 1.079 | 0.139 | 0.090 | 0.139 | 0.188 |
+| TPOT ratio | 0.913 | 1.053 | 0.140 | 0.088 | 0.140 | 0.191 |
+
+## Interpretation
+
+The third trial reinforces the phase-order effect:
+
+- The server/async throughput ratio is higher in `async_first` than
+  `server_first` in all three trial pairs.
+- The server/async latency and TPOT ratios are lower in `async_first` than
+  `server_first` in all three trial pairs.
+- First-event latency remains above `1.0` for the server in both phase orders.
+
+The bootstrap intervals still come from a small sample, but they no longer cross
+zero for throughput, latency, or TPOT order-effect means. That is enough to say
+phase order is a real confounder in this benchmark harness. It is not enough to
+publish one universal server-overhead number.
+
+## Next Step
+
+Move from phase-order methodology to workload breadth: repeat the
+counterbalanced benchmark for `long` prompts, where prefill and prefix behavior
+should matter more than the current short-prompt decode-heavy workload.
