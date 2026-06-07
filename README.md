@@ -176,6 +176,12 @@ Compare paired phase orders:
 modal run modal_app.py --mode vllm-server-async-phase-order-compare
 ```
 
+Aggregate multiple phase-order comparisons:
+
+```bash
+modal run modal_app.py --mode vllm-server-async-multitrial-aggregate
+```
+
 Run the first Modal vLLM concurrent workload:
 
 ```bash

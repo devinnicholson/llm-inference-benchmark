@@ -1730,6 +1730,63 @@ The current evidence is now better than a single benchmark number:
 
 ## Next Step
 
-Add a multi-trial phase-order aggregate that reads all phase-order comparison
-artifacts and reports mean, min, max, and coefficient of variation for each
-order-effect metric. Then run at least one more trial pair.
+Training 018 adds the multi-trial phase-order aggregate.
+
+# Modal Training 018: Multi-Trial Phase-Order Aggregate
+
+## Goal
+
+Summarize the two phase-order comparison artifacts in one machine-readable
+table. This is the first artifact that treats the phase-order effect as a
+distribution across independent trial pairs instead of a single result.
+
+## Command
+
+```bash
+modal run modal_app.py --mode vllm-server-async-multitrial-aggregate
+```
+
+The default input is:
+
+```text
+results/modal-vllm-server-async-phase-order-compare
+results/modal-vllm-server-async-phase-order-compare-trial2
+```
+
+The committed result writes:
+
+```text
+results/modal-vllm-server-async-multitrial-aggregate/phase-order-multitrial.json
+results/modal-vllm-server-async-multitrial-aggregate/phase-order-multitrial.csv
+```
+
+## Result
+
+| Metric | Async-first mean | Async-first min | Async-first max | Server-first mean | Server-first min | Server-first max | Server-first minus async-first mean |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| Throughput ratio | 1.073 | 1.047 | 1.099 | 0.931 | 0.880 | 0.981 | -0.142 |
+| First-event ratio | 1.332 | 1.299 | 1.365 | 1.383 | 1.357 | 1.409 | 0.051 |
+| Latency ratio | 0.959 | 0.943 | 0.975 | 1.097 | 1.040 | 1.154 | 0.138 |
+| TPOT ratio | 0.923 | 0.909 | 0.938 | 1.070 | 1.007 | 1.133 | 0.146 |
+
+## Interpretation
+
+Across two independent trial pairs:
+
+- `async_first` averages above `1.0` for throughput ratio and below `1.0` for
+  latency and TPOT ratios.
+- `server_first` averages below `1.0` for throughput ratio and above `1.0` for
+  latency and TPOT ratios.
+- First-event ratio is above `1.0` in both phase orders, which remains the most
+  consistent server penalty.
+
+The order-effect direction is stable across the two trials for throughput,
+latency, and TPOT. The magnitude is not stable enough to report one final
+server-overhead number. The signed delta CVs are large because there are only
+two trial pairs.
+
+## Next Step
+
+Run at least one more trial pair and regenerate this aggregate. With three or
+more trial pairs, add confidence intervals or bootstrap intervals for the order
+effect.

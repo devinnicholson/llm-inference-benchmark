@@ -1,0 +1,113 @@
+{
+  "compare_dirs": [
+    "results/modal-vllm-server-async-phase-order-compare",
+    "results/modal-vllm-server-async-phase-order-compare-trial2"
+  ],
+  "mode": "vllm-server-async-multitrial-aggregate",
+  "schema_version": 1,
+  "summary": [
+    {
+      "async_first_cv": 0.02420437618005976,
+      "async_first_max": 1.098912921342756,
+      "async_first_mean": 1.0729430052245374,
+      "async_first_min": 1.046973089106319,
+      "metric": "throughput_ratio",
+      "server_first_cv": 0.05456760291764462,
+      "server_first_max": 0.9813177693572785,
+      "server_first_mean": 0.9305404097777064,
+      "server_first_min": 0.8797630501981342,
+      "server_first_minus_async_first_cv": 0.5389457646960225,
+      "server_first_minus_async_first_max": -0.06565531974904038,
+      "server_first_minus_async_first_mean": -0.1424025954468311,
+      "server_first_minus_async_first_min": -0.2191498711446218,
+      "trial_count": 2
+    },
+    {
+      "async_first_cv": 0.024899934266003444,
+      "async_first_max": 1.3652561947154995,
+      "async_first_mean": 1.3320873083021973,
+      "async_first_min": 1.2989184218888952,
+      "metric": "first_event_ratio",
+      "server_first_cv": 0.018704083666075115,
+      "server_first_max": 1.4085751746624304,
+      "server_first_mean": 1.3827127987877514,
+      "server_first_min": 1.3568504229130725,
+      "server_first_minus_async_first_cv": 1.166038328158532,
+      "server_first_minus_async_first_max": 0.10965675277353526,
+      "server_first_minus_async_first_mean": 0.05062549048555409,
+      "server_first_minus_async_first_min": -0.008405771802427076,
+      "trial_count": 2
+    },
+    {
+      "async_first_cv": 0.016633487105256445,
+      "async_first_max": 0.9747399277597392,
+      "async_first_mean": 0.9587918754626072,
+      "async_first_min": 0.9428438231654753,
+      "metric": "latency_ratio",
+      "server_first_cv": 0.052264652293499504,
+      "server_first_max": 1.1541764122449385,
+      "server_first_mean": 1.0968499319342464,
+      "server_first_min": 1.0395234516235545,
+      "server_first_minus_async_first_cv": 0.5307515872706524,
+      "server_first_minus_async_first_max": 0.21133258907946317,
+      "server_first_minus_async_first_mean": 0.13805805647163927,
+      "server_first_minus_async_first_min": 0.06478352386381536,
+      "trial_count": 2
+    },
+    {
+      "async_first_cv": 0.015502222897457098,
+      "async_first_max": 0.9376683152594806,
+      "async_first_mean": 0.9233542715289201,
+      "async_first_min": 0.9090402277983597,
+      "metric": "tpot_ratio",
+      "server_first_cv": 0.059037663468653655,
+      "server_first_max": 1.1330112265152843,
+      "server_first_mean": 1.0698497943919634,
+      "server_first_min": 1.0066883622686422,
+      "server_first_minus_async_first_cv": 0.5288590008741247,
+      "server_first_minus_async_first_max": 0.2239709987169246,
+      "server_first_minus_async_first_mean": 0.14649552286304313,
+      "server_first_minus_async_first_min": 0.06902004700916164,
+      "trial_count": 2
+    }
+  ],
+  "trial_count": 2,
+  "trials": [
+    {
+      "async_first_first_event_ratio": 1.2989184218888952,
+      "async_first_latency_ratio": 0.9428438231654753,
+      "async_first_throughput_ratio": 1.098912921342756,
+      "async_first_tpot_ratio": 0.9090402277983597,
+      "compare_json": "results/modal-vllm-server-async-phase-order-compare/phase-order-compare.json",
+      "scenario_count": 4,
+      "server_first_first_event_ratio": 1.4085751746624304,
+      "server_first_latency_ratio": 1.1541764122449385,
+      "server_first_minus_async_first_first_event_ratio": 0.10965675277353526,
+      "server_first_minus_async_first_latency_ratio": 0.21133258907946317,
+      "server_first_minus_async_first_throughput_ratio": -0.2191498711446218,
+      "server_first_minus_async_first_tpot_ratio": 0.2239709987169246,
+      "server_first_throughput_ratio": 0.8797630501981342,
+      "server_first_tpot_ratio": 1.1330112265152843,
+      "trial_index": 1,
+      "trial_label": "modal-vllm-server-async-phase-order-compare"
+    },
+    {
+      "async_first_first_event_ratio": 1.3652561947154995,
+      "async_first_latency_ratio": 0.9747399277597392,
+      "async_first_throughput_ratio": 1.046973089106319,
+      "async_first_tpot_ratio": 0.9376683152594806,
+      "compare_json": "results/modal-vllm-server-async-phase-order-compare-trial2/phase-order-compare.json",
+      "scenario_count": 4,
+      "server_first_first_event_ratio": 1.3568504229130725,
+      "server_first_latency_ratio": 1.0395234516235545,
+      "server_first_minus_async_first_first_event_ratio": -0.008405771802427076,
+      "server_first_minus_async_first_latency_ratio": 0.06478352386381536,
+      "server_first_minus_async_first_throughput_ratio": -0.06565531974904038,
+      "server_first_minus_async_first_tpot_ratio": 0.06902004700916164,
+      "server_first_throughput_ratio": 0.9813177693572785,
+      "server_first_tpot_ratio": 1.0066883622686422,
+      "trial_index": 2,
+      "trial_label": "modal-vllm-server-async-phase-order-compare-trial2"
+    }
+  ]
+}

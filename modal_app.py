@@ -34,6 +34,13 @@ DEFAULT_VLLM_SERVER_ASYNC_PAIRED_SERVER_FIRST_OUTPUT = (
 DEFAULT_VLLM_SERVER_ASYNC_PHASE_ORDER_COMPARE_OUTPUT = (
     "results/modal-vllm-server-async-phase-order-compare"
 )
+DEFAULT_VLLM_SERVER_ASYNC_PHASE_ORDER_COMPARE_DIRS = (
+    "results/modal-vllm-server-async-phase-order-compare,"
+    "results/modal-vllm-server-async-phase-order-compare-trial2"
+)
+DEFAULT_VLLM_SERVER_ASYNC_MULTITRIAL_OUTPUT = (
+    "results/modal-vllm-server-async-multitrial-aggregate"
+)
 DEFAULT_VLLM_PREFIX_CACHE_SWEEP_OUTPUT = "results/modal-vllm-prefix-cache-sweep"
 DEFAULT_VLLM_PREFIX_CACHE_COMPARE_OUTPUT = "results/modal-vllm-prefix-cache-compare"
 DEFAULT_VLLM_SWEEP_REQUEST_COUNTS = "1,2,4,8"
@@ -2778,6 +2785,7 @@ def main(
     server_sweep_dir: str = DEFAULT_VLLM_SERVER_SWEEP_OUTPUT,
     async_first_paired_dir: str = DEFAULT_VLLM_SERVER_ASYNC_PAIRED_OUTPUT,
     server_first_paired_dir: str = DEFAULT_VLLM_SERVER_ASYNC_PAIRED_SERVER_FIRST_OUTPUT,
+    phase_order_compare_dirs: str = DEFAULT_VLLM_SERVER_ASYNC_PHASE_ORDER_COMPARE_DIRS,
     output_dir: str = "",
 ) -> None:
     if mode == "gpu-probe":
@@ -3055,6 +3063,31 @@ def main(
         print(f"csv: {csv_path}")
         return
 
+    if mode == "vllm-server-async-multitrial-aggregate":
+        payload = _aggregate_vllm_server_async_phase_order_trials(
+            compare_dirs=[
+                Path(path)
+                for path in _split_csv(phase_order_compare_dirs)
+            ],
+        )
+        output_path = Path(output_dir or DEFAULT_VLLM_SERVER_ASYNC_MULTITRIAL_OUTPUT)
+        output_path.mkdir(parents=True, exist_ok=True)
+        json_path = output_path / "phase-order-multitrial.json"
+        csv_path = output_path / "phase-order-multitrial.csv"
+        json_path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+        _write_records_csv(csv_path, payload["summary"])
+
+        print(f"trials: {payload['trial_count']}")
+        for row in payload["summary"]:
+            print(
+                f"{row['metric']}: async_first_mean={row['async_first_mean']:.3f} "
+                f"server_first_mean={row['server_first_mean']:.3f} "
+                f"delta_mean={row['server_first_minus_async_first_mean']:.3f}"
+            )
+        print(f"json: {json_path}")
+        print(f"csv: {csv_path}")
+        return
+
     if mode == "vllm-sweep":
         enable_prefix_caching = _parse_bool_choice(prefix_caching, "prefix_caching")
         payload = run_vllm_sweep_remote.remote(
@@ -3119,7 +3152,8 @@ def main(
             "'vllm-server-streaming', 'vllm-server-concurrent', "
             "'vllm-server-sweep', 'vllm-server-sweep-compare', "
             "'vllm-server-async-paired', "
-            "'vllm-server-async-phase-order-compare', 'vllm-sweep', or "
+            "'vllm-server-async-phase-order-compare', "
+            "'vllm-server-async-multitrial-aggregate', 'vllm-sweep', or "
             "'vllm-prefix-cache-compare'"
         )
 
@@ -3572,7 +3606,7 @@ def _metric_distribution(
         f"{field}_mean": mean_value,
         f"{field}_median": _percentile(values, 50),
         f"{field}_p95": _percentile(values, 95),
-        f"{field}_cv": stddev / mean_value if mean_value else None,
+        f"{field}_cv": stddev / abs(mean_value) if mean_value else None,
     }
 
 
@@ -3801,6 +3835,83 @@ def _compare_vllm_server_async_phase_orders(
             ],
         },
         "rows": rows,
+    }
+
+
+def _aggregate_vllm_server_async_phase_order_trials(
+    compare_dirs: list[Path],
+) -> dict[str, Any]:
+    if not compare_dirs:
+        raise ValueError("compare_dirs must not be empty")
+
+    metric_sources = {
+        "throughput_ratio": "mean_server_to_async_throughput_ratio",
+        "first_event_ratio": "mean_server_to_async_first_event_ratio",
+        "latency_ratio": "mean_server_to_async_latency_ratio",
+        "tpot_ratio": "mean_server_to_async_tpot_ratio",
+    }
+    trials = []
+    for index, compare_dir in enumerate(compare_dirs, start=1):
+        path = compare_dir / "phase-order-compare.json"
+        payload = json.loads(path.read_text(encoding="utf-8"))
+        trial: dict[str, Any] = {
+            "trial_index": index,
+            "trial_label": compare_dir.name,
+            "compare_json": str(path),
+            "scenario_count": payload["scenario_count"],
+        }
+        for metric, source_field in metric_sources.items():
+            async_first_value = payload["async_first"][source_field]
+            server_first_value = payload["server_first"][source_field]
+            trial[f"async_first_{metric}"] = async_first_value
+            trial[f"server_first_{metric}"] = server_first_value
+            trial[f"server_first_minus_async_first_{metric}"] = (
+                server_first_value - async_first_value
+            )
+        trials.append(trial)
+
+    summary = []
+    for metric in metric_sources:
+        async_stats = _metric_distribution(trials, f"async_first_{metric}")
+        server_stats = _metric_distribution(trials, f"server_first_{metric}")
+        delta_stats = _metric_distribution(
+            trials,
+            f"server_first_minus_async_first_{metric}",
+        )
+        summary.append(
+            {
+                "metric": metric,
+                "trial_count": len(trials),
+                "async_first_mean": async_stats[f"async_first_{metric}_mean"],
+                "async_first_min": async_stats[f"async_first_{metric}_min"],
+                "async_first_max": async_stats[f"async_first_{metric}_max"],
+                "async_first_cv": async_stats[f"async_first_{metric}_cv"],
+                "server_first_mean": server_stats[f"server_first_{metric}_mean"],
+                "server_first_min": server_stats[f"server_first_{metric}_min"],
+                "server_first_max": server_stats[f"server_first_{metric}_max"],
+                "server_first_cv": server_stats[f"server_first_{metric}_cv"],
+                "server_first_minus_async_first_mean": delta_stats[
+                    f"server_first_minus_async_first_{metric}_mean"
+                ],
+                "server_first_minus_async_first_min": delta_stats[
+                    f"server_first_minus_async_first_{metric}_min"
+                ],
+                "server_first_minus_async_first_max": delta_stats[
+                    f"server_first_minus_async_first_{metric}_max"
+                ],
+                "server_first_minus_async_first_cv": delta_stats[
+                    f"server_first_minus_async_first_{metric}_cv"
+                ],
+            }
+        )
+
+    return {
+        "schema_version": 1,
+        "mode": "vllm-server-async-multitrial-aggregate",
+        "trial_count": len(trials),
+        "compare_dirs": [str(path) for path in compare_dirs],
+        "trials": trials,
+        "summary": summary,
     }
 
 
