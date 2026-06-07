@@ -57,6 +57,9 @@ DEFAULT_VLLM_PREFIX_CACHE_PAIRED_CACHE_FIRST_OUTPUT = (
 DEFAULT_VLLM_PREFIX_CACHE_PHASE_ORDER_COMPARE_OUTPUT = (
     "results/modal-vllm-prefix-cache-phase-order-compare"
 )
+DEFAULT_VLLM_PREFIX_CACHE_PROFILE_CONTROL_OUTPUT = (
+    "results/modal-vllm-prefix-cache-profile-control"
+)
 DEFAULT_VLLM_SWEEP_REQUEST_COUNTS = "1,2,4,8"
 DEFAULT_VLLM_SWEEP_PROMPT_PROFILES = "short,long"
 DEFAULT_VLLM_SWEEP_OUTPUT_TOKENS = "16,32"
@@ -70,6 +73,14 @@ DEFAULT_CONCURRENT_PROMPTS = (
     "Explain the difference between prefill and decode in LLM inference.",
     "Explain why long prompts can hurt tail latency in an inference server.",
 )
+VALID_VLLM_PROMPT_PROFILES = {
+    "short",
+    "long",
+    "mixed",
+    "shared_prefix",
+    "shared_prefix_long",
+    "matched_unique_prefix",
+}
 HF_CACHE_PATH = "/cache"
 VLLM_CACHE_PATH = "/vllm-cache"
 
@@ -355,11 +366,7 @@ def run_vllm_prefix_cache_paired_remote(
     phase_order = phase_order.lower().replace("-", "_")
     if phase_order not in {"cold_first", "cache_first"}:
         raise ValueError("phase_order must be cold_first or cache_first")
-    for profile in prompt_profile_values:
-        if profile not in {"short", "long", "mixed", "shared_prefix"}:
-            raise ValueError(
-                "prompt_profiles must contain only short, long, mixed, or shared_prefix"
-            )
+    _validate_vllm_prompt_profiles(prompt_profile_values)
 
     import vllm
 
@@ -1232,11 +1239,7 @@ def run_vllm_sweep_remote(
     output_token_values = _split_positive_int_csv(output_tokens, "output_tokens")
     if repeats <= 0:
         raise ValueError("repeats must be positive")
-    for profile in prompt_profile_values:
-        if profile not in {"short", "long", "mixed", "shared_prefix"}:
-            raise ValueError(
-                "prompt_profiles must contain only short, long, mixed, or shared_prefix"
-            )
+    _validate_vllm_prompt_profiles(prompt_profile_values)
 
     import vllm
 
@@ -1799,8 +1802,7 @@ def run_vllm_server_concurrent_remote(
 
     request_count_values = _split_positive_int_csv(request_counts, "request_counts")
     prompt_profile = prompt_profile.lower().replace("-", "_")
-    if prompt_profile not in {"short", "long", "mixed", "shared_prefix"}:
-        raise ValueError("prompt_profile must be short, long, mixed, or shared_prefix")
+    _validate_vllm_prompt_profiles([prompt_profile], label="prompt_profile")
     if max_new_tokens <= 0:
         raise ValueError("max_new_tokens must be positive")
     if ready_timeout_s <= 0:
@@ -2158,11 +2160,7 @@ def run_vllm_server_sweep_remote(
         raise ValueError("warmup_runs must be non-negative")
     if ready_timeout_s <= 0:
         raise ValueError("ready_timeout_s must be positive")
-    for profile in prompt_profile_values:
-        if profile not in {"short", "long", "mixed", "shared_prefix"}:
-            raise ValueError(
-                "prompt_profiles must contain only short, long, mixed, or shared_prefix"
-            )
+    _validate_vllm_prompt_profiles(prompt_profile_values)
 
     import vllm
 
@@ -2586,11 +2584,7 @@ def run_vllm_server_async_paired_remote(
     phase_order = phase_order.lower().replace("-", "_")
     if phase_order not in {"async_first", "server_first"}:
         raise ValueError("phase_order must be async_first or server_first")
-    for profile in prompt_profile_values:
-        if profile not in {"short", "long", "mixed", "shared_prefix"}:
-            raise ValueError(
-                "prompt_profiles must contain only short, long, mixed, or shared_prefix"
-            )
+    _validate_vllm_prompt_profiles(prompt_profile_values)
 
     import vllm
 
@@ -3210,6 +3204,7 @@ def main(
     long_phase_order_compare_dir: str = DEFAULT_VLLM_SERVER_ASYNC_LONG_PHASE_ORDER_COMPARE_OUTPUT,
     prefix_cache_cold_first_paired_dir: str = DEFAULT_VLLM_PREFIX_CACHE_PAIRED_OUTPUT,
     prefix_cache_cache_first_paired_dir: str = DEFAULT_VLLM_PREFIX_CACHE_PAIRED_CACHE_FIRST_OUTPUT,
+    prefix_cache_phase_order_compare_dir: str = DEFAULT_VLLM_PREFIX_CACHE_PHASE_ORDER_COMPARE_OUTPUT,
     output_dir: str = "",
 ) -> None:
     if mode == "gpu-probe":
@@ -3674,6 +3669,30 @@ def main(
         print(f"csv: {csv_path}")
         return
 
+    if mode == "vllm-prefix-cache-profile-control":
+        payload = _compare_vllm_prefix_cache_profile_controls(
+            phase_order_compare_dir=Path(prefix_cache_phase_order_compare_dir),
+        )
+        output_path = Path(output_dir or DEFAULT_VLLM_PREFIX_CACHE_PROFILE_CONTROL_OUTPUT)
+        output_path.mkdir(parents=True, exist_ok=True)
+        json_path = output_path / "prefix-cache-profile-control.json"
+        csv_path = output_path / "prefix-cache-profile-control.csv"
+        json_path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+        _write_records_csv(csv_path, payload["rows"])
+
+        print(f"profile_control_rows: {payload['row_count']}")
+        print(
+            "mean_shared_minus_control_cold_first_throughput_ratio: "
+            f"{payload['summary']['mean_shared_minus_control_cold_first_output_tokens_per_second_ratio']:.3f}"
+        )
+        print(
+            "mean_shared_minus_control_cache_first_throughput_ratio: "
+            f"{payload['summary']['mean_shared_minus_control_cache_first_output_tokens_per_second_ratio']:.3f}"
+        )
+        print(f"json: {json_path}")
+        print(f"csv: {csv_path}")
+        return
+
     if mode != "sweep":
         raise ValueError(
             "mode must be 'sweep', 'gpu-probe', 'tiny-inference', "
@@ -3685,7 +3704,8 @@ def main(
             "'vllm-server-async-multitrial-aggregate', "
             "'vllm-server-async-workload-compare', 'vllm-sweep', or "
             "'vllm-prefix-cache-paired', 'vllm-prefix-cache-compare', or "
-            "'vllm-prefix-cache-phase-order-compare'"
+            "'vllm-prefix-cache-phase-order-compare', or "
+            "'vllm-prefix-cache-profile-control'"
         )
 
     payload = run_capacity_sweep_remote.remote(
@@ -3728,6 +3748,20 @@ def _split_positive_int_csv(value: str, label: str) -> list[int]:
     return parsed_values
 
 
+def _validate_vllm_prompt_profiles(profiles: list[str], label: str = "prompt_profiles") -> None:
+    invalid_profiles = [
+        profile for profile in profiles
+        if profile not in VALID_VLLM_PROMPT_PROFILES
+    ]
+    if invalid_profiles:
+        valid_profiles = ", ".join(sorted(VALID_VLLM_PROMPT_PROFILES))
+        invalid_list = ", ".join(invalid_profiles)
+        raise ValueError(
+            f"{label} contains unsupported profiles: {invalid_list}. "
+            f"Valid profiles: {valid_profiles}"
+        )
+
+
 def _parse_bool_choice(value: str, label: str) -> bool:
     normalized = value.strip().lower()
     if normalized in {"1", "true", "yes", "y", "on", "enabled"}:
@@ -3766,10 +3800,18 @@ def _select_sweep_prompts(prompt_count: int, prompt_profile: str) -> list[str]:
         ]
     if prompt_profile == "shared_prefix":
         return _select_shared_prefix_prompts(prompt_count)
-    raise ValueError("prompt_profile must be short, long, mixed, or shared_prefix")
+    if prompt_profile == "shared_prefix_long":
+        return _select_shared_prefix_prompts(prompt_count, long_context=True)
+    if prompt_profile == "matched_unique_prefix":
+        return _select_matched_unique_prefix_prompts(prompt_count)
+    valid_profiles = ", ".join(sorted(VALID_VLLM_PROMPT_PROFILES))
+    raise ValueError(f"prompt_profile must be one of: {valid_profiles}")
 
 
-def _select_shared_prefix_prompts(prompt_count: int) -> list[str]:
+def _select_shared_prefix_prompts(
+    prompt_count: int,
+    long_context: bool = False,
+) -> list[str]:
     common_prefix = (
         "You are evaluating a GPU inference platform during a capacity incident. "
         "Every request in this batch shares the same incident brief, model "
@@ -3785,6 +3827,8 @@ def _select_shared_prefix_prompts(prompt_count: int) -> list[str]:
         "exactly, and request-specific details appear only after this shared "
         "brief. Use the shared context as ground truth and answer the final task."
     )
+    if long_context:
+        common_prefix = f"{common_prefix}\n\n{_long_prefix_cache_context()}"
     suffixes = [
         "Task A: explain how prefix caching changes prefill cost for this batch.",
         "Task B: identify which metric should move first if KV reuse is effective.",
@@ -3800,6 +3844,114 @@ def _select_shared_prefix_prompts(prompt_count: int) -> list[str]:
         suffix = suffixes[index % len(suffixes)]
         prompts.append(f"{common_prefix}\n\n{suffix}")
     return prompts
+
+
+def _select_matched_unique_prefix_prompts(prompt_count: int) -> list[str]:
+    suffixes = [
+        "Task A: explain how prefix caching changes prefill cost for this batch.",
+        "Task B: identify which metric should move first if KV reuse is effective.",
+        "Task C: describe the failure mode if cache blocks fragment under load.",
+        "Task D: compare throughput impact at one, two, four, and eight requests.",
+        "Task E: explain why decode may dominate after prefill is avoided.",
+        "Task F: name one measurement that would separate cache reuse from noise.",
+        "Task G: summarize how phase order could confound this experiment.",
+        "Task H: recommend the next benchmark to validate the observed effect.",
+    ]
+    prompts = []
+    for index in range(prompt_count):
+        suffix = suffixes[index % len(suffixes)]
+        unique_context = _matched_unique_prefix_context(index)
+        prompts.append(f"{unique_context}\n\n{suffix}")
+    return prompts
+
+
+def _long_prefix_cache_context() -> str:
+    return (
+        "Extended incident packet. The workload trace contains one warm model, "
+        "one tokenizer, a fixed CUDA graph policy, and an arrival burst where "
+        "all user requests begin with the same runbook, tenant limits, model "
+        "deployment notes, and safety constraints. The platform team suspects "
+        "prefill dominates early latency because every prompt repeats the same "
+        "policy and trace summary before reaching a short request-specific task. "
+        "The scheduler admits all requests at nearly the same time, so reusable "
+        "prefix blocks should reduce repeated attention work during prefill while "
+        "leaving decode token generation mostly unchanged.\n\n"
+        "Cache mechanics. Prefix-cache reuse is only valid when leading tokens "
+        "match exactly through complete cache blocks. A small edit near the front "
+        "of the prompt should destroy most reuse, while a long identical incident "
+        "brief should allow later requests to skip repeated prefix computation "
+        "after blocks are populated. This benchmark therefore watches first-token "
+        "latency, end-to-end p95 latency, output tokens per second, and time per "
+        "output token. A true cache effect should be strongest when multiple "
+        "concurrent requests share the same long leading context.\n\n"
+        "Operational constraints. The GPU is a memory-constrained T4, the model "
+        "is small enough to run cheaply but still exercises vLLM scheduling, "
+        "decoding is deterministic, output lengths are fixed by scenario, and "
+        "the paired experiment runs prefix caching off and on inside one Modal "
+        "worker. The evidence should separate prefix reuse from warm-engine "
+        "effects, phase order, prompt length, and random service noise.\n\n"
+        "Decision rule. If the shared-prefix profile improves with caching while "
+        "the matched unique-prefix profile does not, the result supports a real "
+        "prefix-cache claim. If both profiles improve similarly, the benchmark is "
+        "probably measuring warm state or shape effects instead of cache reuse."
+    )
+
+
+def _matched_unique_prefix_context(index: int) -> str:
+    labels = [
+        "Alpha-17",
+        "Bravo-26",
+        "Crimson-35",
+        "Delta-44",
+        "Ember-53",
+        "Falcon-62",
+        "Graphite-71",
+        "Harbor-80",
+    ]
+    label = labels[index % len(labels)]
+    return (
+        f"{label} incident packet. This request intentionally starts with a "
+        "different leading identifier, tenant trace, service owner, and rollout "
+        "history so the large reusable prefix from the shared-context workload "
+        "is not present. The workload still contains one warm model, one "
+        "tokenizer, a fixed CUDA graph policy, and an arrival burst where user "
+        "requests have comparable runbooks, tenant limits, model deployment "
+        "notes, and safety constraints. The platform team suspects prefill "
+        "dominates early latency because each prompt carries a long operational "
+        "brief before reaching a short request-specific task. The scheduler "
+        "admits all requests at nearly the same time, but the leading tokens "
+        "diverge before a reusable cache block can form.\n\n"
+        "Control mechanics. Prefix-cache reuse is only valid when leading tokens "
+        "match exactly through complete cache blocks. This control keeps the "
+        "prompt length, topic, vocabulary, and requested output shape close to "
+        "the shared-prefix case while changing the beginning of every prompt. "
+        "The benchmark therefore watches first-token latency, end-to-end p95 "
+        "latency, output tokens per second, and time per output token. A true "
+        "cache effect should be weaker here than in the shared-prefix profile.\n\n"
+        "Operational constraints. The GPU is a memory-constrained T4, the model "
+        "is small enough to run cheaply but still exercises vLLM scheduling, "
+        "decoding is deterministic, output lengths are fixed by scenario, and "
+        "the paired experiment runs prefix caching off and on inside one Modal "
+        "worker. The evidence should separate prefix reuse from warm-engine "
+        "effects, phase order, prompt length, and random service noise.\n\n"
+        "Synthetic trace detail. The tenant has eight queued requests, each "
+        "request references a different dashboard, rollout window, service "
+        "owner, alert identifier, and mitigation note, and each request carries "
+        "a separate prefill-heavy runbook. The content is intentionally similar "
+        "in topic and size to the shared-prefix workload, but it is arranged so "
+        "the beginning of every prompt diverges immediately. The benchmark "
+        "should therefore preserve comparable context length, vocabulary, output "
+        "budget, scheduler pressure, and decode work without providing a long "
+        "identical leading block for vLLM to reuse. Any remaining speedup in "
+        "this control is more likely to be phase order, warm allocation state, "
+        "or generic shape reuse than exact-prefix KV-cache reuse. The control "
+        "also keeps the same measurement vocabulary around prefill, decode, "
+        "tail latency, throughput, cache blocks, and paired phase ordering.\n\n"
+        "Decision rule. If this unique-prefix control improves by the same amount "
+        "as the shared-prefix profile, the result is probably not caused by "
+        "large exact-prefix reuse. If this control is flat while shared-prefix "
+        "improves, the benchmark has a stronger KV-cache signal."
+    )
 
 
 def _extend_prompt_for_context(prompt: str, index: int) -> str:
@@ -5044,6 +5196,7 @@ def _compare_vllm_prefix_cache_phase_orders(
             "request_count": int(cold_first["request_count"]),
             "max_new_tokens": int(cold_first["max_new_tokens"]),
             "pairs": int(cold_first["pairs"]),
+            "prompt_tokens_mean": _float_field(cold_first, "prompt_tokens_mean"),
         }
         for field in ratio_fields:
             cold_first_value = _float_field(cold_first, field)
@@ -5104,6 +5257,111 @@ def _compare_vllm_prefix_cache_phase_orders(
             ],
         },
         "rows": rows,
+    }
+
+
+def _compare_vllm_prefix_cache_profile_controls(
+    phase_order_compare_dir: Path,
+    shared_profile: str = "shared_prefix_long",
+    control_profile: str = "matched_unique_prefix",
+) -> dict[str, Any]:
+    phase_json = phase_order_compare_dir / "prefix-cache-phase-order-compare.json"
+    phase_csv = phase_order_compare_dir / "prefix-cache-phase-order-compare.csv"
+    phase_payload = json.loads(phase_json.read_text(encoding="utf-8"))
+    with phase_csv.open("r", encoding="utf-8", newline="") as handle:
+        rows = list(csv.DictReader(handle))
+
+    by_profile_and_shape = {
+        (
+            row["prompt_profile"],
+            int(row["request_count"]),
+            int(row["max_new_tokens"]),
+        ): row
+        for row in rows
+    }
+    shared_keys = {
+        (request_count, max_new_tokens)
+        for profile, request_count, max_new_tokens in by_profile_and_shape
+        if profile == shared_profile
+    }
+    control_keys = {
+        (request_count, max_new_tokens)
+        for profile, request_count, max_new_tokens in by_profile_and_shape
+        if profile == control_profile
+    }
+    comparison_keys = sorted(shared_keys & control_keys)
+    if not comparison_keys:
+        raise ValueError(
+            "No matching shared/control profile rows found in prefix-cache phase comparison"
+        )
+
+    metric_fields = (
+        "output_tokens_per_second_ratio",
+        "p95_first_event_ms_ratio",
+        "p95_latency_ms_ratio",
+        "p95_stream_tpot_ms_ratio",
+        "batch_wall_ms_ratio",
+    )
+    phase_labels = ("cold_first", "cache_first")
+    comparison_rows = []
+    for request_count, max_new_tokens in comparison_keys:
+        shared = by_profile_and_shape[(shared_profile, request_count, max_new_tokens)]
+        control = by_profile_and_shape[(control_profile, request_count, max_new_tokens)]
+        shared_prompt_tokens = _float_field(shared, "prompt_tokens_mean")
+        control_prompt_tokens = _float_field(control, "prompt_tokens_mean")
+        row: dict[str, Any] = {
+            "request_count": request_count,
+            "max_new_tokens": max_new_tokens,
+            "shared_profile": shared_profile,
+            "control_profile": control_profile,
+            "shared_scenario_id": shared["scenario_id"],
+            "control_scenario_id": control["scenario_id"],
+            "shared_prompt_tokens_mean": shared_prompt_tokens,
+            "control_prompt_tokens_mean": control_prompt_tokens,
+            "shared_to_control_prompt_tokens_mean_ratio": _ratio(
+                shared_prompt_tokens,
+                control_prompt_tokens,
+            ),
+        }
+        for phase_label in phase_labels:
+            for metric_field in metric_fields:
+                source_field = f"{phase_label}_{metric_field}"
+                shared_value = _float_field(shared, source_field)
+                control_value = _float_field(control, source_field)
+                row[f"shared_{source_field}"] = shared_value
+                row[f"control_{source_field}"] = control_value
+                row[f"shared_minus_control_{source_field}"] = _delta(
+                    shared_value,
+                    control_value,
+                )
+        comparison_rows.append(row)
+
+    summary_fields = [
+        field
+        for field in comparison_rows[0]
+        if field.startswith("shared_minus_control_")
+    ]
+    summary = {
+        f"mean_{field}": _mean_present(row[field] for row in comparison_rows)
+        for field in summary_fields
+    }
+    summary["mean_shared_to_control_prompt_tokens_mean_ratio"] = _mean_present(
+        row["shared_to_control_prompt_tokens_mean_ratio"]
+        for row in comparison_rows
+    )
+
+    return {
+        "schema_version": 1,
+        "mode": "vllm-prefix-cache-profile-control",
+        "phase_order_compare_dir": str(phase_order_compare_dir),
+        "phase_order_compare_json": str(phase_json),
+        "phase_order_compare_csv": str(phase_csv),
+        "shared_profile": shared_profile,
+        "control_profile": control_profile,
+        "row_count": len(comparison_rows),
+        "phase_order_scenario_count": phase_payload["scenario_count"],
+        "summary": summary,
+        "rows": comparison_rows,
     }
 
 

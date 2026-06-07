@@ -2288,6 +2288,154 @@ single noisy benchmark table.
 
 ## Next Step
 
-Training 024 should stress the cache mechanism directly: increase shared-prefix
+Training 024 stresses the cache mechanism directly: increase shared-prefix
 length and add a no-shared-prefix control with matched token counts. The goal is
 to separate true prefix reuse from warm-engine and shape effects.
+
+# Training 024: Long Prefix vs Matched Unique-Prefix Control
+
+Training 024 adds two prompt profiles and a profile-control comparison artifact:
+
+- `shared_prefix_long`: long common incident context followed by per-request
+  tasks.
+- `matched_unique_prefix`: similar topic, size, and output shape, but every
+  request starts with a different leading incident identifier so there is no
+  large reusable exact prefix.
+
+The paired benchmark runs both profiles in the same randomized scenario plan,
+then compares prefix caching on against off under both phase orders.
+
+## Goal
+
+Test whether the Training 023 prefix-cache win is specific to reusable leading
+tokens. A stronger result should show `shared_prefix_long` improving more than
+`matched_unique_prefix`, especially at higher request counts.
+
+## Commands
+
+```bash
+modal run modal_app.py --mode vllm-prefix-cache-paired \
+  --prompt-profiles shared_prefix_long,matched_unique_prefix \
+  --output-tokens 32 \
+  --request-counts 1,2,4,8 \
+  --repeats 3 \
+  --warmup-runs 1 \
+  --scenario-seed 568 \
+  --phase-order cold_first \
+  --output-dir results/modal-vllm-prefix-cache-long-control-paired
+```
+
+```bash
+modal run modal_app.py --mode vllm-prefix-cache-paired \
+  --prompt-profiles shared_prefix_long,matched_unique_prefix \
+  --output-tokens 32 \
+  --request-counts 1,2,4,8 \
+  --repeats 3 \
+  --warmup-runs 1 \
+  --scenario-seed 568 \
+  --phase-order cache_first \
+  --output-dir results/modal-vllm-prefix-cache-long-control-paired-cache-first
+```
+
+```bash
+modal run modal_app.py --mode vllm-prefix-cache-phase-order-compare \
+  --prefix-cache-cold-first-paired-dir results/modal-vllm-prefix-cache-long-control-paired \
+  --prefix-cache-cache-first-paired-dir results/modal-vllm-prefix-cache-long-control-paired-cache-first \
+  --output-dir results/modal-vllm-prefix-cache-long-control-phase-order
+```
+
+```bash
+modal run modal_app.py --mode vllm-prefix-cache-profile-control \
+  --prefix-cache-phase-order-compare-dir results/modal-vllm-prefix-cache-long-control-phase-order \
+  --output-dir results/modal-vllm-prefix-cache-long-control-profile-control
+```
+
+## Artifacts
+
+```text
+results/modal-vllm-prefix-cache-long-control-paired/paired-prefix-cache.json
+results/modal-vllm-prefix-cache-long-control-paired/paired-prefix-cache-summary.csv
+results/modal-vllm-prefix-cache-long-control-paired/paired-prefix-cache-runs.csv
+results/modal-vllm-prefix-cache-long-control-paired-cache-first/paired-prefix-cache.json
+results/modal-vllm-prefix-cache-long-control-paired-cache-first/paired-prefix-cache-summary.csv
+results/modal-vllm-prefix-cache-long-control-paired-cache-first/paired-prefix-cache-runs.csv
+results/modal-vllm-prefix-cache-long-control-phase-order/prefix-cache-phase-order-compare.json
+results/modal-vllm-prefix-cache-long-control-phase-order/prefix-cache-phase-order-compare.csv
+results/modal-vllm-prefix-cache-long-control-profile-control/prefix-cache-profile-control.json
+results/modal-vllm-prefix-cache-long-control-profile-control/prefix-cache-profile-control.csv
+```
+
+## Runtime Observations
+
+The prompt profiles are close in shape. In the generated vLLM scenarios,
+`shared_prefix_long` averages about `580` prompt tokens and
+`matched_unique_prefix` averages about `596` prompt tokens, so the shared-prefix
+profile is slightly shorter rather than advantaged by length.
+
+Engine initialization remained heavily order-dependent:
+
+| Phase order | Cold engine load | Cache engine load | Paired runs |
+| --- | ---: | ---: | ---: |
+| `cold_first` | `150123.545 ms` | `21549.514 ms` | 24 |
+| `cache_first` | `42724.541 ms` | `210350.960 ms` | 24 |
+
+## Result
+
+Ratios compare prefix caching on against prefix caching off. Throughput ratios
+above `1.0` are better. First-event, latency, and TPOT ratios below `1.0` are
+better.
+
+Mean paired-run ratios:
+
+| Phase order | Throughput ratio | First-event ratio | p95 latency ratio | TPOT ratio |
+| --- | ---: | ---: | ---: | ---: |
+| `cold_first` | 1.090 | 0.851 | 0.932 | 0.958 |
+| `cache_first` | 0.989 | 1.399 | 1.044 | 0.978 |
+
+Profile-control mean deltas compare `shared_prefix_long` against
+`matched_unique_prefix`. Positive throughput delta means the shared-prefix
+profile benefited more. Negative latency or TPOT delta means the shared-prefix
+profile benefited more.
+
+| Phase order | Throughput delta | First-event delta | p95 latency delta | TPOT delta |
+| --- | ---: | ---: | ---: | ---: |
+| `cold_first` | 0.051 | 0.016 | -0.046 | -0.066 |
+| `cache_first` | -0.034 | -0.010 | 0.029 | 0.024 |
+
+Throughput ratios by request count:
+
+| Requests | Shared cold-first | Control cold-first | Shared cache-first | Control cache-first |
+| ---: | ---: | ---: | ---: | ---: |
+| 1 | 1.013 | 1.117 | 1.057 | 1.054 |
+| 2 | 1.095 | 1.030 | 0.969 | 1.041 |
+| 4 | 1.080 | 0.967 | 0.986 | 0.929 |
+| 8 | 1.158 | 1.029 | 0.980 | 1.104 |
+
+## Interpretation
+
+This is a better experiment than Training 023, but the result is not a clean
+prefix-cache win.
+
+In `cold_first`, the long shared-prefix profile behaves the way we hoped:
+throughput improves more than the matched unique-prefix control at request
+counts `2`, `4`, and `8`, and p95 latency/TPOT also improve more on average.
+That supports the hypothesis that longer exact prefixes can expose reusable KV
+work.
+
+In `cache_first`, the result flips. The shared-prefix profile no longer beats
+the matched control on aggregate throughput or p95 latency, and the request
+count `8` control result is stronger than the shared-prefix result. That means
+the benchmark still has order sensitivity, warm-state effects, or small-model
+cache overhead large enough to contaminate the cache claim.
+
+The value of this artifact is that it prevents overclaiming. Training 024 turns
+"prefix caching helped in one paired run" into a sharper statement: the
+shared-prefix effect appears under one phase order, but it is not yet stable
+under a matched no-prefix control and phase-order inversion.
+
+## Next Step
+
+Training 025 should either add a multi-trial aggregate for the long-control
+profile comparison or instrument vLLM prefix-cache hit behavior directly. The
+next claim should not be "prefix caching is faster"; it should be "this measured
+cache-reuse signal survives repeated phase-order controls" or "it does not."

@@ -289,6 +289,39 @@ modal run modal_app.py --mode vllm-prefix-cache-paired \
 modal run modal_app.py --mode vllm-prefix-cache-phase-order-compare
 ```
 
+Run the long shared-prefix versus matched unique-prefix control:
+
+```bash
+modal run modal_app.py --mode vllm-prefix-cache-paired \
+  --prompt-profiles shared_prefix_long,matched_unique_prefix \
+  --output-tokens 32 \
+  --request-counts 1,2,4,8 \
+  --repeats 3 \
+  --warmup-runs 1 \
+  --scenario-seed 568 \
+  --phase-order cold_first \
+  --output-dir results/modal-vllm-prefix-cache-long-control-paired
+
+modal run modal_app.py --mode vllm-prefix-cache-paired \
+  --prompt-profiles shared_prefix_long,matched_unique_prefix \
+  --output-tokens 32 \
+  --request-counts 1,2,4,8 \
+  --repeats 3 \
+  --warmup-runs 1 \
+  --scenario-seed 568 \
+  --phase-order cache_first \
+  --output-dir results/modal-vllm-prefix-cache-long-control-paired-cache-first
+
+modal run modal_app.py --mode vllm-prefix-cache-phase-order-compare \
+  --prefix-cache-cold-first-paired-dir results/modal-vllm-prefix-cache-long-control-paired \
+  --prefix-cache-cache-first-paired-dir results/modal-vllm-prefix-cache-long-control-paired-cache-first \
+  --output-dir results/modal-vllm-prefix-cache-long-control-phase-order
+
+modal run modal_app.py --mode vllm-prefix-cache-profile-control \
+  --prefix-cache-phase-order-compare-dir results/modal-vllm-prefix-cache-long-control-phase-order \
+  --output-dir results/modal-vllm-prefix-cache-long-control-profile-control
+```
+
 Modal training is documented in
 [`docs/modal-training.md`](docs/modal-training.md).
 
