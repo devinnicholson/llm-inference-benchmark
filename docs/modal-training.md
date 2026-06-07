@@ -1890,6 +1890,112 @@ publish one universal server-overhead number.
 
 ## Next Step
 
-Move from phase-order methodology to workload breadth: repeat the
-counterbalanced benchmark for `long` prompts, where prefill and prefix behavior
-should matter more than the current short-prompt decode-heavy workload.
+Training 020 repeats the counterbalanced benchmark for `long` prompts, where
+prefill and prefix behavior should matter more than the current short-prompt
+decode-heavy workload.
+
+# Modal Training 020: Long-Prompt Phase-Order Benchmark
+
+## Goal
+
+Test whether the short-prompt phase-order finding holds when prompt lengths are
+larger. This run uses the same paired benchmark harness, seed, warmup policy,
+request counts, and output length, but switches `--prompt-profiles` from
+`short` to `long`.
+
+## Commands
+
+```bash
+modal run modal_app.py --mode vllm-server-async-paired \
+  --phase-order async_first \
+  --prompt-profiles long \
+  --output-tokens 32 \
+  --repeats 3 \
+  --warmup-runs 1 \
+  --scenario-seed 568 \
+  --output-dir results/modal-vllm-server-async-paired-long-async-first
+```
+
+```bash
+modal run modal_app.py --mode vllm-server-async-paired \
+  --phase-order server_first \
+  --prompt-profiles long \
+  --output-tokens 32 \
+  --repeats 3 \
+  --warmup-runs 1 \
+  --scenario-seed 568 \
+  --output-dir results/modal-vllm-server-async-paired-long-server-first
+```
+
+```bash
+modal run modal_app.py --mode vllm-server-async-phase-order-compare \
+  --async-first-paired-dir results/modal-vllm-server-async-paired-long-async-first \
+  --server-first-paired-dir results/modal-vllm-server-async-paired-long-server-first \
+  --output-dir results/modal-vllm-server-async-phase-order-compare-long
+```
+
+## Artifacts
+
+```text
+results/modal-vllm-server-async-paired-long-async-first/paired-server-async.json
+results/modal-vllm-server-async-paired-long-server-first/paired-server-async.json
+results/modal-vllm-server-async-phase-order-compare-long/phase-order-compare.json
+results/modal-vllm-server-async-phase-order-compare-long/phase-order-compare.csv
+```
+
+## Runtime Observations
+
+The long async-first run reported:
+
+- Async engine load: `176828.958 ms`
+- Server ready after async phase: `65351.094 ms`
+- Mean server/async throughput ratio: `1.024`
+- Mean server/async p95 latency ratio: `1.001`
+
+The long server-first run reported:
+
+- Server ready: `168297.585 ms`
+- Async engine load after server phase: `20254.661 ms`
+- Mean server/async throughput ratio: `0.904`
+- Mean server/async p95 latency ratio: `1.125`
+
+Both runs used `long_out32_n{1,2,4,8}` scenarios with `3` paired repeats.
+
+## Result
+
+The ratio columns are medians of paired per-run ratios for each scenario.
+
+| Requests | Async-first tok/s ratio | Server-first tok/s ratio | Async-first first-event ratio | Server-first first-event ratio | Async-first p95 latency ratio | Server-first p95 latency ratio | Async-first TPOT ratio | Server-first TPOT ratio |
+| ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| 1 | 1.005 | 0.969 | 1.469 | 1.226 | 0.986 | 1.031 | 0.944 | 1.020 |
+| 2 | 0.922 | 0.979 | 1.375 | 1.154 | 1.081 | 1.021 | 1.036 | 1.007 |
+| 4 | 0.970 | 0.900 | 1.244 | 1.324 | 1.030 | 1.110 | 1.110 | 1.070 |
+| 8 | 0.982 | 0.899 | 1.365 | 1.448 | 1.017 | 1.112 | 0.965 | 1.073 |
+
+Mean ratios:
+
+| Phase order | Server/Async tok/s | Server/Async first event | Server/Async p95 latency | Server/Async TPOT |
+| --- | ---: | ---: | ---: | ---: |
+| `async_first` | 1.024 | 1.333 | 1.001 | 0.978 |
+| `server_first` | 0.904 | 1.433 | 1.125 | 1.091 |
+
+## Interpretation
+
+Long prompts preserve the phase-order story, but they change the magnitude.
+When the server runs second, the throughput ratio is only slightly above `1.0`
+and p95 latency is essentially neutral. When the server runs first, throughput
+and latency are clearly worse than `AsyncLLM`.
+
+First-event latency remains the most stable server penalty. It is above `1.0`
+for both phase orders and every long-prompt request count.
+
+Compared with the short-prompt aggregate, the long-prompt workload makes the
+server's async-first advantage much weaker. That is useful evidence that prompt
+profile matters and that the artifact should not publish a single overhead
+number without workload stratification.
+
+## Next Step
+
+Add a short-vs-long workload comparison artifact that reads the short-prompt
+three-trial aggregate and the long-prompt comparison artifact, then reports how
+the phase-order effect changes with prompt profile.

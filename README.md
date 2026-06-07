@@ -182,6 +182,26 @@ Aggregate multiple phase-order comparisons:
 modal run modal_app.py --mode vllm-server-async-multitrial-aggregate
 ```
 
+Run the long-prompt phase-order workload:
+
+```bash
+modal run modal_app.py --mode vllm-server-async-paired \
+  --phase-order async_first \
+  --prompt-profiles long \
+  --output-tokens 32 \
+  --repeats 3 \
+  --warmup-runs 1 \
+  --output-dir results/modal-vllm-server-async-paired-long-async-first
+
+modal run modal_app.py --mode vllm-server-async-paired \
+  --phase-order server_first \
+  --prompt-profiles long \
+  --output-tokens 32 \
+  --repeats 3 \
+  --warmup-runs 1 \
+  --output-dir results/modal-vllm-server-async-paired-long-server-first
+```
+
 Run the first Modal vLLM concurrent workload:
 
 ```bash
