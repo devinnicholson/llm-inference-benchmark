@@ -3282,3 +3282,92 @@ Training 033 should turn this into a cleaner report artifact: a compact
 machine-readable stability summary with per-scenario hit-rate mean, min, max,
 and stdev, plus a markdown/CSV table that can be used directly in the eventual
 GitHub project report.
+
+# Training 033: Report-Ready Isolated Stability Summary
+
+Training 033 adds `vllm-prefix-cache-isolated-stability-summary`, a local
+artifact generator for the repeated isolated cache-metrics run.
+
+## Goal
+
+Convert the Training 032 run-level artifact into a compact report table with:
+
+- per-scenario cache-hit mean, min, max, and population standard deviation
+- shared-prefix versus matched-control deltas
+- JSON, CSV, and Markdown outputs
+
+This artifact is meant for the eventual GitHub report. It avoids re-running
+GPU inference and reads the existing isolated metrics run CSV.
+
+## Command
+
+```bash
+modal run modal_app.py --mode vllm-prefix-cache-isolated-stability-summary \
+  --prefix-cache-isolated-metrics-dir results/modal-vllm-prefix-cache-isolated-metrics-repeated \
+  --output-dir results/modal-vllm-prefix-cache-isolated-stability-summary
+```
+
+## Artifacts
+
+```text
+results/modal-vllm-prefix-cache-isolated-stability-summary/prefix-cache-isolated-stability-summary.json
+results/modal-vllm-prefix-cache-isolated-stability-summary/prefix-cache-isolated-stability-summary.csv
+results/modal-vllm-prefix-cache-isolated-stability-summary/prefix-cache-isolated-stability-profile-control.csv
+results/modal-vllm-prefix-cache-isolated-stability-summary/prefix-cache-isolated-stability-summary.md
+```
+
+## Result
+
+The summary contains six scenario rows and three profile-control rows.
+
+Top-level summary:
+
+| Metric | Value |
+| --- | ---: |
+| Mean shared-minus-control cache hit rate | 66.500 pp |
+| Max cache-hit population stdev | 0.000 |
+| Mean shared-minus-control throughput-ratio delta | 0.500 |
+| Mean shared-minus-control p95 latency-ratio delta | -0.048 |
+
+Scenario stability:
+
+| Profile | Requests | Runs | Cache hit mean | Min | Max | Stdev |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| `matched_unique_prefix` | 2 | 2 | 1.300% | 1.300% | 1.300% | 0.000 |
+| `matched_unique_prefix` | 4 | 2 | 2.000% | 2.000% | 2.000% | 0.000 |
+| `matched_unique_prefix` | 8 | 2 | 2.400% | 2.400% | 2.400% | 0.000 |
+| `shared_prefix_long` | 2 | 2 | 48.200% | 48.200% | 48.200% | 0.000 |
+| `shared_prefix_long` | 4 | 2 | 72.400% | 72.400% | 72.400% | 0.000 |
+| `shared_prefix_long` | 8 | 2 | 84.600% | 84.600% | 84.600% | 0.000 |
+
+Shared-prefix versus control:
+
+| Requests | Shared hit mean | Control hit mean | Delta |
+| ---: | ---: | ---: | ---: |
+| 2 | 48.200% | 1.300% | 46.900 pp |
+| 4 | 72.400% | 2.000% | 70.400 pp |
+| 8 | 84.600% | 2.400% | 82.200 pp |
+
+## Interpretation
+
+Training 033 turns the core cache-observability result into the first
+report-ready table. The main finding is crisp: under fresh-engine isolation,
+the shared-prefix workload has a large and repeat-stable prefix-cache hit-rate
+advantage, while the matched-unique control remains near zero.
+
+The zero standard deviation is especially useful for the project narrative. It
+means the metric path itself is stable for this small harness. We can now use
+the isolated metric table as a reference point while improving timing
+methodology separately.
+
+The throughput and latency deltas remain secondary. The report artifact carries
+them so future work can correlate cache behavior and timing, but the supported
+claim at this point is cache reuse, not end-to-end speedup.
+
+## Next Step
+
+Training 034 should improve timing methodology without weakening metric
+isolation. The clean next experiment is a two-window design: use one throwaway
+shape/JIT warmup window, call `do_log_stats()`, then run the measured scenario
+and capture a fresh metric window. If that works, compare isolated cache hit
+rate and timing under a fairer warmed-shape condition.

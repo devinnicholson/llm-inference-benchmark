@@ -444,6 +444,14 @@ modal run modal_app.py --mode vllm-prefix-cache-isolated-metrics \
   --output-dir results/modal-vllm-prefix-cache-isolated-metrics-repeated
 ```
 
+Generate the report-ready isolated cache stability summary:
+
+```bash
+modal run modal_app.py --mode vllm-prefix-cache-isolated-stability-summary \
+  --prefix-cache-isolated-metrics-dir results/modal-vllm-prefix-cache-isolated-metrics-repeated \
+  --output-dir results/modal-vllm-prefix-cache-isolated-stability-summary
+```
+
 Modal training is documented in
 [`docs/modal-training.md`](docs/modal-training.md).
 

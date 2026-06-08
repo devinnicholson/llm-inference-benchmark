@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import csv
 import json
+import statistics
 import time
 from pathlib import Path
 from typing import Any
@@ -70,6 +71,9 @@ DEFAULT_VLLM_PREFIX_CACHE_PROFILE_MULTITRIAL_OUTPUT = (
 )
 DEFAULT_VLLM_PREFIX_CACHE_ISOLATED_METRICS_OUTPUT = (
     "results/modal-vllm-prefix-cache-isolated-metrics"
+)
+DEFAULT_VLLM_PREFIX_CACHE_ISOLATED_STABILITY_OUTPUT = (
+    "results/modal-vllm-prefix-cache-isolated-stability-summary"
 )
 DEFAULT_VLLM_SWEEP_REQUEST_COUNTS = "1,2,4,8"
 DEFAULT_VLLM_SWEEP_PROMPT_PROFILES = "short,long"
@@ -3771,6 +3775,7 @@ def main(
     prefix_cache_cache_first_paired_dir: str = DEFAULT_VLLM_PREFIX_CACHE_PAIRED_CACHE_FIRST_OUTPUT,
     prefix_cache_phase_order_compare_dir: str = DEFAULT_VLLM_PREFIX_CACHE_PHASE_ORDER_COMPARE_OUTPUT,
     prefix_cache_profile_control_dirs: str = DEFAULT_VLLM_PREFIX_CACHE_PROFILE_CONTROL_DIRS,
+    prefix_cache_isolated_metrics_dir: str = DEFAULT_VLLM_PREFIX_CACHE_ISOLATED_METRICS_OUTPUT,
     output_dir: str = "",
 ) -> None:
     if mode == "gpu-probe":
@@ -4192,6 +4197,37 @@ def main(
         print(f"runs_csv: {run_csv_path}")
         return
 
+    if mode == "vllm-prefix-cache-isolated-stability-summary":
+        payload = _summarize_vllm_prefix_cache_isolated_stability(
+            isolated_metrics_dir=Path(prefix_cache_isolated_metrics_dir),
+        )
+        output_path = Path(output_dir or DEFAULT_VLLM_PREFIX_CACHE_ISOLATED_STABILITY_OUTPUT)
+        output_path.mkdir(parents=True, exist_ok=True)
+        json_path = output_path / "prefix-cache-isolated-stability-summary.json"
+        csv_path = output_path / "prefix-cache-isolated-stability-summary.csv"
+        profile_csv_path = output_path / "prefix-cache-isolated-stability-profile-control.csv"
+        markdown_path = output_path / "prefix-cache-isolated-stability-summary.md"
+        json_path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+        _write_records_csv(csv_path, payload["scenario_rows"])
+        _write_records_csv(profile_csv_path, payload["profile_control_rows"])
+        markdown_path.write_text(payload["markdown"], encoding="utf-8")
+
+        print(f"scenario_rows: {payload['scenario_count']}")
+        print(f"profile_control_rows: {payload['profile_control_row_count']}")
+        print(
+            "mean_shared_minus_control_cache_hit_rate_pct: "
+            f"{payload['summary']['mean_shared_minus_control_cache_hit_rate_pct']:.3f}"
+        )
+        print(
+            "max_cache_hit_rate_population_stdev: "
+            f"{payload['summary']['max_cache_hit_rate_population_stdev']:.3f}"
+        )
+        print(f"json: {json_path}")
+        print(f"csv: {csv_path}")
+        print(f"profile_csv: {profile_csv_path}")
+        print(f"markdown: {markdown_path}")
+        return
+
     if mode == "vllm-prefix-cache-isolated-metrics":
         request_count_values = _split_positive_int_csv(request_counts, "request_counts")
         prompt_profile_values = [
@@ -4540,6 +4576,7 @@ def main(
             "'vllm-server-async-phase-order-compare', "
             "'vllm-server-async-multitrial-aggregate', "
             "'vllm-server-async-workload-compare', 'vllm-sweep', or "
+            "'vllm-prefix-cache-isolated-stability-summary', "
             "'vllm-prefix-cache-isolated-metrics', "
             "'vllm-prefix-cache-paired', 'vllm-prefix-cache-compare', or "
             "'vllm-prefix-cache-phase-order-compare', or "
@@ -6121,6 +6158,242 @@ def _vllm_prefix_cache_isolated_profile_control_summary(
         for row in profile_control_rows
     )
     return summary
+
+
+def _summarize_vllm_prefix_cache_isolated_stability(
+    isolated_metrics_dir: Path,
+    shared_profile: str = "shared_prefix_long",
+    control_profile: str = "matched_unique_prefix",
+) -> dict[str, Any]:
+    source_json = isolated_metrics_dir / "prefix-cache-isolated-metrics.json"
+    source_runs_csv = isolated_metrics_dir / "prefix-cache-isolated-metrics-runs.csv"
+    source_payload = json.loads(source_json.read_text(encoding="utf-8"))
+    with source_runs_csv.open("r", encoding="utf-8", newline="") as handle:
+        run_rows = list(csv.DictReader(handle))
+    if not run_rows:
+        raise ValueError("No isolated metric run rows found")
+
+    def present_values(rows: list[dict[str, Any]], field: str) -> list[float]:
+        values = []
+        for row in rows:
+            value = _float_field(row, field)
+            if value is not None:
+                values.append(value)
+        return values
+
+    def add_stats(row: dict[str, Any], prefix: str, values: list[float]) -> None:
+        row[f"{prefix}_mean"] = sum(values) / len(values) if values else None
+        row[f"{prefix}_min"] = min(values) if values else None
+        row[f"{prefix}_max"] = max(values) if values else None
+        row[f"{prefix}_population_stdev"] = (
+            statistics.pstdev(values) if len(values) > 1 else 0.0 if values else None
+        )
+
+    grouped: dict[tuple[str, int, int], list[dict[str, Any]]] = {}
+    for row in run_rows:
+        key = (
+            row["prompt_profile"],
+            int(row["request_count"]),
+            int(row["max_new_tokens"]),
+        )
+        grouped.setdefault(key, []).append(row)
+
+    scenario_rows = []
+    for key, rows in sorted(grouped.items(), key=lambda item: (item[0][0], item[0][2], item[0][1])):
+        prompt_profile, request_count, max_new_tokens = key
+        first = rows[0]
+        scenario: dict[str, Any] = {
+            "scenario_id": first["scenario_id"],
+            "prompt_profile": prompt_profile,
+            "request_count": request_count,
+            "max_new_tokens": max_new_tokens,
+            "runs": len(rows),
+            "prompt_tokens_mean": _float_field(first, "prompt_tokens_mean"),
+        }
+        for field in (
+            "cold_prefix_cache_hit_rate_pct",
+            "cache_prefix_cache_hit_rate_pct",
+            "cache_to_cold_prefix_cache_hit_rate_pct_delta",
+            "cache_to_cold_output_tokens_per_second_ratio",
+            "cache_to_cold_p95_latency_ms_ratio",
+            "cache_to_cold_p95_stream_tpot_ms_ratio",
+        ):
+            add_stats(scenario, field, present_values(rows, field))
+        scenario_rows.append(scenario)
+
+    by_profile_and_shape = {
+        (
+            row["prompt_profile"],
+            int(row["request_count"]),
+            int(row["max_new_tokens"]),
+        ): row
+        for row in scenario_rows
+    }
+    comparison_keys = sorted(
+        {
+            (request_count, max_new_tokens)
+            for profile, request_count, max_new_tokens in by_profile_and_shape
+            if profile == shared_profile
+        }
+        & {
+            (request_count, max_new_tokens)
+            for profile, request_count, max_new_tokens in by_profile_and_shape
+            if profile == control_profile
+        }
+    )
+    profile_control_rows = []
+    for request_count, max_new_tokens in comparison_keys:
+        shared = by_profile_and_shape[(shared_profile, request_count, max_new_tokens)]
+        control = by_profile_and_shape[(control_profile, request_count, max_new_tokens)]
+        shared_hit = shared["cache_prefix_cache_hit_rate_pct_mean"]
+        control_hit = control["cache_prefix_cache_hit_rate_pct_mean"]
+        shared_throughput = shared["cache_to_cold_output_tokens_per_second_ratio_mean"]
+        control_throughput = control["cache_to_cold_output_tokens_per_second_ratio_mean"]
+        shared_latency = shared["cache_to_cold_p95_latency_ms_ratio_mean"]
+        control_latency = control["cache_to_cold_p95_latency_ms_ratio_mean"]
+        profile_control_rows.append(
+            {
+                "request_count": request_count,
+                "max_new_tokens": max_new_tokens,
+                "shared_profile": shared_profile,
+                "control_profile": control_profile,
+                "shared_cache_hit_rate_pct_mean": shared_hit,
+                "control_cache_hit_rate_pct_mean": control_hit,
+                "shared_minus_control_cache_hit_rate_pct": _delta(
+                    shared_hit,
+                    control_hit,
+                ),
+                "shared_cache_hit_rate_pct_population_stdev": shared[
+                    "cache_prefix_cache_hit_rate_pct_population_stdev"
+                ],
+                "control_cache_hit_rate_pct_population_stdev": control[
+                    "cache_prefix_cache_hit_rate_pct_population_stdev"
+                ],
+                "shared_cache_to_cold_throughput_ratio_mean": shared_throughput,
+                "control_cache_to_cold_throughput_ratio_mean": control_throughput,
+                "shared_minus_control_cache_to_cold_throughput_ratio_mean": _delta(
+                    shared_throughput,
+                    control_throughput,
+                ),
+                "shared_cache_to_cold_p95_latency_ratio_mean": shared_latency,
+                "control_cache_to_cold_p95_latency_ratio_mean": control_latency,
+                "shared_minus_control_cache_to_cold_p95_latency_ratio_mean": _delta(
+                    shared_latency,
+                    control_latency,
+                ),
+            }
+        )
+
+    cache_stdevs = [
+        row["cache_prefix_cache_hit_rate_pct_population_stdev"]
+        for row in scenario_rows
+        if row["cache_prefix_cache_hit_rate_pct_population_stdev"] is not None
+    ]
+    summary = {
+        "mean_shared_minus_control_cache_hit_rate_pct": _mean_present(
+            row["shared_minus_control_cache_hit_rate_pct"]
+            for row in profile_control_rows
+        ),
+        "mean_shared_minus_control_cache_to_cold_throughput_ratio": _mean_present(
+            row["shared_minus_control_cache_to_cold_throughput_ratio_mean"]
+            for row in profile_control_rows
+        ),
+        "mean_shared_minus_control_cache_to_cold_p95_latency_ratio": _mean_present(
+            row["shared_minus_control_cache_to_cold_p95_latency_ratio_mean"]
+            for row in profile_control_rows
+        ),
+        "max_cache_hit_rate_population_stdev": max(cache_stdevs) if cache_stdevs else None,
+    }
+    markdown = _format_vllm_prefix_cache_isolated_stability_markdown(
+        source_dir=isolated_metrics_dir,
+        scenario_rows=scenario_rows,
+        profile_control_rows=profile_control_rows,
+        summary=summary,
+    )
+    return {
+        "schema_version": 1,
+        "mode": "vllm-prefix-cache-isolated-stability-summary",
+        "source_dir": str(isolated_metrics_dir),
+        "source_json": str(source_json),
+        "source_runs_csv": str(source_runs_csv),
+        "source_scenario_count": source_payload["scenario_count"],
+        "source_paired_run_count": source_payload["paired_run_count"],
+        "source_remote_call_count": source_payload["remote_call_count"],
+        "scenario_count": len(scenario_rows),
+        "profile_control_row_count": len(profile_control_rows),
+        "shared_profile": shared_profile,
+        "control_profile": control_profile,
+        "summary": summary,
+        "scenario_rows": scenario_rows,
+        "profile_control_rows": profile_control_rows,
+        "markdown": markdown,
+    }
+
+
+def _format_vllm_prefix_cache_isolated_stability_markdown(
+    source_dir: Path,
+    scenario_rows: list[dict[str, Any]],
+    profile_control_rows: list[dict[str, Any]],
+    summary: dict[str, Any],
+) -> str:
+    lines = [
+        "# Prefix-Cache Isolated Stability Summary",
+        "",
+        f"Source: `{source_dir}`",
+        "",
+        "## Summary",
+        "",
+        "| Metric | Value |",
+        "| --- | ---: |",
+        (
+            "| Mean shared-minus-control cache hit rate | "
+            f"{summary['mean_shared_minus_control_cache_hit_rate_pct']:.3f} pp |"
+        ),
+        (
+            "| Max cache-hit population stdev | "
+            f"{summary['max_cache_hit_rate_population_stdev']:.3f} |"
+        ),
+        "",
+        "## Scenario Stability",
+        "",
+        "| Profile | Requests | Runs | Cache Hit Mean | Min | Max | Stdev |",
+        "| --- | ---: | ---: | ---: | ---: | ---: | ---: |",
+    ]
+    for row in scenario_rows:
+        lines.append(
+            "| "
+            f"`{row['prompt_profile']}` | "
+            f"{row['request_count']} | "
+            f"{row['runs']} | "
+            f"{row['cache_prefix_cache_hit_rate_pct_mean']:.3f}% | "
+            f"{row['cache_prefix_cache_hit_rate_pct_min']:.3f}% | "
+            f"{row['cache_prefix_cache_hit_rate_pct_max']:.3f}% | "
+            f"{row['cache_prefix_cache_hit_rate_pct_population_stdev']:.3f} |"
+        )
+    lines.extend(
+        [
+            "",
+            "## Shared Vs Control",
+            "",
+            (
+                "| Requests | Shared Hit Mean | Control Hit Mean | "
+                "Delta | Throughput Delta | p95 Latency Delta |"
+            ),
+            "| ---: | ---: | ---: | ---: | ---: | ---: |",
+        ]
+    )
+    for row in profile_control_rows:
+        lines.append(
+            "| "
+            f"{row['request_count']} | "
+            f"{row['shared_cache_hit_rate_pct_mean']:.3f}% | "
+            f"{row['control_cache_hit_rate_pct_mean']:.3f}% | "
+            f"{row['shared_minus_control_cache_hit_rate_pct']:.3f} pp | "
+            f"{row['shared_minus_control_cache_to_cold_throughput_ratio_mean']:.3f} | "
+            f"{row['shared_minus_control_cache_to_cold_p95_latency_ratio_mean']:.3f} |"
+        )
+    lines.append("")
+    return "\n".join(lines)
 
 
 def _compare_vllm_prefix_cache_phase_orders(
