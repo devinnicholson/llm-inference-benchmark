@@ -6413,3 +6413,87 @@ results/prefix-cache-study-mega-long-qwen05b-l4-merged-r8/intervals.md
 Use this repeat-count-matched L4 result as the control point for a new axis:
 larger small model on L4, larger batch pressure at the same context shape, or a
 backend comparison using the same prompt/control pair.
+
+# Training 066: Qwen 1.5B Mega-Long L4 Smoke
+
+Training 066 keeps the L4 mega-long prompt/control pair fixed and changes only
+the model from `Qwen/Qwen2.5-0.5B-Instruct` to
+`Qwen/Qwen2.5-1.5B-Instruct`. This starts the model-size axis after the 0.5B L4
+r8 context-shape result.
+
+## Goal
+
+Check whether the mega-long prefix-cache signal survives a larger small model
+on the same L4 hardware, and record how model size changes the KV-cache budget.
+
+## Run
+
+```bash
+modal run modal_app.py --mode vllm-prefix-cache-isolated-neutral-warmup \
+  --modal-gpu L4 \
+  --hf-model Qwen/Qwen2.5-1.5B-Instruct \
+  --prompt-profiles shared_prefix_mega_long_no_repeat_variant,matched_unique_prefix_mega_long_no_repeat_variant \
+  --output-tokens 8 \
+  --request-counts 16 \
+  --repeats 2 \
+  --scenario-seed 2001 \
+  --phase-order cold_first \
+  --kv-cache-metrics-sample 1.0 \
+  --warmup-prompt-profile neutral_mega_long \
+  --prefix-cache-shared-profile shared_prefix_mega_long_no_repeat_variant \
+  --prefix-cache-control-profile matched_unique_prefix_mega_long_no_repeat_variant \
+  --output-dir results/modal-vllm-prefix-cache-mega-long-qwen15b-l4-n16-smoke-r2
+
+modal run modal_app.py --mode vllm-prefix-cache-isolated-stability-summary \
+  --prefix-cache-isolated-metrics-dir results/modal-vllm-prefix-cache-mega-long-qwen15b-l4-n16-smoke-r2 \
+  --prefix-cache-shared-profile shared_prefix_mega_long_no_repeat_variant \
+  --prefix-cache-control-profile matched_unique_prefix_mega_long_no_repeat_variant \
+  --output-dir results/modal-vllm-prefix-cache-mega-long-qwen15b-l4-n16-smoke-r2-summary
+
+python3 scripts/build_prefix_cache_study_table.py \
+  --summary-json results/modal-vllm-prefix-cache-mega-long-qwen15b-l4-n16-smoke-r2-summary/prefix-cache-isolated-stability-summary.json \
+  --output-dir results/prefix-cache-study-mega-long-qwen15b-l4-smoke-r2
+```
+
+## Hardware And Capacity Evidence
+
+The artifact records `modal_gpu: L4`,
+`model_id: Qwen/Qwen2.5-1.5B-Instruct`, and `nvidia-smi` samples such as:
+
+```text
+NVIDIA L4, 23034, 22564, 580.95.05
+NVIDIA L4, 23034, 22370, 580.95.05
+```
+
+During the remote run, vLLM downloaded a `2.88 GiB` checkpoint, reported
+`2.98 GiB` model memory, and reported `158,540` GPU KV-cache tokens available
+for `max_model_len=3790`. The 0.5B L4 mega-long runs reported `695,249` GPU
+KV-cache tokens at the same context length.
+
+## Result
+
+The smoke artifact has `4` scenario-level cold/cache paired runs, or `2`
+shared/control comparisons, for `n=16`.
+
+- control direct counter hit rate: `0.446%`
+- shared direct counter hit rate: `93.051%`
+- shared-minus-control direct counter delta: `92.605 pp`, interval
+  `92.512 pp` to `92.697 pp`
+- p95 first-event/TTFT ratio delta: `-0.915`, interval `-0.915` to `-0.915`
+- throughput-ratio delta: `7.342`, interval `7.333` to `7.352`
+- p95 latency-ratio delta: `-0.898`, interval `-0.908` to `-0.888`
+- p95 stream TPOT-ratio delta: `-0.948`, interval `-0.948` to `-0.947`
+
+Generated artifacts:
+
+```text
+results/modal-vllm-prefix-cache-mega-long-qwen15b-l4-n16-smoke-r2/prefix-cache-isolated-metrics.json
+results/modal-vllm-prefix-cache-mega-long-qwen15b-l4-n16-smoke-r2-summary/prefix-cache-isolated-stability-summary.md
+results/prefix-cache-study-mega-long-qwen15b-l4-smoke-r2/key-results.md
+results/prefix-cache-study-mega-long-qwen15b-l4-smoke-r2/intervals.md
+```
+
+## Next Step
+
+Promote this Qwen 1.5B L4 model-size smoke to r5, then compare its stability
+against the Qwen 0.5B L4 r8 control point.

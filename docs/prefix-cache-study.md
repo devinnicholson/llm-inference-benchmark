@@ -199,6 +199,24 @@ latency-ratio delta `-0.825`, and p95 stream TPOT-ratio delta `-0.891`. This is
 now the best L4 context-shape artifact and is repeat-count-matched to the T4
 r8 results.
 
+Training 066 uses the same L4 mega-long context shape on
+`Qwen/Qwen2.5-1.5B-Instruct`:
+
+```text
+results/prefix-cache-study-mega-long-qwen15b-l4-smoke-r2/key-results.md
+results/prefix-cache-study-mega-long-qwen15b-l4-smoke-r2/intervals.md
+```
+
+The larger model is a model-size smoke, not a replacement for the 0.5B r8
+artifact. During the remote run, vLLM loaded a `2.88 GiB` checkpoint, reported
+`2.98 GiB` model memory, and reduced available GPU KV-cache capacity from
+`695,249` tokens on 0.5B to `158,540` tokens at the same `max_model_len=3790`.
+Despite the smaller KV-cache budget and lower prompt throughput, the r2 smoke
+preserves the direct-cache mechanism with a `92.605 pp` direct counter delta
+and favorable timing intervals: p95 first-event/TTFT ratio delta `-0.915`,
+throughput-ratio delta `7.342`, p95 latency-ratio delta `-0.898`, and p95
+stream TPOT-ratio delta `-0.948`.
+
 ## Reproduce
 
 Run the no-repeat n=16 fixed-shape stability pass:
@@ -311,10 +329,14 @@ results/modal-vllm-prefix-cache-mega-long-qwen05b-l4-n16-merged-r8/prefix-cache-
 results/modal-vllm-prefix-cache-mega-long-qwen05b-l4-n16-merged-r8-summary/prefix-cache-isolated-stability-summary.md
 results/prefix-cache-study-mega-long-qwen05b-l4-merged-r8/key-results.md
 results/prefix-cache-study-mega-long-qwen05b-l4-merged-r8/intervals.md
+results/modal-vllm-prefix-cache-mega-long-qwen15b-l4-n16-smoke-r2/prefix-cache-isolated-metrics.json
+results/modal-vllm-prefix-cache-mega-long-qwen15b-l4-n16-smoke-r2-summary/prefix-cache-isolated-stability-summary.md
+results/prefix-cache-study-mega-long-qwen15b-l4-smoke-r2/key-results.md
+results/prefix-cache-study-mega-long-qwen15b-l4-smoke-r2/intervals.md
 ```
 
 ## Next Step
 
-Use the same L4 mega-long context shape to test a larger small model, or run a
-backend comparison with the same prompt/control pair. The next useful artifact
-should separate "longer reusable prefix" from "model size" or backend behavior.
+Promote the Qwen 1.5B L4 model-size smoke with more repeats, or run a backend
+comparison with the same prompt/control pair. The next useful artifact should
+separate "larger model" from backend behavior.
