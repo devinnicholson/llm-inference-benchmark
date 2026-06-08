@@ -232,6 +232,22 @@ latency-ratio delta `-0.898`, and p95 stream TPOT-ratio delta `-0.949`. This
 is now the best Qwen 1.5B L4 model-size artifact and the current larger-model
 control point.
 
+Training 068 promotes the Qwen 1.5B L4 model-size axis to r8, matching the
+repeat count of the strongest Qwen 0.5B L4 context-shape artifact:
+
+```text
+results/prefix-cache-study-mega-long-qwen15b-l4-merged-r8/key-results.md
+results/prefix-cache-study-mega-long-qwen15b-l4-merged-r8/intervals.md
+```
+
+The merged r8 artifact has `16` scenario-level cold/cache paired runs, which
+produce `8` shared/control comparisons. It keeps the direct-cache mechanism
+stable with a `92.628 pp` direct counter delta and favorable timing intervals:
+p95 first-event/TTFT ratio delta `-0.910`, throughput-ratio delta `7.491`, p95
+latency-ratio delta `-0.892`, and p95 stream TPOT-ratio delta `-0.947`. This is
+now the best larger-model L4 artifact and is repeat-count-matched against the
+Qwen 0.5B L4 r8 control point.
+
 ## Reproduce
 
 Run the no-repeat n=16 fixed-shape stability pass:
@@ -353,10 +369,16 @@ results/modal-vllm-prefix-cache-mega-long-qwen15b-l4-n16-merged-r5/prefix-cache-
 results/modal-vllm-prefix-cache-mega-long-qwen15b-l4-n16-merged-r5-summary/prefix-cache-isolated-stability-summary.md
 results/prefix-cache-study-mega-long-qwen15b-l4-merged-r5/key-results.md
 results/prefix-cache-study-mega-long-qwen15b-l4-merged-r5/intervals.md
+results/modal-vllm-prefix-cache-mega-long-qwen15b-l4-n16-chunk-r3-seed2201/prefix-cache-isolated-metrics.json
+results/modal-vllm-prefix-cache-mega-long-qwen15b-l4-n16-merged-r8/prefix-cache-isolated-metrics.json
+results/modal-vllm-prefix-cache-mega-long-qwen15b-l4-n16-merged-r8-summary/prefix-cache-isolated-stability-summary.md
+results/prefix-cache-study-mega-long-qwen15b-l4-merged-r8/key-results.md
+results/prefix-cache-study-mega-long-qwen15b-l4-merged-r8/intervals.md
 ```
 
 ## Next Step
 
-Promote the Qwen 1.5B L4 model-size result to r8, or run a backend comparison
-with the same prompt/control pair. The next useful artifact should separate
-"larger model" from backend behavior.
+Use the Qwen 1.5B L4 r8 artifact as the larger-model control point for a
+backend comparison or larger batch-pressure run with the same prompt/control
+pair. The next useful artifact should separate "larger model" from backend
+behavior.

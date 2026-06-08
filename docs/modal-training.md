@@ -6583,3 +6583,89 @@ results/prefix-cache-study-mega-long-qwen15b-l4-merged-r5/intervals.md
 Promote this Qwen 1.5B L4 model-size artifact to r8, then decide whether the
 next axis should be backend comparison or larger batch pressure at the same
 context shape.
+
+# Training 068: Qwen 1.5B Mega-Long L4 Merged r8
+
+Training 068 adds one more three-repeat Qwen 1.5B mega-long L4 chunk and
+merges it with the Training 067 r5 artifact. This gives the larger-model L4
+axis the same repeat count as the Qwen 0.5B L4 r8 context-shape control.
+
+## Goal
+
+Turn the Qwen 1.5B L4 r5 model-size result into a repeat-count-matched r8
+artifact and check whether the larger-model cache and timing intervals remain
+stable.
+
+## Chunk Run
+
+```bash
+modal run modal_app.py --mode vllm-prefix-cache-isolated-neutral-warmup \
+  --modal-gpu L4 \
+  --hf-model Qwen/Qwen2.5-1.5B-Instruct \
+  --prompt-profiles shared_prefix_mega_long_no_repeat_variant,matched_unique_prefix_mega_long_no_repeat_variant \
+  --output-tokens 8 \
+  --request-counts 16 \
+  --repeats 3 \
+  --scenario-seed 2201 \
+  --phase-order cold_first \
+  --kv-cache-metrics-sample 1.0 \
+  --warmup-prompt-profile neutral_mega_long \
+  --prefix-cache-shared-profile shared_prefix_mega_long_no_repeat_variant \
+  --prefix-cache-control-profile matched_unique_prefix_mega_long_no_repeat_variant \
+  --output-dir results/modal-vllm-prefix-cache-mega-long-qwen15b-l4-n16-chunk-r3-seed2201
+```
+
+The chunk produced `6` scenario-level cold/cache paired runs, or `3`
+shared/control comparisons, and preserved the L4 hardware evidence in
+`nvidia-smi` samples. The run again reported `158,540` GPU KV-cache tokens for
+`max_model_len=3790`.
+
+## Merge And Report
+
+```bash
+modal run modal_app.py --mode vllm-prefix-cache-isolated-merge \
+  --prefix-cache-isolated-merge-dirs results/modal-vllm-prefix-cache-mega-long-qwen15b-l4-n16-merged-r5,results/modal-vllm-prefix-cache-mega-long-qwen15b-l4-n16-chunk-r3-seed2201 \
+  --prefix-cache-shared-profile shared_prefix_mega_long_no_repeat_variant \
+  --prefix-cache-control-profile matched_unique_prefix_mega_long_no_repeat_variant \
+  --output-dir results/modal-vllm-prefix-cache-mega-long-qwen15b-l4-n16-merged-r8
+
+modal run modal_app.py --mode vllm-prefix-cache-isolated-stability-summary \
+  --prefix-cache-isolated-metrics-dir results/modal-vllm-prefix-cache-mega-long-qwen15b-l4-n16-merged-r8 \
+  --prefix-cache-shared-profile shared_prefix_mega_long_no_repeat_variant \
+  --prefix-cache-control-profile matched_unique_prefix_mega_long_no_repeat_variant \
+  --output-dir results/modal-vllm-prefix-cache-mega-long-qwen15b-l4-n16-merged-r8-summary
+
+python3 scripts/build_prefix_cache_study_table.py \
+  --summary-json results/modal-vllm-prefix-cache-mega-long-qwen15b-l4-n16-merged-r8-summary/prefix-cache-isolated-stability-summary.json \
+  --output-dir results/prefix-cache-study-mega-long-qwen15b-l4-merged-r8
+```
+
+## Result
+
+The merged artifact has `16` scenario-level cold/cache paired runs, or `8`
+shared/control comparisons, for `n=16`.
+
+- control direct counter hit rate: `0.447%`
+- shared direct counter hit rate: `93.075%`
+- shared-minus-control direct counter delta: `92.628 pp`, interval
+  `92.581 pp` to `92.675 pp`
+- p95 first-event/TTFT ratio delta: `-0.910`, interval `-0.918` to `-0.900`
+- throughput-ratio delta: `7.491`, interval `7.222` to `7.795`
+- p95 latency-ratio delta: `-0.892`, interval `-0.903` to `-0.881`
+- p95 stream TPOT-ratio delta: `-0.947`, interval `-0.954` to `-0.941`
+
+Generated artifacts:
+
+```text
+results/modal-vllm-prefix-cache-mega-long-qwen15b-l4-n16-chunk-r3-seed2201/prefix-cache-isolated-metrics.json
+results/modal-vllm-prefix-cache-mega-long-qwen15b-l4-n16-merged-r8/prefix-cache-isolated-metrics.json
+results/modal-vllm-prefix-cache-mega-long-qwen15b-l4-n16-merged-r8-summary/prefix-cache-isolated-stability-summary.md
+results/prefix-cache-study-mega-long-qwen15b-l4-merged-r8/key-results.md
+results/prefix-cache-study-mega-long-qwen15b-l4-merged-r8/intervals.md
+```
+
+## Next Step
+
+Use the Qwen 1.5B L4 r8 result as the larger-model control point for either a
+backend comparison or a larger batch-pressure run with the same prompt/control
+pair.
