@@ -108,8 +108,10 @@ VALID_VLLM_PROMPT_PROFILES = {
     "shared_prefix",
     "shared_prefix_long",
     "shared_prefix_long_variant",
+    "shared_prefix_long_no_repeat_variant",
     "matched_unique_prefix",
     "matched_unique_prefix_variant",
+    "matched_unique_prefix_no_repeat_variant",
     "neutral_long",
 }
 HF_CACHE_PATH = "/cache"
@@ -5216,12 +5218,24 @@ def _select_sweep_prompts(
         return _select_shared_prefix_prompts(prompt_count, long_context=True)
     if prompt_profile == "shared_prefix_long_variant":
         return _select_shared_prefix_variant_prompts(prompt_count, variant_index)
+    if prompt_profile == "shared_prefix_long_no_repeat_variant":
+        return _select_shared_prefix_variant_prompts(
+            prompt_count,
+            variant_index,
+            allow_prompt_repeats=False,
+        )
     if prompt_profile == "matched_unique_prefix":
         return _select_matched_unique_prefix_prompts(prompt_count)
     if prompt_profile == "matched_unique_prefix_variant":
         return _select_matched_unique_prefix_variant_prompts(
             prompt_count,
             variant_index,
+        )
+    if prompt_profile == "matched_unique_prefix_no_repeat_variant":
+        return _select_matched_unique_prefix_variant_prompts(
+            prompt_count,
+            variant_index,
+            allow_prompt_repeats=False,
         )
     if prompt_profile == "neutral_long":
         return _select_neutral_long_prompts(prompt_count)
@@ -5289,6 +5303,7 @@ def _select_matched_unique_prefix_prompts(prompt_count: int) -> list[str]:
 def _select_shared_prefix_variant_prompts(
     prompt_count: int,
     variant_index: int,
+    allow_prompt_repeats: bool = True,
 ) -> list[str]:
     family = _prefix_cache_variant_family(variant_index)
     common_prefix = (
@@ -5309,10 +5324,18 @@ def _select_shared_prefix_variant_prompts(
         "dominated by scheduler and kernel noise. A good result separates "
         "large exact-prefix reuse from generic warm-engine effects."
     )
-    suffixes = _variant_task_suffixes(family)
+    suffixes = _variant_task_suffixes(
+        family,
+        prompt_count,
+        allow_repeats=allow_prompt_repeats,
+    )
     prompts = []
     for index in range(prompt_count):
-        suffix = suffixes[index % len(suffixes)]
+        suffix = (
+            suffixes[index % len(suffixes)]
+            if allow_prompt_repeats
+            else suffixes[index]
+        )
         prompts.append(f"{common_prefix}\n\n{suffix}")
     return prompts
 
@@ -5320,23 +5343,27 @@ def _select_shared_prefix_variant_prompts(
 def _select_matched_unique_prefix_variant_prompts(
     prompt_count: int,
     variant_index: int,
+    allow_prompt_repeats: bool = True,
 ) -> list[str]:
     family = _prefix_cache_variant_family(variant_index)
-    suffixes = _variant_task_suffixes(family)
-    labels = [
-        "Atlas-01",
-        "Beacon-02",
-        "Cinder-03",
-        "Drift-04",
-        "Ember-05",
-        "Flux-06",
-        "Graph-07",
-        "Helix-08",
-    ]
+    suffixes = _variant_task_suffixes(
+        family,
+        prompt_count,
+        allow_repeats=allow_prompt_repeats,
+    )
+    labels = _variant_control_labels(prompt_count, allow_repeats=allow_prompt_repeats)
     prompts = []
     for index in range(prompt_count):
-        label = labels[index % len(labels)]
-        suffix = suffixes[index % len(suffixes)]
+        label = (
+            labels[index % len(labels)]
+            if allow_prompt_repeats
+            else labels[index]
+        )
+        suffix = (
+            suffixes[index % len(suffixes)]
+            if allow_prompt_repeats
+            else suffixes[index]
+        )
         unique_context = (
             f"{label} {family['title']} control packet. This request starts "
             "with a distinct tenant marker, dashboard route, owner alias, "
@@ -5420,8 +5447,54 @@ def _prefix_cache_variant_family(variant_index: int) -> dict[str, str]:
     return families[variant_index % len(families)]
 
 
-def _variant_task_suffixes(family: dict[str, str]) -> list[str]:
-    return [
+def _variant_control_labels(
+    prompt_count: int,
+    allow_repeats: bool = True,
+) -> list[str]:
+    labels = [
+        "Atlas-01",
+        "Beacon-02",
+        "Cinder-03",
+        "Drift-04",
+        "Ember-05",
+        "Flux-06",
+        "Graph-07",
+        "Helix-08",
+    ]
+    if allow_repeats or prompt_count <= len(labels):
+        return labels
+
+    expanded = list(labels)
+    stems = [
+        "Ion",
+        "Juno",
+        "Kilo",
+        "Lumen",
+        "Mica",
+        "Nova",
+        "Orion",
+        "Pulse",
+        "Quill",
+        "Rivet",
+        "Sol",
+        "Trace",
+        "Umbra",
+        "Vector",
+        "Warden",
+        "Xeno",
+    ]
+    for index in range(len(expanded), prompt_count):
+        stem = stems[(index - len(labels)) % len(stems)]
+        expanded.append(f"{stem}-{index + 1:02d}")
+    return expanded
+
+
+def _variant_task_suffixes(
+    family: dict[str, str],
+    prompt_count: int | None = None,
+    allow_repeats: bool = True,
+) -> list[str]:
+    suffixes = [
         f"Task A: explain how prefix caching changes prefill cost for this {family['object']}.",
         "Task B: identify which direct counter should move if exact KV reuse is effective.",
         "Task C: describe one failure mode if cache blocks fragment under this workload.",
@@ -5431,6 +5504,31 @@ def _variant_task_suffixes(family: dict[str, str]) -> list[str]:
         "Task G: summarize how a matched unique-prefix control protects the conclusion.",
         "Task H: recommend the next benchmark variation to validate this cache signal.",
     ]
+    if allow_repeats or prompt_count is None or prompt_count <= len(suffixes):
+        return suffixes
+
+    extra_templates = [
+        "Task I: list two scheduler effects that can obscure a prefix-cache timing win.",
+        "Task J: explain why a duplicate prompt is a different control than a unique prefix.",
+        "Task K: describe how block size changes the observed reusable-token estimate.",
+        "Task L: identify one Modal run parameter needed for a reproducible artifact.",
+        "Task M: compare direct counter evidence with cumulative log-stat evidence.",
+        "Task N: state why a small model can understate prefill savings in timing.",
+        "Task O: recommend a request-count sweep that avoids duplicate prompt reuse.",
+        "Task P: summarize the expected direct-counter gap for a no-repeat control.",
+        "Task Q: explain how prompt hashing should be audited before claiming speedup.",
+        "Task R: name one benchmark disclosure needed for ML infrastructure interviews.",
+        "Task S: describe a failure case involving tokenizer template scaffolding.",
+        "Task T: explain how exact-prefix reuse differs from semantic prompt similarity.",
+        "Task U: propose one larger-model follow-up for this cache signal.",
+        "Task V: describe how p95 latency should be interpreted in paired runs.",
+        "Task W: explain why request ordering can change cache hit opportunities.",
+        "Task X: state one reason to keep raw per-run CSV artifacts.",
+    ]
+    while len(suffixes) < prompt_count:
+        template = extra_templates[(len(suffixes) - 8) % len(extra_templates)]
+        suffixes.append(f"{template} Scenario item {len(suffixes) + 1}.")
+    return suffixes
 
 
 def _select_neutral_long_prompts(prompt_count: int) -> list[str]:
@@ -8620,12 +8718,19 @@ def _build_vllm_prefix_cache_prompt_audit_payload(
                             }
                         )
 
+    shared_profile, control_profile = _infer_vllm_prefix_cache_prompt_audit_pair(
+        prompt_profile_values
+    )
     profile_control_rows = _vllm_prefix_cache_prompt_audit_profile_control_rows(
-        scenario_rows
+        scenario_rows,
+        shared_profile=shared_profile,
+        control_profile=control_profile,
     )
     summary = _vllm_prefix_cache_prompt_audit_summary(
         scenario_rows,
         profile_control_rows,
+        shared_profile=shared_profile,
+        control_profile=control_profile,
     )
     payload = {
         "schema_version": 1,
@@ -8634,6 +8739,8 @@ def _build_vllm_prefix_cache_prompt_audit_payload(
         "model_id": hf_model,
         "request_counts": request_count_values,
         "prompt_profiles": prompt_profile_values,
+        "shared_profile": shared_profile,
+        "control_profile": control_profile,
         "output_tokens": output_token_values,
         "repeats": int(repeats),
         "scenario_seed": int(scenario_seed),
@@ -8712,6 +8819,25 @@ def _exact_duplicate_prompt_reuse_stats(
             else None
         ),
     }
+
+
+def _infer_vllm_prefix_cache_prompt_audit_pair(
+    prompt_profiles: list[str],
+) -> tuple[str, str]:
+    profile_set = set(prompt_profiles)
+    candidate_pairs = [
+        (
+            "shared_prefix_long_no_repeat_variant",
+            "matched_unique_prefix_no_repeat_variant",
+        ),
+        ("shared_prefix_long_variant", "matched_unique_prefix_variant"),
+        ("shared_prefix_long", "matched_unique_prefix"),
+        ("shared_prefix", "matched_unique_prefix"),
+    ]
+    for shared_profile, control_profile in candidate_pairs:
+        if shared_profile in profile_set and control_profile in profile_set:
+            return shared_profile, control_profile
+    return "shared_prefix_long_variant", "matched_unique_prefix_variant"
 
 
 def _vllm_prefix_cache_prompt_audit_profile_control_rows(
@@ -8825,16 +8951,18 @@ def _vllm_prefix_cache_prompt_audit_profile_control_rows(
 def _vllm_prefix_cache_prompt_audit_summary(
     scenario_rows: list[dict[str, Any]],
     profile_control_rows: list[dict[str, Any]],
+    shared_profile: str = "shared_prefix_long_variant",
+    control_profile: str = "matched_unique_prefix_variant",
 ) -> dict[str, Any]:
     shared_rows = [
         row
         for row in scenario_rows
-        if row["prompt_profile"] == "shared_prefix_long_variant"
+        if row["prompt_profile"] == shared_profile
     ]
     control_rows = [
         row
         for row in scenario_rows
-        if row["prompt_profile"] == "matched_unique_prefix_variant"
+        if row["prompt_profile"] == control_profile
     ]
     return {
         "scenario_count": len(scenario_rows),
@@ -8918,6 +9046,8 @@ def _format_vllm_prefix_cache_prompt_audit_markdown(
         "",
         f"Model: `{payload['model_id']}`",
         f"Profiles: `{','.join(payload['prompt_profiles'])}`",
+        f"Shared profile: `{payload['shared_profile']}`",
+        f"Control profile: `{payload['control_profile']}`",
         f"Request counts: `{','.join(str(v) for v in payload['request_counts'])}`",
         f"Repeats: `{payload['repeats']}`",
         f"Scenario seed: `{payload['scenario_seed']}`",

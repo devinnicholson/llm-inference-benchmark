@@ -1,0 +1,3090 @@
+{
+  "backend": "vllm-paired-prefix-cache",
+  "collect_cache_metrics": true,
+  "execution": "modal",
+  "isolation_method": "Each scenario/repeat is executed by a separate remote paired benchmark call with fresh cold/cache AsyncLLM engines. The run uses 1 warmup scenario run(s) inside each fresh engine before the measured scenario. Warmup prompt profile: neutral_long.",
+  "kv_cache_metrics_sample": 1.0,
+  "mean_cache_to_cold_first_event_ratio": 0.877714182242734,
+  "mean_cache_to_cold_latency_ratio": 0.8974067612001758,
+  "mean_cache_to_cold_throughput_ratio": 1.172041125333133,
+  "mean_cache_to_cold_tpot_ratio": 0.8838418572531249,
+  "mode": "vllm-prefix-cache-isolated-neutral-warmup",
+  "model_id": "HuggingFaceTB/SmolLM2-135M-Instruct",
+  "note": "This is a metric-isolation harness. The warm-window mode adds a throwaway warmup window before the measured scenario; the default isolated mode runs with no warmup.",
+  "output_tokens": [
+    8
+  ],
+  "paired_run_count": 6,
+  "paired_runs": [
+    {
+      "cache_batch_wall_ms": 241.76669799999218,
+      "cache_gpu_kv_cache_usage_pct": 0.0,
+      "cache_output_tokens_per_second": 529.4360267930869,
+      "cache_p95_first_event_ms": 85.3863969999793,
+      "cache_p95_latency_ms": 241.0148099999958,
+      "cache_p95_stream_tpot_ms": 25.825632714283334,
+      "cache_prefix_cache_counter_hit_rate_pct": 82.92216484987568,
+      "cache_prefix_cache_counter_hits": 4336,
+      "cache_prefix_cache_counter_queries": 5229,
+      "cache_prefix_cache_counter_requests": 16,
+      "cache_prefix_cache_hit_rate_pct": 63.8,
+      "cache_run_order": 0,
+      "cache_to_cold_batch_wall_ms_delta": -151.34034500002258,
+      "cache_to_cold_batch_wall_ms_ratio": 0.6150149235560328,
+      "cache_to_cold_gpu_kv_cache_usage_pct_delta": 0.0,
+      "cache_to_cold_output_tokens_per_second_delta": 203.82496924712677,
+      "cache_to_cold_output_tokens_per_second_ratio": 1.625976804299273,
+      "cache_to_cold_p95_first_event_ms_delta": -161.79752700003291,
+      "cache_to_cold_p95_first_event_ms_ratio": 0.34543669191033266,
+      "cache_to_cold_p95_latency_ms_delta": -151.37165700002697,
+      "cache_to_cold_p95_latency_ms_ratio": 0.6142281405438527,
+      "cache_to_cold_p95_stream_tpot_ms_delta": -22.284706714287953,
+      "cache_to_cold_p95_stream_tpot_ms_ratio": 0.536800052151498,
+      "cache_to_cold_prefix_cache_counter_hit_rate_pct_delta": 82.92216484987568,
+      "cache_to_cold_prefix_cache_hit_rate_pct_delta": 63.8,
+      "cold_batch_wall_ms": 393.10704300001476,
+      "cold_gpu_kv_cache_usage_pct": 0.0,
+      "cold_output_tokens_per_second": 325.6110575459601,
+      "cold_p95_first_event_ms": 247.1839240000122,
+      "cold_p95_latency_ms": 392.3864670000228,
+      "cold_p95_stream_tpot_ms": 48.11033942857129,
+      "cold_prefix_cache_counter_hit_rate_pct": 0.0,
+      "cold_prefix_cache_counter_hits": 0,
+      "cold_prefix_cache_counter_queries": 0,
+      "cold_prefix_cache_counter_requests": 0,
+      "cold_prefix_cache_hit_rate_pct": 0.0,
+      "cold_run_order": 0,
+      "estimated_peak_sequence_tokens_cache": 5357,
+      "estimated_peak_sequence_tokens_cold": 5357,
+      "isolation_call_index": 0,
+      "isolation_phase_order": "cold_first",
+      "isolation_warmup_prompt_profile": "neutral_long",
+      "isolation_warmup_runs": 1,
+      "max_new_tokens": 8,
+      "pair_id": "shared_prefix_long_no_repeat_variant_out8_n16_isolated_rep00",
+      "prompt_profile": "shared_prefix_long_no_repeat_variant",
+      "prompt_tokens_mean": 326.8125,
+      "repeat_index": 0,
+      "request_count": 16,
+      "scenario_id": "shared_prefix_long_no_repeat_variant_out8_n16"
+    },
+    {
+      "cache_batch_wall_ms": 268.48684399999456,
+      "cache_gpu_kv_cache_usage_pct": 0.0,
+      "cache_output_tokens_per_second": 476.74589224938927,
+      "cache_p95_first_event_ms": 119.39624300001128,
+      "cache_p95_latency_ms": 266.6719049999813,
+      "cache_p95_stream_tpot_ms": 29.25540185714226,
+      "cache_prefix_cache_counter_hit_rate_pct": 4.7654504839910645,
+      "cache_prefix_cache_counter_hits": 256,
+      "cache_prefix_cache_counter_queries": 5372,
+      "cache_prefix_cache_counter_requests": 16,
+      "cache_prefix_cache_hit_rate_pct": 31.5,
+      "cache_run_order": 0,
+      "cache_to_cold_batch_wall_ms_delta": 20.87416699998812,
+      "cache_to_cold_batch_wall_ms_ratio": 1.0843016894485882,
+      "cache_to_cold_gpu_kv_cache_usage_pct_delta": 0.0,
+      "cache_to_cold_output_tokens_per_second_delta": -40.19048415429813,
+      "cache_to_cold_output_tokens_per_second_ratio": 0.9222525517861555,
+      "cache_to_cold_p95_first_event_ms_delta": 17.135404000015342,
+      "cache_to_cold_p95_first_event_ms_ratio": 1.1675656504247538,
+      "cache_to_cold_p95_latency_ms_delta": 19.711405999970566,
+      "cache_to_cold_p95_latency_ms_ratio": 1.0798160275824908,
+      "cache_to_cold_p95_stream_tpot_ms_delta": 2.224365714283749,
+      "cache_to_cold_p95_stream_tpot_ms_ratio": 1.0822893248534025,
+      "cache_to_cold_prefix_cache_counter_hit_rate_pct_delta": 4.7654504839910645,
+      "cache_to_cold_prefix_cache_hit_rate_pct_delta": 31.5,
+      "cold_batch_wall_ms": 247.61267700000644,
+      "cold_gpu_kv_cache_usage_pct": 0.0,
+      "cold_output_tokens_per_second": 516.9363764036874,
+      "cold_p95_first_event_ms": 102.26083899999594,
+      "cold_p95_latency_ms": 246.9604990000107,
+      "cold_p95_stream_tpot_ms": 27.03103614285851,
+      "cold_prefix_cache_counter_hit_rate_pct": 0.0,
+      "cold_prefix_cache_counter_hits": 0,
+      "cold_prefix_cache_counter_queries": 0,
+      "cold_prefix_cache_counter_requests": 0,
+      "cold_prefix_cache_hit_rate_pct": 0.0,
+      "cold_run_order": 0,
+      "estimated_peak_sequence_tokens_cache": 5500,
+      "estimated_peak_sequence_tokens_cold": 5500,
+      "isolation_call_index": 1,
+      "isolation_phase_order": "cold_first",
+      "isolation_warmup_prompt_profile": "neutral_long",
+      "isolation_warmup_runs": 1,
+      "max_new_tokens": 8,
+      "pair_id": "matched_unique_prefix_no_repeat_variant_out8_n16_isolated_rep00",
+      "prompt_profile": "matched_unique_prefix_no_repeat_variant",
+      "prompt_tokens_mean": 335.75,
+      "repeat_index": 0,
+      "request_count": 16,
+      "scenario_id": "matched_unique_prefix_no_repeat_variant_out8_n16"
+    },
+    {
+      "cache_batch_wall_ms": 225.07964500005073,
+      "cache_gpu_kv_cache_usage_pct": 0.0,
+      "cache_output_tokens_per_second": 568.6875861207758,
+      "cache_p95_first_event_ms": 80.59171000002152,
+      "cache_p95_latency_ms": 224.43140899997616,
+      "cache_p95_stream_tpot_ms": 23.96412757142993,
+      "cache_prefix_cache_counter_hit_rate_pct": 83.16072113540469,
+      "cache_prefix_cache_counter_hits": 4336,
+      "cache_prefix_cache_counter_queries": 5214,
+      "cache_prefix_cache_counter_requests": 16,
+      "cache_prefix_cache_hit_rate_pct": 63.9,
+      "cache_run_order": 0,
+      "cache_to_cold_batch_wall_ms_delta": -40.96633999989763,
+      "cache_to_cold_batch_wall_ms_ratio": 0.8460178228214736,
+      "cache_to_cold_gpu_kv_cache_usage_pct_delta": 0.0,
+      "cache_to_cold_output_tokens_per_second_delta": 87.56775264527778,
+      "cache_to_cold_output_tokens_per_second_ratio": 1.1820081953651935,
+      "cache_to_cold_p95_first_event_ms_delta": -43.8941209999939,
+      "cache_to_cold_p95_first_event_ms_ratio": 0.6473966503064236,
+      "cache_to_cold_p95_latency_ms_delta": -40.92467800006716,
+      "cache_to_cold_p95_latency_ms_ratio": 0.8457744894314013,
+      "cache_to_cold_p95_stream_tpot_ms_delta": -6.306524714286102,
+      "cache_to_cold_p95_stream_tpot_ms_ratio": 0.791662080659491,
+      "cache_to_cold_prefix_cache_counter_hit_rate_pct_delta": 83.16072113540469,
+      "cache_to_cold_prefix_cache_hit_rate_pct_delta": 63.9,
+      "cold_batch_wall_ms": 266.04598499994836,
+      "cold_gpu_kv_cache_usage_pct": 0.0,
+      "cold_output_tokens_per_second": 481.119833475498,
+      "cold_p95_first_event_ms": 124.48583100001542,
+      "cold_p95_latency_ms": 265.3560870000433,
+      "cold_p95_stream_tpot_ms": 30.270652285716032,
+      "cold_prefix_cache_counter_hit_rate_pct": 0.0,
+      "cold_prefix_cache_counter_hits": 0,
+      "cold_prefix_cache_counter_queries": 0,
+      "cold_prefix_cache_counter_requests": 0,
+      "cold_prefix_cache_hit_rate_pct": 0.0,
+      "cold_run_order": 0,
+      "estimated_peak_sequence_tokens_cache": 5342,
+      "estimated_peak_sequence_tokens_cold": 5342,
+      "isolation_call_index": 2,
+      "isolation_phase_order": "cold_first",
+      "isolation_warmup_prompt_profile": "neutral_long",
+      "isolation_warmup_runs": 1,
+      "max_new_tokens": 8,
+      "pair_id": "shared_prefix_long_no_repeat_variant_out8_n16_isolated_rep01",
+      "prompt_profile": "shared_prefix_long_no_repeat_variant",
+      "prompt_tokens_mean": 325.875,
+      "repeat_index": 1,
+      "request_count": 16,
+      "scenario_id": "shared_prefix_long_no_repeat_variant_out8_n16"
+    },
+    {
+      "cache_batch_wall_ms": 359.56475500000806,
+      "cache_gpu_kv_cache_usage_pct": 0.0,
+      "cache_output_tokens_per_second": 355.98594751033687,
+      "cache_p95_first_event_ms": 178.40897000002087,
+      "cache_p95_latency_ms": 358.7345400000004,
+      "cache_p95_stream_tpot_ms": 39.01996400000079,
+      "cache_prefix_cache_counter_hit_rate_pct": 4.7787941011760315,
+      "cache_prefix_cache_counter_hits": 256,
+      "cache_prefix_cache_counter_queries": 5357,
+      "cache_prefix_cache_counter_requests": 16,
+      "cache_prefix_cache_hit_rate_pct": 31.6,
+      "cache_run_order": 0,
+      "cache_to_cold_batch_wall_ms_delta": 62.17843900003572,
+      "cache_to_cold_batch_wall_ms_ratio": 1.209083053438281,
+      "cache_to_cold_gpu_kv_cache_usage_pct_delta": 0.0,
+      "cache_to_cold_output_tokens_per_second_delta": -74.43062888658079,
+      "cache_to_cold_output_tokens_per_second_ratio": 0.8270730427957704,
+      "cache_to_cold_p95_first_event_ms_delta": 46.86145100004069,
+      "cache_to_cold_p95_first_event_ms_ratio": 1.3562321156360824,
+      "cache_to_cold_p95_latency_ms_delta": 62.08452800001396,
+      "cache_to_cold_p95_latency_ms_ratio": 1.209285439031153,
+      "cache_to_cold_p95_stream_tpot_ms_delta": 5.690249285716426,
+      "cache_to_cold_p95_stream_tpot_ms_ratio": 1.1707260123435055,
+      "cache_to_cold_prefix_cache_counter_hit_rate_pct_delta": 4.7787941011760315,
+      "cache_to_cold_prefix_cache_hit_rate_pct_delta": 31.6,
+      "cold_batch_wall_ms": 297.38631599997234,
+      "cold_gpu_kv_cache_usage_pct": 0.0,
+      "cold_output_tokens_per_second": 430.41657639691766,
+      "cold_p95_first_event_ms": 131.54751899998018,
+      "cold_p95_latency_ms": 296.6500119999864,
+      "cold_p95_stream_tpot_ms": 33.329714714284364,
+      "cold_prefix_cache_counter_hit_rate_pct": 0.0,
+      "cold_prefix_cache_counter_hits": 0,
+      "cold_prefix_cache_counter_queries": 0,
+      "cold_prefix_cache_counter_requests": 0,
+      "cold_prefix_cache_hit_rate_pct": 0.0,
+      "cold_run_order": 0,
+      "estimated_peak_sequence_tokens_cache": 5485,
+      "estimated_peak_sequence_tokens_cold": 5485,
+      "isolation_call_index": 3,
+      "isolation_phase_order": "cold_first",
+      "isolation_warmup_prompt_profile": "neutral_long",
+      "isolation_warmup_runs": 1,
+      "max_new_tokens": 8,
+      "pair_id": "matched_unique_prefix_no_repeat_variant_out8_n16_isolated_rep01",
+      "prompt_profile": "matched_unique_prefix_no_repeat_variant",
+      "prompt_tokens_mean": 334.8125,
+      "repeat_index": 1,
+      "request_count": 16,
+      "scenario_id": "matched_unique_prefix_no_repeat_variant_out8_n16"
+    },
+    {
+      "cache_batch_wall_ms": 228.31823500001747,
+      "cache_gpu_kv_cache_usage_pct": 0.0,
+      "cache_output_tokens_per_second": 560.62101215871,
+      "cache_p95_first_event_ms": 84.93104000001495,
+      "cache_p95_latency_ms": 227.56696799996234,
+      "cache_p95_stream_tpot_ms": 23.981324714278735,
+      "cache_prefix_cache_counter_hit_rate_pct": 83.42752962625342,
+      "cache_prefix_cache_counter_hits": 4576,
+      "cache_prefix_cache_counter_queries": 5485,
+      "cache_prefix_cache_counter_requests": 16,
+      "cache_prefix_cache_hit_rate_pct": 64.4,
+      "cache_run_order": 0,
+      "cache_to_cold_batch_wall_ms_delta": -69.80111599995098,
+      "cache_to_cold_batch_wall_ms_ratio": 0.7658618410183029,
+      "cache_to_cold_gpu_kv_cache_usage_pct_delta": 0.0,
+      "cache_to_cold_output_tokens_per_second_delta": 131.26277167329596,
+      "cache_to_cold_output_tokens_per_second_ratio": 1.3057185336070316,
+      "cache_to_cold_p95_first_event_ms_delta": -68.8319959999717,
+      "cache_to_cold_p95_first_event_ms_ratio": 0.5523501760203429,
+      "cache_to_cold_p95_latency_ms_delta": -69.87500200006025,
+      "cache_to_cold_p95_latency_ms_ratio": 0.7650802205214855,
+      "cache_to_cold_p95_stream_tpot_ms_delta": -9.958799428578196,
+      "cache_to_cold_p95_stream_tpot_ms_ratio": 0.7065774012298616,
+      "cache_to_cold_prefix_cache_counter_hit_rate_pct_delta": 83.42752962625342,
+      "cache_to_cold_prefix_cache_hit_rate_pct_delta": 64.4,
+      "cold_batch_wall_ms": 298.11935099996845,
+      "cold_gpu_kv_cache_usage_pct": 0.0,
+      "cold_output_tokens_per_second": 429.358240485414,
+      "cold_p95_first_event_ms": 153.76303599998664,
+      "cold_p95_latency_ms": 297.4419700000226,
+      "cold_p95_stream_tpot_ms": 33.94012414285693,
+      "cold_prefix_cache_counter_hit_rate_pct": 0.0,
+      "cold_prefix_cache_counter_hits": 0,
+      "cold_prefix_cache_counter_queries": 0,
+      "cold_prefix_cache_counter_requests": 0,
+      "cold_prefix_cache_hit_rate_pct": 0.0,
+      "cold_run_order": 0,
+      "estimated_peak_sequence_tokens_cache": 5613,
+      "estimated_peak_sequence_tokens_cold": 5613,
+      "isolation_call_index": 4,
+      "isolation_phase_order": "cold_first",
+      "isolation_warmup_prompt_profile": "neutral_long",
+      "isolation_warmup_runs": 1,
+      "max_new_tokens": 8,
+      "pair_id": "shared_prefix_long_no_repeat_variant_out8_n16_isolated_rep02",
+      "prompt_profile": "shared_prefix_long_no_repeat_variant",
+      "prompt_tokens_mean": 342.8125,
+      "repeat_index": 2,
+      "request_count": 16,
+      "scenario_id": "shared_prefix_long_no_repeat_variant_out8_n16"
+    },
+    {
+      "cache_batch_wall_ms": 288.7244650000298,
+      "cache_gpu_kv_cache_usage_pct": 0.0,
+      "cache_output_tokens_per_second": 443.32924818126094,
+      "cache_p95_first_event_ms": 145.90636599996287,
+      "cache_p95_latency_ms": 288.01868400000785,
+      "cache_p95_stream_tpot_ms": 31.5619317142851,
+      "cache_prefix_cache_counter_hit_rate_pct": 4.548685145700071,
+      "cache_prefix_cache_counter_hits": 256,
+      "cache_prefix_cache_counter_queries": 5628,
+      "cache_prefix_cache_counter_requests": 16,
+      "cache_prefix_cache_hit_rate_pct": 30.9,
+      "cache_run_order": 0,
+      "cache_to_cold_batch_wall_ms_delta": -48.85726799994927,
+      "cache_to_cold_batch_wall_ms_ratio": 0.8552727733050879,
+      "cache_to_cold_gpu_kv_cache_usage_pct_delta": 0.0,
+      "cache_to_cold_output_tokens_per_second_delta": 64.16181260201432,
+      "cache_to_cold_output_tokens_per_second_ratio": 1.1692176241453742,
+      "cache_to_cold_p95_first_event_ms_delta": 24.043923999954586,
+      "cache_to_cold_p95_first_event_ms_ratio": 1.1973038091584687,
+      "cache_to_cold_p95_latency_ms_delta": -42.939794000005804,
+      "cache_to_cold_p95_latency_ms_ratio": 0.8702562500906714,
+      "cache_to_cold_p95_stream_tpot_ms_delta": 0.46631828571922185,
+      "cache_to_cold_p95_stream_tpot_ms_ratio": 1.0149962722809913,
+      "cache_to_cold_prefix_cache_counter_hit_rate_pct_delta": 4.548685145700071,
+      "cache_to_cold_prefix_cache_hit_rate_pct_delta": 30.9,
+      "cold_batch_wall_ms": 337.58173299997907,
+      "cold_gpu_kv_cache_usage_pct": 0.0,
+      "cold_output_tokens_per_second": 379.1674355792466,
+      "cold_p95_first_event_ms": 121.86244200000829,
+      "cold_p95_latency_ms": 330.95847800001366,
+      "cold_p95_stream_tpot_ms": 31.09561342856588,
+      "cold_prefix_cache_counter_hit_rate_pct": 0.0,
+      "cold_prefix_cache_counter_hits": 0,
+      "cold_prefix_cache_counter_queries": 0,
+      "cold_prefix_cache_counter_requests": 0,
+      "cold_prefix_cache_hit_rate_pct": 0.0,
+      "cold_run_order": 0,
+      "estimated_peak_sequence_tokens_cache": 5756,
+      "estimated_peak_sequence_tokens_cold": 5756,
+      "isolation_call_index": 5,
+      "isolation_phase_order": "cold_first",
+      "isolation_warmup_prompt_profile": "neutral_long",
+      "isolation_warmup_runs": 1,
+      "max_new_tokens": 8,
+      "pair_id": "matched_unique_prefix_no_repeat_variant_out8_n16_isolated_rep02",
+      "prompt_profile": "matched_unique_prefix_no_repeat_variant",
+      "prompt_tokens_mean": 351.75,
+      "repeat_index": 2,
+      "request_count": 16,
+      "scenario_id": "matched_unique_prefix_no_repeat_variant_out8_n16"
+    }
+  ],
+  "paired_scenarios": [
+    {
+      "cache_gpu_kv_cache_usage_pct_count": 3,
+      "cache_gpu_kv_cache_usage_pct_cv": null,
+      "cache_gpu_kv_cache_usage_pct_max": 0.0,
+      "cache_gpu_kv_cache_usage_pct_mean": 0.0,
+      "cache_gpu_kv_cache_usage_pct_median": 0.0,
+      "cache_gpu_kv_cache_usage_pct_min": 0.0,
+      "cache_gpu_kv_cache_usage_pct_p95": 0.0,
+      "cache_output_tokens_per_second_count": 3,
+      "cache_output_tokens_per_second_cv": 0.11969384963744804,
+      "cache_output_tokens_per_second_max": 476.74589224938927,
+      "cache_output_tokens_per_second_mean": 425.35369598032906,
+      "cache_output_tokens_per_second_median": 443.32924818126094,
+      "cache_output_tokens_per_second_min": 355.98594751033687,
+      "cache_output_tokens_per_second_p95": 476.74589224938927,
+      "cache_p95_first_event_ms_count": 3,
+      "cache_p95_first_event_ms_cv": 0.16316824527156948,
+      "cache_p95_first_event_ms_max": 178.40897000002087,
+      "cache_p95_first_event_ms_mean": 147.903859666665,
+      "cache_p95_first_event_ms_median": 145.90636599996287,
+      "cache_p95_first_event_ms_min": 119.39624300001128,
+      "cache_p95_first_event_ms_p95": 178.40897000002087,
+      "cache_p95_latency_ms_count": 3,
+      "cache_p95_latency_ms_cv": 0.12922095205701928,
+      "cache_p95_latency_ms_max": 358.7345400000004,
+      "cache_p95_latency_ms_mean": 304.4750429999965,
+      "cache_p95_latency_ms_median": 288.01868400000785,
+      "cache_p95_latency_ms_min": 266.6719049999813,
+      "cache_p95_latency_ms_p95": 358.7345400000004,
+      "cache_p95_stream_tpot_ms_count": 3,
+      "cache_p95_stream_tpot_ms_cv": 0.1252193336830212,
+      "cache_p95_stream_tpot_ms_max": 39.01996400000079,
+      "cache_p95_stream_tpot_ms_mean": 33.27909919047605,
+      "cache_p95_stream_tpot_ms_median": 31.5619317142851,
+      "cache_p95_stream_tpot_ms_min": 29.25540185714226,
+      "cache_p95_stream_tpot_ms_p95": 39.01996400000079,
+      "cache_prefix_cache_counter_hit_rate_pct_count": 3,
+      "cache_prefix_cache_counter_hit_rate_pct_cv": 0.022451695679450722,
+      "cache_prefix_cache_counter_hit_rate_pct_max": 4.7787941011760315,
+      "cache_prefix_cache_counter_hit_rate_pct_mean": 4.697643243622389,
+      "cache_prefix_cache_counter_hit_rate_pct_median": 4.7654504839910645,
+      "cache_prefix_cache_counter_hit_rate_pct_min": 4.548685145700071,
+      "cache_prefix_cache_counter_hit_rate_pct_p95": 4.7787941011760315,
+      "cache_prefix_cache_counter_hits_count": 3,
+      "cache_prefix_cache_counter_hits_cv": 0.0,
+      "cache_prefix_cache_counter_hits_max": 256.0,
+      "cache_prefix_cache_counter_hits_mean": 256.0,
+      "cache_prefix_cache_counter_hits_median": 256.0,
+      "cache_prefix_cache_counter_hits_min": 256.0,
+      "cache_prefix_cache_counter_hits_p95": 256.0,
+      "cache_prefix_cache_counter_queries_count": 3,
+      "cache_prefix_cache_counter_queries_cv": 0.02280967429206226,
+      "cache_prefix_cache_counter_queries_max": 5628.0,
+      "cache_prefix_cache_counter_queries_mean": 5452.333333333333,
+      "cache_prefix_cache_counter_queries_median": 5372.0,
+      "cache_prefix_cache_counter_queries_min": 5357.0,
+      "cache_prefix_cache_counter_queries_p95": 5628.0,
+      "cache_prefix_cache_counter_requests_count": 3,
+      "cache_prefix_cache_counter_requests_cv": 0.0,
+      "cache_prefix_cache_counter_requests_max": 16.0,
+      "cache_prefix_cache_counter_requests_mean": 16.0,
+      "cache_prefix_cache_counter_requests_median": 16.0,
+      "cache_prefix_cache_counter_requests_min": 16.0,
+      "cache_prefix_cache_counter_requests_p95": 16.0,
+      "cache_prefix_cache_hit_rate_pct_count": 3,
+      "cache_prefix_cache_hit_rate_pct_cv": 0.009865551590952912,
+      "cache_prefix_cache_hit_rate_pct_max": 31.6,
+      "cache_prefix_cache_hit_rate_pct_mean": 31.333333333333332,
+      "cache_prefix_cache_hit_rate_pct_median": 31.5,
+      "cache_prefix_cache_hit_rate_pct_min": 30.9,
+      "cache_prefix_cache_hit_rate_pct_p95": 31.6,
+      "cache_to_cold_batch_wall_ms_delta_count": 3,
+      "cache_to_cold_batch_wall_ms_delta_cv": 4.0200794320831115,
+      "cache_to_cold_batch_wall_ms_delta_max": 62.17843900003572,
+      "cache_to_cold_batch_wall_ms_delta_mean": 11.398446000024856,
+      "cache_to_cold_batch_wall_ms_delta_median": 20.87416699998812,
+      "cache_to_cold_batch_wall_ms_delta_min": -48.85726799994927,
+      "cache_to_cold_batch_wall_ms_delta_p95": 62.17843900003572,
+      "cache_to_cold_batch_wall_ms_ratio_count": 3,
+      "cache_to_cold_batch_wall_ms_ratio_cv": 0.13959995261251265,
+      "cache_to_cold_batch_wall_ms_ratio_max": 1.209083053438281,
+      "cache_to_cold_batch_wall_ms_ratio_mean": 1.0495525053973191,
+      "cache_to_cold_batch_wall_ms_ratio_median": 1.0843016894485882,
+      "cache_to_cold_batch_wall_ms_ratio_min": 0.8552727733050879,
+      "cache_to_cold_batch_wall_ms_ratio_p95": 1.209083053438281,
+      "cache_to_cold_gpu_kv_cache_usage_pct_delta_count": 3,
+      "cache_to_cold_gpu_kv_cache_usage_pct_delta_cv": null,
+      "cache_to_cold_gpu_kv_cache_usage_pct_delta_max": 0.0,
+      "cache_to_cold_gpu_kv_cache_usage_pct_delta_mean": 0.0,
+      "cache_to_cold_gpu_kv_cache_usage_pct_delta_median": 0.0,
+      "cache_to_cold_gpu_kv_cache_usage_pct_delta_min": 0.0,
+      "cache_to_cold_gpu_kv_cache_usage_pct_delta_p95": 0.0,
+      "cache_to_cold_output_tokens_per_second_delta_count": 3,
+      "cache_to_cold_output_tokens_per_second_delta_cv": 3.5044535983933733,
+      "cache_to_cold_output_tokens_per_second_delta_max": 64.16181260201432,
+      "cache_to_cold_output_tokens_per_second_delta_mean": -16.819766812954867,
+      "cache_to_cold_output_tokens_per_second_delta_median": -40.19048415429813,
+      "cache_to_cold_output_tokens_per_second_delta_min": -74.43062888658079,
+      "cache_to_cold_output_tokens_per_second_delta_p95": 64.16181260201432,
+      "cache_to_cold_output_tokens_per_second_ratio_count": 3,
+      "cache_to_cold_output_tokens_per_second_ratio_cv": 0.1482131648463837,
+      "cache_to_cold_output_tokens_per_second_ratio_max": 1.1692176241453742,
+      "cache_to_cold_output_tokens_per_second_ratio_mean": 0.9728477395757666,
+      "cache_to_cold_output_tokens_per_second_ratio_median": 0.9222525517861555,
+      "cache_to_cold_output_tokens_per_second_ratio_min": 0.8270730427957704,
+      "cache_to_cold_output_tokens_per_second_ratio_p95": 1.1692176241453742,
+      "cache_to_cold_p95_first_event_ms_delta_count": 3,
+      "cache_to_cold_p95_first_event_ms_delta_cv": 0.4328128914611041,
+      "cache_to_cold_p95_first_event_ms_delta_max": 46.86145100004069,
+      "cache_to_cold_p95_first_event_ms_delta_mean": 29.34692633333687,
+      "cache_to_cold_p95_first_event_ms_delta_median": 24.043923999954586,
+      "cache_to_cold_p95_first_event_ms_delta_min": 17.135404000015342,
+      "cache_to_cold_p95_first_event_ms_delta_p95": 46.86145100004069,
+      "cache_to_cold_p95_first_event_ms_ratio_count": 3,
+      "cache_to_cold_p95_first_event_ms_ratio_cv": 0.06677337770149866,
+      "cache_to_cold_p95_first_event_ms_ratio_max": 1.3562321156360824,
+      "cache_to_cold_p95_first_event_ms_ratio_mean": 1.2403671917397683,
+      "cache_to_cold_p95_first_event_ms_ratio_median": 1.1973038091584687,
+      "cache_to_cold_p95_first_event_ms_ratio_min": 1.1675656504247538,
+      "cache_to_cold_p95_first_event_ms_ratio_p95": 1.3562321156360824,
+      "cache_to_cold_p95_latency_ms_delta_count": 3,
+      "cache_to_cold_p95_latency_ms_delta_cv": 3.3308696379776053,
+      "cache_to_cold_p95_latency_ms_delta_max": 62.08452800001396,
+      "cache_to_cold_p95_latency_ms_delta_mean": 12.952046666659575,
+      "cache_to_cold_p95_latency_ms_delta_median": 19.711405999970566,
+      "cache_to_cold_p95_latency_ms_delta_min": -42.939794000005804,
+      "cache_to_cold_p95_latency_ms_delta_p95": 62.08452800001396,
+      "cache_to_cold_p95_latency_ms_ratio_count": 3,
+      "cache_to_cold_p95_latency_ms_ratio_cv": 0.13264357885991745,
+      "cache_to_cold_p95_latency_ms_ratio_max": 1.209285439031153,
+      "cache_to_cold_p95_latency_ms_ratio_mean": 1.0531192389014385,
+      "cache_to_cold_p95_latency_ms_ratio_median": 1.0798160275824908,
+      "cache_to_cold_p95_latency_ms_ratio_min": 0.8702562500906714,
+      "cache_to_cold_p95_latency_ms_ratio_p95": 1.209285439031153,
+      "cache_to_cold_p95_stream_tpot_ms_delta_count": 3,
+      "cache_to_cold_p95_stream_tpot_ms_delta_cv": 0.776877080458921,
+      "cache_to_cold_p95_stream_tpot_ms_delta_max": 5.690249285716426,
+      "cache_to_cold_p95_stream_tpot_ms_delta_mean": 2.7936444285731326,
+      "cache_to_cold_p95_stream_tpot_ms_delta_median": 2.224365714283749,
+      "cache_to_cold_p95_stream_tpot_ms_delta_min": 0.46631828571922185,
+      "cache_to_cold_p95_stream_tpot_ms_delta_p95": 5.690249285716426,
+      "cache_to_cold_p95_stream_tpot_ms_ratio_count": 3,
+      "cache_to_cold_p95_stream_tpot_ms_ratio_cv": 0.05854149404055818,
+      "cache_to_cold_p95_stream_tpot_ms_ratio_max": 1.1707260123435055,
+      "cache_to_cold_p95_stream_tpot_ms_ratio_mean": 1.0893372031592998,
+      "cache_to_cold_p95_stream_tpot_ms_ratio_median": 1.0822893248534025,
+      "cache_to_cold_p95_stream_tpot_ms_ratio_min": 1.0149962722809913,
+      "cache_to_cold_p95_stream_tpot_ms_ratio_p95": 1.1707260123435055,
+      "cache_to_cold_prefix_cache_counter_hit_rate_pct_delta_count": 3,
+      "cache_to_cold_prefix_cache_counter_hit_rate_pct_delta_cv": 0.022451695679450722,
+      "cache_to_cold_prefix_cache_counter_hit_rate_pct_delta_max": 4.7787941011760315,
+      "cache_to_cold_prefix_cache_counter_hit_rate_pct_delta_mean": 4.697643243622389,
+      "cache_to_cold_prefix_cache_counter_hit_rate_pct_delta_median": 4.7654504839910645,
+      "cache_to_cold_prefix_cache_counter_hit_rate_pct_delta_min": 4.548685145700071,
+      "cache_to_cold_prefix_cache_counter_hit_rate_pct_delta_p95": 4.7787941011760315,
+      "cache_to_cold_prefix_cache_hit_rate_pct_delta_count": 3,
+      "cache_to_cold_prefix_cache_hit_rate_pct_delta_cv": 0.009865551590952912,
+      "cache_to_cold_prefix_cache_hit_rate_pct_delta_max": 31.6,
+      "cache_to_cold_prefix_cache_hit_rate_pct_delta_mean": 31.333333333333332,
+      "cache_to_cold_prefix_cache_hit_rate_pct_delta_median": 31.5,
+      "cache_to_cold_prefix_cache_hit_rate_pct_delta_min": 30.9,
+      "cache_to_cold_prefix_cache_hit_rate_pct_delta_p95": 31.6,
+      "cold_gpu_kv_cache_usage_pct_count": 3,
+      "cold_gpu_kv_cache_usage_pct_cv": null,
+      "cold_gpu_kv_cache_usage_pct_max": 0.0,
+      "cold_gpu_kv_cache_usage_pct_mean": 0.0,
+      "cold_gpu_kv_cache_usage_pct_median": 0.0,
+      "cold_gpu_kv_cache_usage_pct_min": 0.0,
+      "cold_gpu_kv_cache_usage_pct_p95": 0.0,
+      "cold_output_tokens_per_second_count": 3,
+      "cold_output_tokens_per_second_cv": 0.12858078687915805,
+      "cold_output_tokens_per_second_max": 516.9363764036874,
+      "cold_output_tokens_per_second_mean": 442.17346279328393,
+      "cold_output_tokens_per_second_median": 430.41657639691766,
+      "cold_output_tokens_per_second_min": 379.1674355792466,
+      "cold_output_tokens_per_second_p95": 516.9363764036874,
+      "cold_p95_first_event_ms_count": 3,
+      "cold_p95_first_event_ms_cv": 0.10275705420878986,
+      "cold_p95_first_event_ms_max": 131.54751899998018,
+      "cold_p95_first_event_ms_mean": 118.55693333332813,
+      "cold_p95_first_event_ms_median": 121.86244200000829,
+      "cold_p95_first_event_ms_min": 102.26083899999594,
+      "cold_p95_first_event_ms_p95": 131.54751899998018,
+      "cold_p95_latency_ms_count": 3,
+      "cold_p95_latency_ms_cv": 0.11828615521183156,
+      "cold_p95_latency_ms_max": 330.95847800001366,
+      "cold_p95_latency_ms_mean": 291.52299633333695,
+      "cold_p95_latency_ms_median": 296.6500119999864,
+      "cold_p95_latency_ms_min": 246.9604990000107,
+      "cold_p95_latency_ms_p95": 330.95847800001366,
+      "cold_p95_stream_tpot_ms_count": 3,
+      "cold_p95_stream_tpot_ms_cv": 0.08552828968176998,
+      "cold_p95_stream_tpot_ms_max": 33.329714714284364,
+      "cold_p95_stream_tpot_ms_mean": 30.48545476190292,
+      "cold_p95_stream_tpot_ms_median": 31.09561342856588,
+      "cold_p95_stream_tpot_ms_min": 27.03103614285851,
+      "cold_p95_stream_tpot_ms_p95": 33.329714714284364,
+      "cold_prefix_cache_counter_hit_rate_pct_count": 3,
+      "cold_prefix_cache_counter_hit_rate_pct_cv": null,
+      "cold_prefix_cache_counter_hit_rate_pct_max": 0.0,
+      "cold_prefix_cache_counter_hit_rate_pct_mean": 0.0,
+      "cold_prefix_cache_counter_hit_rate_pct_median": 0.0,
+      "cold_prefix_cache_counter_hit_rate_pct_min": 0.0,
+      "cold_prefix_cache_counter_hit_rate_pct_p95": 0.0,
+      "cold_prefix_cache_counter_hits_count": 3,
+      "cold_prefix_cache_counter_hits_cv": null,
+      "cold_prefix_cache_counter_hits_max": 0.0,
+      "cold_prefix_cache_counter_hits_mean": 0.0,
+      "cold_prefix_cache_counter_hits_median": 0.0,
+      "cold_prefix_cache_counter_hits_min": 0.0,
+      "cold_prefix_cache_counter_hits_p95": 0.0,
+      "cold_prefix_cache_counter_queries_count": 3,
+      "cold_prefix_cache_counter_queries_cv": null,
+      "cold_prefix_cache_counter_queries_max": 0.0,
+      "cold_prefix_cache_counter_queries_mean": 0.0,
+      "cold_prefix_cache_counter_queries_median": 0.0,
+      "cold_prefix_cache_counter_queries_min": 0.0,
+      "cold_prefix_cache_counter_queries_p95": 0.0,
+      "cold_prefix_cache_counter_requests_count": 3,
+      "cold_prefix_cache_counter_requests_cv": null,
+      "cold_prefix_cache_counter_requests_max": 0.0,
+      "cold_prefix_cache_counter_requests_mean": 0.0,
+      "cold_prefix_cache_counter_requests_median": 0.0,
+      "cold_prefix_cache_counter_requests_min": 0.0,
+      "cold_prefix_cache_counter_requests_p95": 0.0,
+      "cold_prefix_cache_hit_rate_pct_count": 3,
+      "cold_prefix_cache_hit_rate_pct_cv": null,
+      "cold_prefix_cache_hit_rate_pct_max": 0.0,
+      "cold_prefix_cache_hit_rate_pct_mean": 0.0,
+      "cold_prefix_cache_hit_rate_pct_median": 0.0,
+      "cold_prefix_cache_hit_rate_pct_min": 0.0,
+      "cold_prefix_cache_hit_rate_pct_p95": 0.0,
+      "max_new_tokens": 8,
+      "pairs": 3,
+      "prompt_profile": "matched_unique_prefix_no_repeat_variant",
+      "prompt_tokens_mean": 335.75,
+      "request_count": 16,
+      "scenario_id": "matched_unique_prefix_no_repeat_variant_out8_n16"
+    },
+    {
+      "cache_gpu_kv_cache_usage_pct_count": 3,
+      "cache_gpu_kv_cache_usage_pct_cv": null,
+      "cache_gpu_kv_cache_usage_pct_max": 0.0,
+      "cache_gpu_kv_cache_usage_pct_mean": 0.0,
+      "cache_gpu_kv_cache_usage_pct_median": 0.0,
+      "cache_gpu_kv_cache_usage_pct_min": 0.0,
+      "cache_gpu_kv_cache_usage_pct_p95": 0.0,
+      "cache_output_tokens_per_second_count": 3,
+      "cache_output_tokens_per_second_cv": 0.03061143188460458,
+      "cache_output_tokens_per_second_max": 568.6875861207758,
+      "cache_output_tokens_per_second_mean": 552.9148750241908,
+      "cache_output_tokens_per_second_median": 560.62101215871,
+      "cache_output_tokens_per_second_min": 529.4360267930869,
+      "cache_output_tokens_per_second_p95": 568.6875861207758,
+      "cache_p95_first_event_ms_count": 3,
+      "cache_p95_first_event_ms_cv": 0.025837075357442424,
+      "cache_p95_first_event_ms_max": 85.3863969999793,
+      "cache_p95_first_event_ms_mean": 83.63638233333859,
+      "cache_p95_first_event_ms_median": 84.93104000001495,
+      "cache_p95_first_event_ms_min": 80.59171000002152,
+      "cache_p95_first_event_ms_p95": 85.3863969999793,
+      "cache_p95_latency_ms_count": 3,
+      "cache_p95_latency_ms_cv": 0.031139009938066408,
+      "cache_p95_latency_ms_max": 241.0148099999958,
+      "cache_p95_latency_ms_mean": 231.00439566664477,
+      "cache_p95_latency_ms_median": 227.56696799996234,
+      "cache_p95_latency_ms_min": 224.43140899997616,
+      "cache_p95_latency_ms_p95": 241.0148099999958,
+      "cache_p95_stream_tpot_ms_count": 3,
+      "cache_p95_stream_tpot_ms_cv": 0.03552191549770759,
+      "cache_p95_stream_tpot_ms_max": 25.825632714283334,
+      "cache_p95_stream_tpot_ms_mean": 24.590361666664,
+      "cache_p95_stream_tpot_ms_median": 23.981324714278735,
+      "cache_p95_stream_tpot_ms_min": 23.96412757142993,
+      "cache_p95_stream_tpot_ms_p95": 25.825632714283334,
+      "cache_prefix_cache_counter_hit_rate_pct_count": 3,
+      "cache_prefix_cache_counter_hit_rate_pct_cv": 0.002481921373624616,
+      "cache_prefix_cache_counter_hit_rate_pct_max": 83.42752962625342,
+      "cache_prefix_cache_counter_hit_rate_pct_mean": 83.17013853717793,
+      "cache_prefix_cache_counter_hit_rate_pct_median": 83.16072113540469,
+      "cache_prefix_cache_counter_hit_rate_pct_min": 82.92216484987568,
+      "cache_prefix_cache_counter_hit_rate_pct_p95": 83.42752962625342,
+      "cache_prefix_cache_counter_hits_count": 3,
+      "cache_prefix_cache_counter_hits_cv": 0.025619810912556072,
+      "cache_prefix_cache_counter_hits_max": 4576.0,
+      "cache_prefix_cache_counter_hits_mean": 4416.0,
+      "cache_prefix_cache_counter_hits_median": 4336.0,
+      "cache_prefix_cache_counter_hits_min": 4336.0,
+      "cache_prefix_cache_counter_hits_p95": 4576.0,
+      "cache_prefix_cache_counter_queries_count": 3,
+      "cache_prefix_cache_counter_queries_cv": 0.023424023254348465,
+      "cache_prefix_cache_counter_queries_max": 5485.0,
+      "cache_prefix_cache_counter_queries_mean": 5309.333333333333,
+      "cache_prefix_cache_counter_queries_median": 5229.0,
+      "cache_prefix_cache_counter_queries_min": 5214.0,
+      "cache_prefix_cache_counter_queries_p95": 5485.0,
+      "cache_prefix_cache_counter_requests_count": 3,
+      "cache_prefix_cache_counter_requests_cv": 0.0,
+      "cache_prefix_cache_counter_requests_max": 16.0,
+      "cache_prefix_cache_counter_requests_mean": 16.0,
+      "cache_prefix_cache_counter_requests_median": 16.0,
+      "cache_prefix_cache_counter_requests_min": 16.0,
+      "cache_prefix_cache_counter_requests_p95": 16.0,
+      "cache_prefix_cache_hit_rate_pct_count": 3,
+      "cache_prefix_cache_hit_rate_pct_cv": 0.0040989109182779405,
+      "cache_prefix_cache_hit_rate_pct_max": 64.4,
+      "cache_prefix_cache_hit_rate_pct_mean": 64.03333333333333,
+      "cache_prefix_cache_hit_rate_pct_median": 63.9,
+      "cache_prefix_cache_hit_rate_pct_min": 63.8,
+      "cache_prefix_cache_hit_rate_pct_p95": 64.4,
+      "cache_to_cold_batch_wall_ms_delta_count": 3,
+      "cache_to_cold_batch_wall_ms_delta_cv": 0.5349824608671752,
+      "cache_to_cold_batch_wall_ms_delta_max": -40.96633999989763,
+      "cache_to_cold_batch_wall_ms_delta_mean": -87.36926699995706,
+      "cache_to_cold_batch_wall_ms_delta_median": -69.80111599995098,
+      "cache_to_cold_batch_wall_ms_delta_min": -151.34034500002258,
+      "cache_to_cold_batch_wall_ms_delta_p95": -40.96633999989763,
+      "cache_to_cold_batch_wall_ms_ratio_count": 3,
+      "cache_to_cold_batch_wall_ms_ratio_cv": 0.12901438380244815,
+      "cache_to_cold_batch_wall_ms_ratio_max": 0.8460178228214736,
+      "cache_to_cold_batch_wall_ms_ratio_mean": 0.7422981957986031,
+      "cache_to_cold_batch_wall_ms_ratio_median": 0.7658618410183029,
+      "cache_to_cold_batch_wall_ms_ratio_min": 0.6150149235560328,
+      "cache_to_cold_batch_wall_ms_ratio_p95": 0.8460178228214736,
+      "cache_to_cold_gpu_kv_cache_usage_pct_delta_count": 3,
+      "cache_to_cold_gpu_kv_cache_usage_pct_delta_cv": null,
+      "cache_to_cold_gpu_kv_cache_usage_pct_delta_max": 0.0,
+      "cache_to_cold_gpu_kv_cache_usage_pct_delta_mean": 0.0,
+      "cache_to_cold_gpu_kv_cache_usage_pct_delta_median": 0.0,
+      "cache_to_cold_gpu_kv_cache_usage_pct_delta_min": 0.0,
+      "cache_to_cold_gpu_kv_cache_usage_pct_delta_p95": 0.0,
+      "cache_to_cold_output_tokens_per_second_delta_count": 3,
+      "cache_to_cold_output_tokens_per_second_delta_cv": 0.3403271021964138,
+      "cache_to_cold_output_tokens_per_second_delta_max": 203.82496924712677,
+      "cache_to_cold_output_tokens_per_second_delta_mean": 140.88516452190018,
+      "cache_to_cold_output_tokens_per_second_delta_median": 131.26277167329596,
+      "cache_to_cold_output_tokens_per_second_delta_min": 87.56775264527778,
+      "cache_to_cold_output_tokens_per_second_delta_p95": 203.82496924712677,
+      "cache_to_cold_output_tokens_per_second_ratio_count": 3,
+      "cache_to_cold_output_tokens_per_second_ratio_cv": 0.13642907577324034,
+      "cache_to_cold_output_tokens_per_second_ratio_max": 1.625976804299273,
+      "cache_to_cold_output_tokens_per_second_ratio_mean": 1.3712345110904993,
+      "cache_to_cold_output_tokens_per_second_ratio_median": 1.3057185336070316,
+      "cache_to_cold_output_tokens_per_second_ratio_min": 1.1820081953651935,
+      "cache_to_cold_output_tokens_per_second_ratio_p95": 1.625976804299273,
+      "cache_to_cold_p95_first_event_ms_delta_count": 3,
+      "cache_to_cold_p95_first_event_ms_delta_cv": 0.5544252047605466,
+      "cache_to_cold_p95_first_event_ms_delta_max": -43.8941209999939,
+      "cache_to_cold_p95_first_event_ms_delta_mean": -91.50788133333283,
+      "cache_to_cold_p95_first_event_ms_delta_median": -68.8319959999717,
+      "cache_to_cold_p95_first_event_ms_delta_min": -161.79752700003291,
+      "cache_to_cold_p95_first_event_ms_delta_p95": -43.8941209999939,
+      "cache_to_cold_p95_first_event_ms_ratio_count": 3,
+      "cache_to_cold_p95_first_event_ms_ratio_cv": 0.2447533825984131,
+      "cache_to_cold_p95_first_event_ms_ratio_max": 0.6473966503064236,
+      "cache_to_cold_p95_first_event_ms_ratio_mean": 0.5150611727456997,
+      "cache_to_cold_p95_first_event_ms_ratio_median": 0.5523501760203429,
+      "cache_to_cold_p95_first_event_ms_ratio_min": 0.34543669191033266,
+      "cache_to_cold_p95_first_event_ms_ratio_p95": 0.6473966503064236,
+      "cache_to_cold_p95_latency_ms_delta_count": 3,
+      "cache_to_cold_p95_latency_ms_delta_cv": 0.5350683407664109,
+      "cache_to_cold_p95_latency_ms_delta_max": -40.92467800006716,
+      "cache_to_cold_p95_latency_ms_delta_mean": -87.39044566671812,
+      "cache_to_cold_p95_latency_ms_delta_median": -69.87500200006025,
+      "cache_to_cold_p95_latency_ms_delta_min": -151.37165700002697,
+      "cache_to_cold_p95_latency_ms_delta_p95": -40.92467800006716,
+      "cache_to_cold_p95_latency_ms_ratio_count": 3,
+      "cache_to_cold_p95_latency_ms_ratio_cv": 0.12938470703723606,
+      "cache_to_cold_p95_latency_ms_ratio_max": 0.8457744894314013,
+      "cache_to_cold_p95_latency_ms_ratio_mean": 0.7416942834989131,
+      "cache_to_cold_p95_latency_ms_ratio_median": 0.7650802205214855,
+      "cache_to_cold_p95_latency_ms_ratio_min": 0.6142281405438527,
+      "cache_to_cold_p95_latency_ms_ratio_p95": 0.8457744894314013,
+      "cache_to_cold_p95_stream_tpot_ms_delta_count": 3,
+      "cache_to_cold_p95_stream_tpot_ms_delta_cv": 0.5319785311033942,
+      "cache_to_cold_p95_stream_tpot_ms_delta_max": -6.306524714286102,
+      "cache_to_cold_p95_stream_tpot_ms_delta_mean": -12.850010285717417,
+      "cache_to_cold_p95_stream_tpot_ms_delta_median": -9.958799428578196,
+      "cache_to_cold_p95_stream_tpot_ms_delta_min": -22.284706714287953,
+      "cache_to_cold_p95_stream_tpot_ms_delta_p95": -6.306524714286102,
+      "cache_to_cold_p95_stream_tpot_ms_ratio_count": 3,
+      "cache_to_cold_p95_stream_tpot_ms_ratio_cv": 0.15618071328416416,
+      "cache_to_cold_p95_stream_tpot_ms_ratio_max": 0.791662080659491,
+      "cache_to_cold_p95_stream_tpot_ms_ratio_mean": 0.6783465113469501,
+      "cache_to_cold_p95_stream_tpot_ms_ratio_median": 0.7065774012298616,
+      "cache_to_cold_p95_stream_tpot_ms_ratio_min": 0.536800052151498,
+      "cache_to_cold_p95_stream_tpot_ms_ratio_p95": 0.791662080659491,
+      "cache_to_cold_prefix_cache_counter_hit_rate_pct_delta_count": 3,
+      "cache_to_cold_prefix_cache_counter_hit_rate_pct_delta_cv": 0.002481921373624616,
+      "cache_to_cold_prefix_cache_counter_hit_rate_pct_delta_max": 83.42752962625342,
+      "cache_to_cold_prefix_cache_counter_hit_rate_pct_delta_mean": 83.17013853717793,
+      "cache_to_cold_prefix_cache_counter_hit_rate_pct_delta_median": 83.16072113540469,
+      "cache_to_cold_prefix_cache_counter_hit_rate_pct_delta_min": 82.92216484987568,
+      "cache_to_cold_prefix_cache_counter_hit_rate_pct_delta_p95": 83.42752962625342,
+      "cache_to_cold_prefix_cache_hit_rate_pct_delta_count": 3,
+      "cache_to_cold_prefix_cache_hit_rate_pct_delta_cv": 0.0040989109182779405,
+      "cache_to_cold_prefix_cache_hit_rate_pct_delta_max": 64.4,
+      "cache_to_cold_prefix_cache_hit_rate_pct_delta_mean": 64.03333333333333,
+      "cache_to_cold_prefix_cache_hit_rate_pct_delta_median": 63.9,
+      "cache_to_cold_prefix_cache_hit_rate_pct_delta_min": 63.8,
+      "cache_to_cold_prefix_cache_hit_rate_pct_delta_p95": 64.4,
+      "cold_gpu_kv_cache_usage_pct_count": 3,
+      "cold_gpu_kv_cache_usage_pct_cv": null,
+      "cold_gpu_kv_cache_usage_pct_max": 0.0,
+      "cold_gpu_kv_cache_usage_pct_mean": 0.0,
+      "cold_gpu_kv_cache_usage_pct_median": 0.0,
+      "cold_gpu_kv_cache_usage_pct_min": 0.0,
+      "cold_gpu_kv_cache_usage_pct_p95": 0.0,
+      "cold_output_tokens_per_second_count": 3,
+      "cold_output_tokens_per_second_cv": 0.15692517477931373,
+      "cold_output_tokens_per_second_max": 481.119833475498,
+      "cold_output_tokens_per_second_mean": 412.0297105022907,
+      "cold_output_tokens_per_second_median": 429.358240485414,
+      "cold_output_tokens_per_second_min": 325.6110575459601,
+      "cold_output_tokens_per_second_p95": 481.119833475498,
+      "cold_p95_first_event_ms_count": 3,
+      "cold_p95_first_event_ms_cv": 0.29874334248618556,
+      "cold_p95_first_event_ms_max": 247.1839240000122,
+      "cold_p95_first_event_ms_mean": 175.14426366667143,
+      "cold_p95_first_event_ms_median": 153.76303599998664,
+      "cold_p95_first_event_ms_min": 124.48583100001542,
+      "cold_p95_first_event_ms_p95": 247.1839240000122,
+      "cold_p95_latency_ms_count": 3,
+      "cold_p95_latency_ms_cv": 0.1693960090760163,
+      "cold_p95_latency_ms_max": 392.3864670000228,
+      "cold_p95_latency_ms_mean": 318.3948413333629,
+      "cold_p95_latency_ms_median": 297.4419700000226,
+      "cold_p95_latency_ms_min": 265.3560870000433,
+      "cold_p95_latency_ms_p95": 392.3864670000228,
+      "cold_p95_stream_tpot_ms_count": 3,
+      "cold_p95_stream_tpot_ms_cv": 0.20544912417654032,
+      "cold_p95_stream_tpot_ms_max": 48.11033942857129,
+      "cold_p95_stream_tpot_ms_mean": 37.44037195238142,
+      "cold_p95_stream_tpot_ms_median": 33.94012414285693,
+      "cold_p95_stream_tpot_ms_min": 30.270652285716032,
+      "cold_p95_stream_tpot_ms_p95": 48.11033942857129,
+      "cold_prefix_cache_counter_hit_rate_pct_count": 3,
+      "cold_prefix_cache_counter_hit_rate_pct_cv": null,
+      "cold_prefix_cache_counter_hit_rate_pct_max": 0.0,
+      "cold_prefix_cache_counter_hit_rate_pct_mean": 0.0,
+      "cold_prefix_cache_counter_hit_rate_pct_median": 0.0,
+      "cold_prefix_cache_counter_hit_rate_pct_min": 0.0,
+      "cold_prefix_cache_counter_hit_rate_pct_p95": 0.0,
+      "cold_prefix_cache_counter_hits_count": 3,
+      "cold_prefix_cache_counter_hits_cv": null,
+      "cold_prefix_cache_counter_hits_max": 0.0,
+      "cold_prefix_cache_counter_hits_mean": 0.0,
+      "cold_prefix_cache_counter_hits_median": 0.0,
+      "cold_prefix_cache_counter_hits_min": 0.0,
+      "cold_prefix_cache_counter_hits_p95": 0.0,
+      "cold_prefix_cache_counter_queries_count": 3,
+      "cold_prefix_cache_counter_queries_cv": null,
+      "cold_prefix_cache_counter_queries_max": 0.0,
+      "cold_prefix_cache_counter_queries_mean": 0.0,
+      "cold_prefix_cache_counter_queries_median": 0.0,
+      "cold_prefix_cache_counter_queries_min": 0.0,
+      "cold_prefix_cache_counter_queries_p95": 0.0,
+      "cold_prefix_cache_counter_requests_count": 3,
+      "cold_prefix_cache_counter_requests_cv": null,
+      "cold_prefix_cache_counter_requests_max": 0.0,
+      "cold_prefix_cache_counter_requests_mean": 0.0,
+      "cold_prefix_cache_counter_requests_median": 0.0,
+      "cold_prefix_cache_counter_requests_min": 0.0,
+      "cold_prefix_cache_counter_requests_p95": 0.0,
+      "cold_prefix_cache_hit_rate_pct_count": 3,
+      "cold_prefix_cache_hit_rate_pct_cv": null,
+      "cold_prefix_cache_hit_rate_pct_max": 0.0,
+      "cold_prefix_cache_hit_rate_pct_mean": 0.0,
+      "cold_prefix_cache_hit_rate_pct_median": 0.0,
+      "cold_prefix_cache_hit_rate_pct_min": 0.0,
+      "cold_prefix_cache_hit_rate_pct_p95": 0.0,
+      "max_new_tokens": 8,
+      "pairs": 3,
+      "prompt_profile": "shared_prefix_long_no_repeat_variant",
+      "prompt_tokens_mean": 326.8125,
+      "request_count": 16,
+      "scenario_id": "shared_prefix_long_no_repeat_variant_out8_n16"
+    }
+  ],
+  "phase_order": "cold_first",
+  "profile_control": {
+    "control_profile": "matched_unique_prefix_no_repeat_variant",
+    "row_count": 1,
+    "rows": [
+      {
+        "control_cache_gpu_kv_cache_usage_pct_median": 0.0,
+        "control_cache_prefix_cache_counter_hit_rate_pct_median": 4.7654504839910645,
+        "control_cache_prefix_cache_counter_hits_median": 256.0,
+        "control_cache_prefix_cache_counter_queries_median": 5372.0,
+        "control_cache_prefix_cache_hit_rate_pct_median": 31.5,
+        "control_cache_to_cold_batch_wall_ms_ratio_median": 1.0843016894485882,
+        "control_cache_to_cold_gpu_kv_cache_usage_pct_delta_median": 0.0,
+        "control_cache_to_cold_output_tokens_per_second_ratio_median": 0.9222525517861555,
+        "control_cache_to_cold_p95_first_event_ms_ratio_median": 1.1973038091584687,
+        "control_cache_to_cold_p95_latency_ms_ratio_median": 1.0798160275824908,
+        "control_cache_to_cold_p95_stream_tpot_ms_ratio_median": 1.0822893248534025,
+        "control_cache_to_cold_prefix_cache_counter_hit_rate_pct_delta_median": 4.7654504839910645,
+        "control_cache_to_cold_prefix_cache_hit_rate_pct_delta_median": 31.5,
+        "control_cold_gpu_kv_cache_usage_pct_median": 0.0,
+        "control_cold_prefix_cache_counter_hit_rate_pct_median": 0.0,
+        "control_cold_prefix_cache_counter_hits_median": 0.0,
+        "control_cold_prefix_cache_counter_queries_median": 0.0,
+        "control_cold_prefix_cache_hit_rate_pct_median": 0.0,
+        "control_profile": "matched_unique_prefix_no_repeat_variant",
+        "control_prompt_tokens_mean": 335.75,
+        "control_scenario_id": "matched_unique_prefix_no_repeat_variant_out8_n16",
+        "max_new_tokens": 8,
+        "request_count": 16,
+        "shared_cache_gpu_kv_cache_usage_pct_median": 0.0,
+        "shared_cache_prefix_cache_counter_hit_rate_pct_median": 83.16072113540469,
+        "shared_cache_prefix_cache_counter_hits_median": 4336.0,
+        "shared_cache_prefix_cache_counter_queries_median": 5229.0,
+        "shared_cache_prefix_cache_hit_rate_pct_median": 63.9,
+        "shared_cache_to_cold_batch_wall_ms_ratio_median": 0.7658618410183029,
+        "shared_cache_to_cold_gpu_kv_cache_usage_pct_delta_median": 0.0,
+        "shared_cache_to_cold_output_tokens_per_second_ratio_median": 1.3057185336070316,
+        "shared_cache_to_cold_p95_first_event_ms_ratio_median": 0.5523501760203429,
+        "shared_cache_to_cold_p95_latency_ms_ratio_median": 0.7650802205214855,
+        "shared_cache_to_cold_p95_stream_tpot_ms_ratio_median": 0.7065774012298616,
+        "shared_cache_to_cold_prefix_cache_counter_hit_rate_pct_delta_median": 83.16072113540469,
+        "shared_cache_to_cold_prefix_cache_hit_rate_pct_delta_median": 63.9,
+        "shared_cold_gpu_kv_cache_usage_pct_median": 0.0,
+        "shared_cold_prefix_cache_counter_hit_rate_pct_median": 0.0,
+        "shared_cold_prefix_cache_counter_hits_median": 0.0,
+        "shared_cold_prefix_cache_counter_queries_median": 0.0,
+        "shared_cold_prefix_cache_hit_rate_pct_median": 0.0,
+        "shared_minus_control_cache_gpu_kv_cache_usage_pct_median": 0.0,
+        "shared_minus_control_cache_prefix_cache_counter_hit_rate_pct_median": 78.39527065141363,
+        "shared_minus_control_cache_prefix_cache_counter_hits_median": 4080.0,
+        "shared_minus_control_cache_prefix_cache_counter_queries_median": -143.0,
+        "shared_minus_control_cache_prefix_cache_hit_rate_pct_median": 32.4,
+        "shared_minus_control_cache_to_cold_batch_wall_ms_ratio_median": -0.3184398484302853,
+        "shared_minus_control_cache_to_cold_gpu_kv_cache_usage_pct_delta_median": 0.0,
+        "shared_minus_control_cache_to_cold_output_tokens_per_second_ratio_median": 0.3834659818208761,
+        "shared_minus_control_cache_to_cold_p95_first_event_ms_ratio_median": -0.6449536331381258,
+        "shared_minus_control_cache_to_cold_p95_latency_ms_ratio_median": -0.31473580706100535,
+        "shared_minus_control_cache_to_cold_p95_stream_tpot_ms_ratio_median": -0.3757119236235409,
+        "shared_minus_control_cache_to_cold_prefix_cache_counter_hit_rate_pct_delta_median": 78.39527065141363,
+        "shared_minus_control_cache_to_cold_prefix_cache_hit_rate_pct_delta_median": 32.4,
+        "shared_minus_control_cold_gpu_kv_cache_usage_pct_median": 0.0,
+        "shared_minus_control_cold_prefix_cache_counter_hit_rate_pct_median": 0.0,
+        "shared_minus_control_cold_prefix_cache_counter_hits_median": 0.0,
+        "shared_minus_control_cold_prefix_cache_counter_queries_median": 0.0,
+        "shared_minus_control_cold_prefix_cache_hit_rate_pct_median": 0.0,
+        "shared_profile": "shared_prefix_long_no_repeat_variant",
+        "shared_prompt_tokens_mean": 326.8125,
+        "shared_scenario_id": "shared_prefix_long_no_repeat_variant_out8_n16",
+        "shared_to_control_prompt_tokens_mean_ratio": 0.9733804914370812
+      }
+    ],
+    "shared_profile": "shared_prefix_long_no_repeat_variant",
+    "summary": {
+      "mean_shared_minus_control_cache_gpu_kv_cache_usage_pct_median": 0.0,
+      "mean_shared_minus_control_cache_prefix_cache_counter_hit_rate_pct_median": 78.39527065141363,
+      "mean_shared_minus_control_cache_prefix_cache_counter_hits_median": 4080.0,
+      "mean_shared_minus_control_cache_prefix_cache_counter_queries_median": -143.0,
+      "mean_shared_minus_control_cache_prefix_cache_hit_rate_pct_median": 32.4,
+      "mean_shared_minus_control_cache_to_cold_batch_wall_ms_ratio_median": -0.3184398484302853,
+      "mean_shared_minus_control_cache_to_cold_gpu_kv_cache_usage_pct_delta_median": 0.0,
+      "mean_shared_minus_control_cache_to_cold_output_tokens_per_second_ratio_median": 0.3834659818208761,
+      "mean_shared_minus_control_cache_to_cold_p95_first_event_ms_ratio_median": -0.6449536331381258,
+      "mean_shared_minus_control_cache_to_cold_p95_latency_ms_ratio_median": -0.31473580706100535,
+      "mean_shared_minus_control_cache_to_cold_p95_stream_tpot_ms_ratio_median": -0.3757119236235409,
+      "mean_shared_minus_control_cache_to_cold_prefix_cache_counter_hit_rate_pct_delta_median": 78.39527065141363,
+      "mean_shared_minus_control_cache_to_cold_prefix_cache_hit_rate_pct_delta_median": 32.4,
+      "mean_shared_minus_control_cold_gpu_kv_cache_usage_pct_median": 0.0,
+      "mean_shared_minus_control_cold_prefix_cache_counter_hit_rate_pct_median": 0.0,
+      "mean_shared_minus_control_cold_prefix_cache_counter_hits_median": 0.0,
+      "mean_shared_minus_control_cold_prefix_cache_counter_queries_median": 0.0,
+      "mean_shared_minus_control_cold_prefix_cache_hit_rate_pct_median": 0.0,
+      "mean_shared_to_control_prompt_tokens_mean_ratio": 0.9733804914370812
+    }
+  },
+  "prompt_profiles": [
+    "shared_prefix_long_no_repeat_variant",
+    "matched_unique_prefix_no_repeat_variant"
+  ],
+  "remote_call_count": 6,
+  "remote_call_summaries": [
+    {
+      "cache_cache_metrics": [
+        {
+          "avg_generation_throughput_tokens_per_s": 528.4,
+          "avg_prompt_throughput_tokens_per_s": 3686.3,
+          "gpu_kv_cache_usage_pct": 0.0,
+          "label": "cache_rep00-run000_shared_prefix_long_no_repeat_variant_out8_n16",
+          "line": "INFO vllm.v1.metrics.loggers: Engine 000: Avg prompt throughput: 3686.3 tokens/s, Avg generation throughput: 528.4 tokens/s, Running: 0 reqs, Waiting: 0 reqs, GPU KV cache usage: 0.0%, Prefix cache hit rate: 63.8%",
+          "prefix_cache_hit_rate_pct": 63.8
+        }
+      ],
+      "cache_cache_metrics_log_stats": {
+        "captured_logs": [
+          "INFO vllm.v1.metrics.loggers: Engine 000: Avg prompt throughput: 3686.3 tokens/s, Avg generation throughput: 528.4 tokens/s, Running: 0 reqs, Waiting: 0 reqs, GPU KV cache usage: 0.0%, Prefix cache hit rate: 63.8%",
+          "INFO vllm.v1.metrics.loggers: Engine 000: Avg prompt throughput: 3686.3 tokens/s, Avg generation throughput: 528.4 tokens/s, Running: 0 reqs, Waiting: 0 reqs, GPU KV cache usage: 0.0%, Prefix cache hit rate: 63.8%"
+        ],
+        "elapsed_ms": 0.22227599998814185,
+        "label": "cache_rep00-run000_shared_prefix_long_no_repeat_variant_out8_n16",
+        "ok": true,
+        "return_repr": "None",
+        "return_type": "NoneType",
+        "stderr": "",
+        "stdout": ""
+      },
+      "cache_engine_load_ms": 21180.192676000017,
+      "cache_initial_prefix_cache_counter": {
+        "error": "",
+        "hit_rate_pct": 0.0,
+        "label": "cache_after_engine_load",
+        "ok": true,
+        "source_count": 1,
+        "sources": [
+          {
+            "empty": true,
+            "hit_rate_pct": 0.0,
+            "hits": 0,
+            "logger_type": "LoggingStatLogger",
+            "path": "logger_manager.stat_loggers[0].per_engine[0]",
+            "queries": 0,
+            "requests": 0
+          }
+        ],
+        "total_hits": 0,
+        "total_queries": 0,
+        "total_requests": 0
+      },
+      "cache_prefix_cache_counter_after": {
+        "error": "",
+        "hit_rate_pct": 63.794855757954814,
+        "label": "cache_rep00-run000_shared_prefix_long_no_repeat_variant_out8_n16_after",
+        "ok": true,
+        "source_count": 1,
+        "sources": [
+          {
+            "empty": false,
+            "hit_rate_pct": 63.794855757954814,
+            "hits": 8160,
+            "logger_type": "LoggingStatLogger",
+            "path": "logger_manager.stat_loggers[0].per_engine[0]",
+            "queries": 12791,
+            "requests": 32
+          }
+        ],
+        "total_hits": 8160,
+        "total_queries": 12791,
+        "total_requests": 32
+      },
+      "cache_prefix_cache_counter_before": {
+        "error": "",
+        "hit_rate_pct": 50.56863263686855,
+        "label": "cache_rep00-run000_shared_prefix_long_no_repeat_variant_out8_n16_before",
+        "ok": true,
+        "source_count": 1,
+        "sources": [
+          {
+            "empty": false,
+            "hit_rate_pct": 50.56863263686855,
+            "hits": 3824,
+            "logger_type": "LoggingStatLogger",
+            "path": "logger_manager.stat_loggers[0].per_engine[0]",
+            "queries": 7562,
+            "requests": 16
+          }
+        ],
+        "total_hits": 3824,
+        "total_queries": 7562,
+        "total_requests": 16
+      },
+      "cache_prefix_cache_counter_delta": {
+        "hit_rate_pct": 82.92216484987568,
+        "hits": 4336,
+        "queries": 5229,
+        "requests": 16
+      },
+      "cache_prefix_cache_counter_hit_rate_pct": 82.92216484987568,
+      "cache_prefix_cache_counter_hits": 4336,
+      "cache_prefix_cache_counter_queries": 5229,
+      "cache_prefix_cache_hit_rate_pct": 63.8,
+      "cache_to_cold_output_tokens_per_second_ratio": 1.625976804299273,
+      "cache_to_cold_p95_latency_ms_ratio": 0.6142281405438527,
+      "cache_to_cold_prefix_cache_counter_hit_rate_pct_delta": 82.92216484987568,
+      "cache_to_cold_prefix_cache_hit_rate_pct_delta": 63.8,
+      "cache_warmup": {
+        "summaries": [
+          {
+            "batch_wall_ms": 202.32808400001545,
+            "max_new_tokens": 1,
+            "prompt_profile": "neutral_long",
+            "prompt_tokens_mean": 472.625,
+            "request_count": 16,
+            "scenario_id": "warmup_neutral_long_out8_n16",
+            "total_output_tokens": 16,
+            "total_prompt_tokens": 7562,
+            "warmup_index": 0
+          }
+        ],
+        "total_output_tokens": 16,
+        "warmup_runs": 1,
+        "warmup_scenario_runs": 1,
+        "warmup_wall_ms": 202.86351699999727
+      },
+      "cache_warmup_cache_metrics": [
+        {
+          "avg_generation_throughput_tokens_per_s": 0.0,
+          "avg_prompt_throughput_tokens_per_s": 0.0,
+          "gpu_kv_cache_usage_pct": 0.0,
+          "label": "cache_after_warmup",
+          "line": "INFO vllm.v1.metrics.loggers: Engine 000: Avg prompt throughput: 0.0 tokens/s, Avg generation throughput: 0.0 tokens/s, Running: 0 reqs, Waiting: 0 reqs, GPU KV cache usage: 0.0%, Prefix cache hit rate: 50.6%",
+          "prefix_cache_hit_rate_pct": 50.6
+        }
+      ],
+      "cache_warmup_cache_metrics_log_stats": {
+        "captured_logs": [
+          "INFO vllm.v1.metrics.loggers: Engine 000: Avg prompt throughput: 0.0 tokens/s, Avg generation throughput: 0.0 tokens/s, Running: 0 reqs, Waiting: 0 reqs, GPU KV cache usage: 0.0%, Prefix cache hit rate: 50.6%",
+          "INFO vllm.v1.metrics.loggers: Engine 000: Avg prompt throughput: 0.0 tokens/s, Avg generation throughput: 0.0 tokens/s, Running: 0 reqs, Waiting: 0 reqs, GPU KV cache usage: 0.0%, Prefix cache hit rate: 50.6%"
+        ],
+        "elapsed_ms": 0.2178610000100889,
+        "label": "cache_after_warmup",
+        "ok": true,
+        "return_repr": "None",
+        "return_type": "NoneType",
+        "stderr": "",
+        "stdout": ""
+      },
+      "cache_warmup_prefix_cache_counter": {
+        "error": "",
+        "hit_rate_pct": 50.56863263686855,
+        "label": "cache_after_warmup",
+        "ok": true,
+        "source_count": 1,
+        "sources": [
+          {
+            "empty": false,
+            "hit_rate_pct": 50.56863263686855,
+            "hits": 3824,
+            "logger_type": "LoggingStatLogger",
+            "path": "logger_manager.stat_loggers[0].per_engine[0]",
+            "queries": 7562,
+            "requests": 16
+          }
+        ],
+        "total_hits": 3824,
+        "total_queries": 7562,
+        "total_requests": 16
+      },
+      "cache_warmup_prefix_cache_counter_delta": {
+        "hit_rate_pct": 50.56863263686855,
+        "hits": 3824,
+        "queries": 7562,
+        "requests": 16
+      },
+      "cold_cache_metrics": [
+        {
+          "avg_generation_throughput_tokens_per_s": 325.3,
+          "avg_prompt_throughput_tokens_per_s": 13288.2,
+          "gpu_kv_cache_usage_pct": 0.0,
+          "label": "cold_rep00-run000_shared_prefix_long_no_repeat_variant_out8_n16",
+          "line": "INFO vllm.v1.metrics.loggers: Engine 000: Avg prompt throughput: 13288.2 tokens/s, Avg generation throughput: 325.3 tokens/s, Running: 0 reqs, Waiting: 0 reqs, GPU KV cache usage: 0.0%, Prefix cache hit rate: 0.0%",
+          "prefix_cache_hit_rate_pct": 0.0
+        }
+      ],
+      "cold_cache_metrics_log_stats": {
+        "captured_logs": [
+          "INFO vllm.v1.metrics.loggers: Engine 000: Avg prompt throughput: 13288.2 tokens/s, Avg generation throughput: 325.3 tokens/s, Running: 0 reqs, Waiting: 0 reqs, GPU KV cache usage: 0.0%, Prefix cache hit rate: 0.0%",
+          "INFO vllm.v1.metrics.loggers: Engine 000: Avg prompt throughput: 13288.2 tokens/s, Avg generation throughput: 325.3 tokens/s, Running: 0 reqs, Waiting: 0 reqs, GPU KV cache usage: 0.0%, Prefix cache hit rate: 0.0%"
+        ],
+        "elapsed_ms": 0.21590099999002632,
+        "label": "cold_rep00-run000_shared_prefix_long_no_repeat_variant_out8_n16",
+        "ok": true,
+        "return_repr": "None",
+        "return_type": "NoneType",
+        "stderr": "",
+        "stdout": ""
+      },
+      "cold_engine_load_ms": 155928.0043,
+      "cold_initial_prefix_cache_counter": {
+        "error": "",
+        "hit_rate_pct": 0.0,
+        "label": "cold_after_engine_load",
+        "ok": true,
+        "source_count": 1,
+        "sources": [
+          {
+            "empty": true,
+            "hit_rate_pct": 0.0,
+            "hits": 0,
+            "logger_type": "LoggingStatLogger",
+            "path": "logger_manager.stat_loggers[0].per_engine[0]",
+            "queries": 0,
+            "requests": 0
+          }
+        ],
+        "total_hits": 0,
+        "total_queries": 0,
+        "total_requests": 0
+      },
+      "cold_prefix_cache_counter_after": {
+        "error": "",
+        "hit_rate_pct": 0.0,
+        "label": "cold_rep00-run000_shared_prefix_long_no_repeat_variant_out8_n16_after",
+        "ok": true,
+        "source_count": 1,
+        "sources": [
+          {
+            "empty": true,
+            "hit_rate_pct": 0.0,
+            "hits": 0,
+            "logger_type": "LoggingStatLogger",
+            "path": "logger_manager.stat_loggers[0].per_engine[0]",
+            "queries": 0,
+            "requests": 0
+          }
+        ],
+        "total_hits": 0,
+        "total_queries": 0,
+        "total_requests": 0
+      },
+      "cold_prefix_cache_counter_before": {
+        "error": "",
+        "hit_rate_pct": 0.0,
+        "label": "cold_rep00-run000_shared_prefix_long_no_repeat_variant_out8_n16_before",
+        "ok": true,
+        "source_count": 1,
+        "sources": [
+          {
+            "empty": true,
+            "hit_rate_pct": 0.0,
+            "hits": 0,
+            "logger_type": "LoggingStatLogger",
+            "path": "logger_manager.stat_loggers[0].per_engine[0]",
+            "queries": 0,
+            "requests": 0
+          }
+        ],
+        "total_hits": 0,
+        "total_queries": 0,
+        "total_requests": 0
+      },
+      "cold_prefix_cache_counter_delta": {
+        "hit_rate_pct": 0.0,
+        "hits": 0,
+        "queries": 0,
+        "requests": 0
+      },
+      "cold_prefix_cache_counter_hit_rate_pct": 0.0,
+      "cold_prefix_cache_counter_hits": 0,
+      "cold_prefix_cache_counter_queries": 0,
+      "cold_prefix_cache_hit_rate_pct": 0.0,
+      "cold_warmup": {
+        "summaries": [
+          {
+            "batch_wall_ms": 818.8035339999828,
+            "max_new_tokens": 1,
+            "prompt_profile": "neutral_long",
+            "prompt_tokens_mean": 472.625,
+            "request_count": 16,
+            "scenario_id": "warmup_neutral_long_out8_n16",
+            "total_output_tokens": 16,
+            "total_prompt_tokens": 7562,
+            "warmup_index": 0
+          }
+        ],
+        "total_output_tokens": 16,
+        "warmup_runs": 1,
+        "warmup_scenario_runs": 1,
+        "warmup_wall_ms": 819.7769380000182
+      },
+      "cold_warmup_cache_metrics": [
+        {
+          "avg_generation_throughput_tokens_per_s": 0.0,
+          "avg_prompt_throughput_tokens_per_s": 0.0,
+          "gpu_kv_cache_usage_pct": 0.0,
+          "label": "cold_after_warmup",
+          "line": "INFO vllm.v1.metrics.loggers: Engine 000: Avg prompt throughput: 0.0 tokens/s, Avg generation throughput: 0.0 tokens/s, Running: 0 reqs, Waiting: 0 reqs, GPU KV cache usage: 0.0%, Prefix cache hit rate: 0.0%",
+          "prefix_cache_hit_rate_pct": 0.0
+        }
+      ],
+      "cold_warmup_cache_metrics_log_stats": {
+        "captured_logs": [
+          "INFO vllm.v1.metrics.loggers: Engine 000: Avg prompt throughput: 0.0 tokens/s, Avg generation throughput: 0.0 tokens/s, Running: 0 reqs, Waiting: 0 reqs, GPU KV cache usage: 0.0%, Prefix cache hit rate: 0.0%",
+          "INFO vllm.v1.metrics.loggers: Engine 000: Avg prompt throughput: 0.0 tokens/s, Avg generation throughput: 0.0 tokens/s, Running: 0 reqs, Waiting: 0 reqs, GPU KV cache usage: 0.0%, Prefix cache hit rate: 0.0%"
+        ],
+        "elapsed_ms": 0.15497499998673447,
+        "label": "cold_after_warmup",
+        "ok": true,
+        "return_repr": "None",
+        "return_type": "NoneType",
+        "stderr": "",
+        "stdout": ""
+      },
+      "cold_warmup_prefix_cache_counter": {
+        "error": "",
+        "hit_rate_pct": 0.0,
+        "label": "cold_after_warmup",
+        "ok": true,
+        "source_count": 1,
+        "sources": [
+          {
+            "empty": true,
+            "hit_rate_pct": 0.0,
+            "hits": 0,
+            "logger_type": "LoggingStatLogger",
+            "path": "logger_manager.stat_loggers[0].per_engine[0]",
+            "queries": 0,
+            "requests": 0
+          }
+        ],
+        "total_hits": 0,
+        "total_queries": 0,
+        "total_requests": 0
+      },
+      "cold_warmup_prefix_cache_counter_delta": {
+        "hit_rate_pct": 0.0,
+        "hits": 0,
+        "queries": 0,
+        "requests": 0
+      },
+      "isolation_call_index": 0,
+      "max_new_tokens": 8,
+      "phase_order": "cold_first",
+      "prompt_profile": "shared_prefix_long_no_repeat_variant",
+      "repeat_index": 0,
+      "request_count": 16,
+      "scenario_id": "shared_prefix_long_no_repeat_variant_out8_n16",
+      "warmup_prompt_profile": "neutral_long",
+      "warmup_runs": 1,
+      "warmup_scenario_count": 1
+    },
+    {
+      "cache_cache_metrics": [
+        {
+          "avg_generation_throughput_tokens_per_s": 476.2,
+          "avg_prompt_throughput_tokens_per_s": 19031.7,
+          "gpu_kv_cache_usage_pct": 0.0,
+          "label": "cache_rep00-run000_matched_unique_prefix_no_repeat_variant_out8_n16",
+          "line": "INFO vllm.v1.metrics.loggers: Engine 000: Avg prompt throughput: 19031.7 tokens/s, Avg generation throughput: 476.2 tokens/s, Running: 0 reqs, Waiting: 0 reqs, GPU KV cache usage: 0.0%, Prefix cache hit rate: 31.5%",
+          "prefix_cache_hit_rate_pct": 31.5
+        }
+      ],
+      "cache_cache_metrics_log_stats": {
+        "captured_logs": [
+          "INFO vllm.v1.metrics.loggers: Engine 000: Avg prompt throughput: 19031.7 tokens/s, Avg generation throughput: 476.2 tokens/s, Running: 0 reqs, Waiting: 0 reqs, GPU KV cache usage: 0.0%, Prefix cache hit rate: 31.5%",
+          "INFO vllm.v1.metrics.loggers: Engine 000: Avg prompt throughput: 19031.7 tokens/s, Avg generation throughput: 476.2 tokens/s, Running: 0 reqs, Waiting: 0 reqs, GPU KV cache usage: 0.0%, Prefix cache hit rate: 31.5%"
+        ],
+        "elapsed_ms": 0.2010519999942062,
+        "label": "cache_rep00-run000_matched_unique_prefix_no_repeat_variant_out8_n16",
+        "ok": true,
+        "return_repr": "None",
+        "return_type": "NoneType",
+        "stderr": "",
+        "stdout": ""
+      },
+      "cache_engine_load_ms": 21282.45749300001,
+      "cache_initial_prefix_cache_counter": {
+        "error": "",
+        "hit_rate_pct": 0.0,
+        "label": "cache_after_engine_load",
+        "ok": true,
+        "source_count": 1,
+        "sources": [
+          {
+            "empty": true,
+            "hit_rate_pct": 0.0,
+            "hits": 0,
+            "logger_type": "LoggingStatLogger",
+            "path": "logger_manager.stat_loggers[0].per_engine[0]",
+            "queries": 0,
+            "requests": 0
+          }
+        ],
+        "total_hits": 0,
+        "total_queries": 0,
+        "total_requests": 0
+      },
+      "cache_prefix_cache_counter_after": {
+        "error": "",
+        "hit_rate_pct": 31.544765733725065,
+        "label": "cache_rep00-run000_matched_unique_prefix_no_repeat_variant_out8_n16_after",
+        "ok": true,
+        "source_count": 1,
+        "sources": [
+          {
+            "empty": false,
+            "hit_rate_pct": 31.544765733725065,
+            "hits": 4080,
+            "logger_type": "LoggingStatLogger",
+            "path": "logger_manager.stat_loggers[0].per_engine[0]",
+            "queries": 12934,
+            "requests": 32
+          }
+        ],
+        "total_hits": 4080,
+        "total_queries": 12934,
+        "total_requests": 32
+      },
+      "cache_prefix_cache_counter_before": {
+        "error": "",
+        "hit_rate_pct": 50.56863263686855,
+        "label": "cache_rep00-run000_matched_unique_prefix_no_repeat_variant_out8_n16_before",
+        "ok": true,
+        "source_count": 1,
+        "sources": [
+          {
+            "empty": false,
+            "hit_rate_pct": 50.56863263686855,
+            "hits": 3824,
+            "logger_type": "LoggingStatLogger",
+            "path": "logger_manager.stat_loggers[0].per_engine[0]",
+            "queries": 7562,
+            "requests": 16
+          }
+        ],
+        "total_hits": 3824,
+        "total_queries": 7562,
+        "total_requests": 16
+      },
+      "cache_prefix_cache_counter_delta": {
+        "hit_rate_pct": 4.7654504839910645,
+        "hits": 256,
+        "queries": 5372,
+        "requests": 16
+      },
+      "cache_prefix_cache_counter_hit_rate_pct": 4.7654504839910645,
+      "cache_prefix_cache_counter_hits": 256,
+      "cache_prefix_cache_counter_queries": 5372,
+      "cache_prefix_cache_hit_rate_pct": 31.5,
+      "cache_to_cold_output_tokens_per_second_ratio": 0.9222525517861555,
+      "cache_to_cold_p95_latency_ms_ratio": 1.0798160275824908,
+      "cache_to_cold_prefix_cache_counter_hit_rate_pct_delta": 4.7654504839910645,
+      "cache_to_cold_prefix_cache_hit_rate_pct_delta": 31.5,
+      "cache_warmup": {
+        "summaries": [
+          {
+            "batch_wall_ms": 173.92663800001174,
+            "max_new_tokens": 1,
+            "prompt_profile": "neutral_long",
+            "prompt_tokens_mean": 472.625,
+            "request_count": 16,
+            "scenario_id": "warmup_neutral_long_out8_n16",
+            "total_output_tokens": 16,
+            "total_prompt_tokens": 7562,
+            "warmup_index": 0
+          }
+        ],
+        "total_output_tokens": 16,
+        "warmup_runs": 1,
+        "warmup_scenario_runs": 1,
+        "warmup_wall_ms": 174.40572799998222
+      },
+      "cache_warmup_cache_metrics": [
+        {
+          "avg_generation_throughput_tokens_per_s": 0.0,
+          "avg_prompt_throughput_tokens_per_s": 0.0,
+          "gpu_kv_cache_usage_pct": 0.0,
+          "label": "cache_after_warmup",
+          "line": "INFO vllm.v1.metrics.loggers: Engine 000: Avg prompt throughput: 0.0 tokens/s, Avg generation throughput: 0.0 tokens/s, Running: 0 reqs, Waiting: 0 reqs, GPU KV cache usage: 0.0%, Prefix cache hit rate: 50.6%",
+          "prefix_cache_hit_rate_pct": 50.6
+        }
+      ],
+      "cache_warmup_cache_metrics_log_stats": {
+        "captured_logs": [
+          "INFO vllm.v1.metrics.loggers: Engine 000: Avg prompt throughput: 0.0 tokens/s, Avg generation throughput: 0.0 tokens/s, Running: 0 reqs, Waiting: 0 reqs, GPU KV cache usage: 0.0%, Prefix cache hit rate: 50.6%",
+          "INFO vllm.v1.metrics.loggers: Engine 000: Avg prompt throughput: 0.0 tokens/s, Avg generation throughput: 0.0 tokens/s, Running: 0 reqs, Waiting: 0 reqs, GPU KV cache usage: 0.0%, Prefix cache hit rate: 50.6%"
+        ],
+        "elapsed_ms": 0.10105199999088654,
+        "label": "cache_after_warmup",
+        "ok": true,
+        "return_repr": "None",
+        "return_type": "NoneType",
+        "stderr": "",
+        "stdout": ""
+      },
+      "cache_warmup_prefix_cache_counter": {
+        "error": "",
+        "hit_rate_pct": 50.56863263686855,
+        "label": "cache_after_warmup",
+        "ok": true,
+        "source_count": 1,
+        "sources": [
+          {
+            "empty": false,
+            "hit_rate_pct": 50.56863263686855,
+            "hits": 3824,
+            "logger_type": "LoggingStatLogger",
+            "path": "logger_manager.stat_loggers[0].per_engine[0]",
+            "queries": 7562,
+            "requests": 16
+          }
+        ],
+        "total_hits": 3824,
+        "total_queries": 7562,
+        "total_requests": 16
+      },
+      "cache_warmup_prefix_cache_counter_delta": {
+        "hit_rate_pct": 50.56863263686855,
+        "hits": 3824,
+        "queries": 7562,
+        "requests": 16
+      },
+      "cold_cache_metrics": [
+        {
+          "avg_generation_throughput_tokens_per_s": 516.2,
+          "avg_prompt_throughput_tokens_per_s": 21664.9,
+          "gpu_kv_cache_usage_pct": 0.0,
+          "label": "cold_rep00-run000_matched_unique_prefix_no_repeat_variant_out8_n16",
+          "line": "INFO vllm.v1.metrics.loggers: Engine 000: Avg prompt throughput: 21664.9 tokens/s, Avg generation throughput: 516.2 tokens/s, Running: 0 reqs, Waiting: 0 reqs, GPU KV cache usage: 0.0%, Prefix cache hit rate: 0.0%",
+          "prefix_cache_hit_rate_pct": 0.0
+        }
+      ],
+      "cold_cache_metrics_log_stats": {
+        "captured_logs": [
+          "INFO vllm.v1.metrics.loggers: Engine 000: Avg prompt throughput: 21664.9 tokens/s, Avg generation throughput: 516.2 tokens/s, Running: 0 reqs, Waiting: 0 reqs, GPU KV cache usage: 0.0%, Prefix cache hit rate: 0.0%",
+          "INFO vllm.v1.metrics.loggers: Engine 000: Avg prompt throughput: 21664.9 tokens/s, Avg generation throughput: 516.2 tokens/s, Running: 0 reqs, Waiting: 0 reqs, GPU KV cache usage: 0.0%, Prefix cache hit rate: 0.0%"
+        ],
+        "elapsed_ms": 0.20455899999660687,
+        "label": "cold_rep00-run000_matched_unique_prefix_no_repeat_variant_out8_n16",
+        "ok": true,
+        "return_repr": "None",
+        "return_type": "NoneType",
+        "stderr": "",
+        "stdout": ""
+      },
+      "cold_engine_load_ms": 21531.377652999992,
+      "cold_initial_prefix_cache_counter": {
+        "error": "",
+        "hit_rate_pct": 0.0,
+        "label": "cold_after_engine_load",
+        "ok": true,
+        "source_count": 1,
+        "sources": [
+          {
+            "empty": true,
+            "hit_rate_pct": 0.0,
+            "hits": 0,
+            "logger_type": "LoggingStatLogger",
+            "path": "logger_manager.stat_loggers[0].per_engine[0]",
+            "queries": 0,
+            "requests": 0
+          }
+        ],
+        "total_hits": 0,
+        "total_queries": 0,
+        "total_requests": 0
+      },
+      "cold_prefix_cache_counter_after": {
+        "error": "",
+        "hit_rate_pct": 0.0,
+        "label": "cold_rep00-run000_matched_unique_prefix_no_repeat_variant_out8_n16_after",
+        "ok": true,
+        "source_count": 1,
+        "sources": [
+          {
+            "empty": true,
+            "hit_rate_pct": 0.0,
+            "hits": 0,
+            "logger_type": "LoggingStatLogger",
+            "path": "logger_manager.stat_loggers[0].per_engine[0]",
+            "queries": 0,
+            "requests": 0
+          }
+        ],
+        "total_hits": 0,
+        "total_queries": 0,
+        "total_requests": 0
+      },
+      "cold_prefix_cache_counter_before": {
+        "error": "",
+        "hit_rate_pct": 0.0,
+        "label": "cold_rep00-run000_matched_unique_prefix_no_repeat_variant_out8_n16_before",
+        "ok": true,
+        "source_count": 1,
+        "sources": [
+          {
+            "empty": true,
+            "hit_rate_pct": 0.0,
+            "hits": 0,
+            "logger_type": "LoggingStatLogger",
+            "path": "logger_manager.stat_loggers[0].per_engine[0]",
+            "queries": 0,
+            "requests": 0
+          }
+        ],
+        "total_hits": 0,
+        "total_queries": 0,
+        "total_requests": 0
+      },
+      "cold_prefix_cache_counter_delta": {
+        "hit_rate_pct": 0.0,
+        "hits": 0,
+        "queries": 0,
+        "requests": 0
+      },
+      "cold_prefix_cache_counter_hit_rate_pct": 0.0,
+      "cold_prefix_cache_counter_hits": 0,
+      "cold_prefix_cache_counter_queries": 0,
+      "cold_prefix_cache_hit_rate_pct": 0.0,
+      "cold_warmup": {
+        "summaries": [
+          {
+            "batch_wall_ms": 284.91129200000387,
+            "max_new_tokens": 1,
+            "prompt_profile": "neutral_long",
+            "prompt_tokens_mean": 472.625,
+            "request_count": 16,
+            "scenario_id": "warmup_neutral_long_out8_n16",
+            "total_output_tokens": 16,
+            "total_prompt_tokens": 7562,
+            "warmup_index": 0
+          }
+        ],
+        "total_output_tokens": 16,
+        "warmup_runs": 1,
+        "warmup_scenario_runs": 1,
+        "warmup_wall_ms": 285.41032499998664
+      },
+      "cold_warmup_cache_metrics": [
+        {
+          "avg_generation_throughput_tokens_per_s": 0.0,
+          "avg_prompt_throughput_tokens_per_s": 0.0,
+          "gpu_kv_cache_usage_pct": 0.0,
+          "label": "cold_after_warmup",
+          "line": "INFO vllm.v1.metrics.loggers: Engine 000: Avg prompt throughput: 0.0 tokens/s, Avg generation throughput: 0.0 tokens/s, Running: 0 reqs, Waiting: 0 reqs, GPU KV cache usage: 0.0%, Prefix cache hit rate: 0.0%",
+          "prefix_cache_hit_rate_pct": 0.0
+        }
+      ],
+      "cold_warmup_cache_metrics_log_stats": {
+        "captured_logs": [
+          "INFO vllm.v1.metrics.loggers: Engine 000: Avg prompt throughput: 0.0 tokens/s, Avg generation throughput: 0.0 tokens/s, Running: 0 reqs, Waiting: 0 reqs, GPU KV cache usage: 0.0%, Prefix cache hit rate: 0.0%",
+          "INFO vllm.v1.metrics.loggers: Engine 000: Avg prompt throughput: 0.0 tokens/s, Avg generation throughput: 0.0 tokens/s, Running: 0 reqs, Waiting: 0 reqs, GPU KV cache usage: 0.0%, Prefix cache hit rate: 0.0%"
+        ],
+        "elapsed_ms": 0.10136099999158432,
+        "label": "cold_after_warmup",
+        "ok": true,
+        "return_repr": "None",
+        "return_type": "NoneType",
+        "stderr": "",
+        "stdout": ""
+      },
+      "cold_warmup_prefix_cache_counter": {
+        "error": "",
+        "hit_rate_pct": 0.0,
+        "label": "cold_after_warmup",
+        "ok": true,
+        "source_count": 1,
+        "sources": [
+          {
+            "empty": true,
+            "hit_rate_pct": 0.0,
+            "hits": 0,
+            "logger_type": "LoggingStatLogger",
+            "path": "logger_manager.stat_loggers[0].per_engine[0]",
+            "queries": 0,
+            "requests": 0
+          }
+        ],
+        "total_hits": 0,
+        "total_queries": 0,
+        "total_requests": 0
+      },
+      "cold_warmup_prefix_cache_counter_delta": {
+        "hit_rate_pct": 0.0,
+        "hits": 0,
+        "queries": 0,
+        "requests": 0
+      },
+      "isolation_call_index": 1,
+      "max_new_tokens": 8,
+      "phase_order": "cold_first",
+      "prompt_profile": "matched_unique_prefix_no_repeat_variant",
+      "repeat_index": 0,
+      "request_count": 16,
+      "scenario_id": "matched_unique_prefix_no_repeat_variant_out8_n16",
+      "warmup_prompt_profile": "neutral_long",
+      "warmup_runs": 1,
+      "warmup_scenario_count": 1
+    },
+    {
+      "cache_cache_metrics": [
+        {
+          "avg_generation_throughput_tokens_per_s": 567.8,
+          "avg_prompt_throughput_tokens_per_s": 3894.8,
+          "gpu_kv_cache_usage_pct": 0.0,
+          "label": "cache_rep00-run000_shared_prefix_long_no_repeat_variant_out8_n16",
+          "line": "INFO vllm.v1.metrics.loggers: Engine 000: Avg prompt throughput: 3894.8 tokens/s, Avg generation throughput: 567.8 tokens/s, Running: 0 reqs, Waiting: 0 reqs, GPU KV cache usage: 0.0%, Prefix cache hit rate: 63.9%",
+          "prefix_cache_hit_rate_pct": 63.9
+        }
+      ],
+      "cache_cache_metrics_log_stats": {
+        "captured_logs": [
+          "INFO vllm.v1.metrics.loggers: Engine 000: Avg prompt throughput: 3894.8 tokens/s, Avg generation throughput: 567.8 tokens/s, Running: 0 reqs, Waiting: 0 reqs, GPU KV cache usage: 0.0%, Prefix cache hit rate: 63.9%",
+          "INFO vllm.v1.metrics.loggers: Engine 000: Avg prompt throughput: 3894.8 tokens/s, Avg generation throughput: 567.8 tokens/s, Running: 0 reqs, Waiting: 0 reqs, GPU KV cache usage: 0.0%, Prefix cache hit rate: 63.9%"
+        ],
+        "elapsed_ms": 0.20941100001437007,
+        "label": "cache_rep00-run000_shared_prefix_long_no_repeat_variant_out8_n16",
+        "ok": true,
+        "return_repr": "None",
+        "return_type": "NoneType",
+        "stderr": "",
+        "stdout": ""
+      },
+      "cache_engine_load_ms": 21341.234928999995,
+      "cache_initial_prefix_cache_counter": {
+        "error": "",
+        "hit_rate_pct": 0.0,
+        "label": "cache_after_engine_load",
+        "ok": true,
+        "source_count": 1,
+        "sources": [
+          {
+            "empty": true,
+            "hit_rate_pct": 0.0,
+            "hits": 0,
+            "logger_type": "LoggingStatLogger",
+            "path": "logger_manager.stat_loggers[0].per_engine[0]",
+            "queries": 0,
+            "requests": 0
+          }
+        ],
+        "total_hits": 0,
+        "total_queries": 0,
+        "total_requests": 0
+      },
+      "cache_prefix_cache_counter_after": {
+        "error": "",
+        "hit_rate_pct": 63.869755792110205,
+        "label": "cache_rep00-run000_shared_prefix_long_no_repeat_variant_out8_n16_after",
+        "ok": true,
+        "source_count": 1,
+        "sources": [
+          {
+            "empty": false,
+            "hit_rate_pct": 63.869755792110205,
+            "hits": 8160,
+            "logger_type": "LoggingStatLogger",
+            "path": "logger_manager.stat_loggers[0].per_engine[0]",
+            "queries": 12776,
+            "requests": 32
+          }
+        ],
+        "total_hits": 8160,
+        "total_queries": 12776,
+        "total_requests": 32
+      },
+      "cache_prefix_cache_counter_before": {
+        "error": "",
+        "hit_rate_pct": 50.56863263686855,
+        "label": "cache_rep00-run000_shared_prefix_long_no_repeat_variant_out8_n16_before",
+        "ok": true,
+        "source_count": 1,
+        "sources": [
+          {
+            "empty": false,
+            "hit_rate_pct": 50.56863263686855,
+            "hits": 3824,
+            "logger_type": "LoggingStatLogger",
+            "path": "logger_manager.stat_loggers[0].per_engine[0]",
+            "queries": 7562,
+            "requests": 16
+          }
+        ],
+        "total_hits": 3824,
+        "total_queries": 7562,
+        "total_requests": 16
+      },
+      "cache_prefix_cache_counter_delta": {
+        "hit_rate_pct": 83.16072113540469,
+        "hits": 4336,
+        "queries": 5214,
+        "requests": 16
+      },
+      "cache_prefix_cache_counter_hit_rate_pct": 83.16072113540469,
+      "cache_prefix_cache_counter_hits": 4336,
+      "cache_prefix_cache_counter_queries": 5214,
+      "cache_prefix_cache_hit_rate_pct": 63.9,
+      "cache_to_cold_output_tokens_per_second_ratio": 1.1820081953651935,
+      "cache_to_cold_p95_latency_ms_ratio": 0.8457744894314013,
+      "cache_to_cold_prefix_cache_counter_hit_rate_pct_delta": 83.16072113540469,
+      "cache_to_cold_prefix_cache_hit_rate_pct_delta": 63.9,
+      "cache_warmup": {
+        "summaries": [
+          {
+            "batch_wall_ms": 180.71498799997698,
+            "max_new_tokens": 1,
+            "prompt_profile": "neutral_long",
+            "prompt_tokens_mean": 472.625,
+            "request_count": 16,
+            "scenario_id": "warmup_neutral_long_out8_n16",
+            "total_output_tokens": 16,
+            "total_prompt_tokens": 7562,
+            "warmup_index": 0
+          }
+        ],
+        "total_output_tokens": 16,
+        "warmup_runs": 1,
+        "warmup_scenario_runs": 1,
+        "warmup_wall_ms": 181.19944799997256
+      },
+      "cache_warmup_cache_metrics": [
+        {
+          "avg_generation_throughput_tokens_per_s": 0.0,
+          "avg_prompt_throughput_tokens_per_s": 0.0,
+          "gpu_kv_cache_usage_pct": 0.0,
+          "label": "cache_after_warmup",
+          "line": "INFO vllm.v1.metrics.loggers: Engine 000: Avg prompt throughput: 0.0 tokens/s, Avg generation throughput: 0.0 tokens/s, Running: 0 reqs, Waiting: 0 reqs, GPU KV cache usage: 0.0%, Prefix cache hit rate: 50.6%",
+          "prefix_cache_hit_rate_pct": 50.6
+        }
+      ],
+      "cache_warmup_cache_metrics_log_stats": {
+        "captured_logs": [
+          "INFO vllm.v1.metrics.loggers: Engine 000: Avg prompt throughput: 0.0 tokens/s, Avg generation throughput: 0.0 tokens/s, Running: 0 reqs, Waiting: 0 reqs, GPU KV cache usage: 0.0%, Prefix cache hit rate: 50.6%",
+          "INFO vllm.v1.metrics.loggers: Engine 000: Avg prompt throughput: 0.0 tokens/s, Avg generation throughput: 0.0 tokens/s, Running: 0 reqs, Waiting: 0 reqs, GPU KV cache usage: 0.0%, Prefix cache hit rate: 50.6%"
+        ],
+        "elapsed_ms": 0.11463800001365598,
+        "label": "cache_after_warmup",
+        "ok": true,
+        "return_repr": "None",
+        "return_type": "NoneType",
+        "stderr": "",
+        "stdout": ""
+      },
+      "cache_warmup_prefix_cache_counter": {
+        "error": "",
+        "hit_rate_pct": 50.56863263686855,
+        "label": "cache_after_warmup",
+        "ok": true,
+        "source_count": 1,
+        "sources": [
+          {
+            "empty": false,
+            "hit_rate_pct": 50.56863263686855,
+            "hits": 3824,
+            "logger_type": "LoggingStatLogger",
+            "path": "logger_manager.stat_loggers[0].per_engine[0]",
+            "queries": 7562,
+            "requests": 16
+          }
+        ],
+        "total_hits": 3824,
+        "total_queries": 7562,
+        "total_requests": 16
+      },
+      "cache_warmup_prefix_cache_counter_delta": {
+        "hit_rate_pct": 50.56863263686855,
+        "hits": 3824,
+        "queries": 7562,
+        "requests": 16
+      },
+      "cold_cache_metrics": [
+        {
+          "avg_generation_throughput_tokens_per_s": 480.5,
+          "avg_prompt_throughput_tokens_per_s": 19573.4,
+          "gpu_kv_cache_usage_pct": 0.0,
+          "label": "cold_rep00-run000_shared_prefix_long_no_repeat_variant_out8_n16",
+          "line": "INFO vllm.v1.metrics.loggers: Engine 000: Avg prompt throughput: 19573.4 tokens/s, Avg generation throughput: 480.5 tokens/s, Running: 0 reqs, Waiting: 0 reqs, GPU KV cache usage: 0.0%, Prefix cache hit rate: 0.0%",
+          "prefix_cache_hit_rate_pct": 0.0
+        }
+      ],
+      "cold_cache_metrics_log_stats": {
+        "captured_logs": [
+          "INFO vllm.v1.metrics.loggers: Engine 000: Avg prompt throughput: 19573.4 tokens/s, Avg generation throughput: 480.5 tokens/s, Running: 0 reqs, Waiting: 0 reqs, GPU KV cache usage: 0.0%, Prefix cache hit rate: 0.0%",
+          "INFO vllm.v1.metrics.loggers: Engine 000: Avg prompt throughput: 19573.4 tokens/s, Avg generation throughput: 480.5 tokens/s, Running: 0 reqs, Waiting: 0 reqs, GPU KV cache usage: 0.0%, Prefix cache hit rate: 0.0%"
+        ],
+        "elapsed_ms": 0.20029199998816694,
+        "label": "cold_rep00-run000_shared_prefix_long_no_repeat_variant_out8_n16",
+        "ok": true,
+        "return_repr": "None",
+        "return_type": "NoneType",
+        "stderr": "",
+        "stdout": ""
+      },
+      "cold_engine_load_ms": 21347.83750300002,
+      "cold_initial_prefix_cache_counter": {
+        "error": "",
+        "hit_rate_pct": 0.0,
+        "label": "cold_after_engine_load",
+        "ok": true,
+        "source_count": 1,
+        "sources": [
+          {
+            "empty": true,
+            "hit_rate_pct": 0.0,
+            "hits": 0,
+            "logger_type": "LoggingStatLogger",
+            "path": "logger_manager.stat_loggers[0].per_engine[0]",
+            "queries": 0,
+            "requests": 0
+          }
+        ],
+        "total_hits": 0,
+        "total_queries": 0,
+        "total_requests": 0
+      },
+      "cold_prefix_cache_counter_after": {
+        "error": "",
+        "hit_rate_pct": 0.0,
+        "label": "cold_rep00-run000_shared_prefix_long_no_repeat_variant_out8_n16_after",
+        "ok": true,
+        "source_count": 1,
+        "sources": [
+          {
+            "empty": true,
+            "hit_rate_pct": 0.0,
+            "hits": 0,
+            "logger_type": "LoggingStatLogger",
+            "path": "logger_manager.stat_loggers[0].per_engine[0]",
+            "queries": 0,
+            "requests": 0
+          }
+        ],
+        "total_hits": 0,
+        "total_queries": 0,
+        "total_requests": 0
+      },
+      "cold_prefix_cache_counter_before": {
+        "error": "",
+        "hit_rate_pct": 0.0,
+        "label": "cold_rep00-run000_shared_prefix_long_no_repeat_variant_out8_n16_before",
+        "ok": true,
+        "source_count": 1,
+        "sources": [
+          {
+            "empty": true,
+            "hit_rate_pct": 0.0,
+            "hits": 0,
+            "logger_type": "LoggingStatLogger",
+            "path": "logger_manager.stat_loggers[0].per_engine[0]",
+            "queries": 0,
+            "requests": 0
+          }
+        ],
+        "total_hits": 0,
+        "total_queries": 0,
+        "total_requests": 0
+      },
+      "cold_prefix_cache_counter_delta": {
+        "hit_rate_pct": 0.0,
+        "hits": 0,
+        "queries": 0,
+        "requests": 0
+      },
+      "cold_prefix_cache_counter_hit_rate_pct": 0.0,
+      "cold_prefix_cache_counter_hits": 0,
+      "cold_prefix_cache_counter_queries": 0,
+      "cold_prefix_cache_hit_rate_pct": 0.0,
+      "cold_warmup": {
+        "summaries": [
+          {
+            "batch_wall_ms": 230.41804000001775,
+            "max_new_tokens": 1,
+            "prompt_profile": "neutral_long",
+            "prompt_tokens_mean": 472.625,
+            "request_count": 16,
+            "scenario_id": "warmup_neutral_long_out8_n16",
+            "total_output_tokens": 16,
+            "total_prompt_tokens": 7562,
+            "warmup_index": 0
+          }
+        ],
+        "total_output_tokens": 16,
+        "warmup_runs": 1,
+        "warmup_scenario_runs": 1,
+        "warmup_wall_ms": 230.8941329999925
+      },
+      "cold_warmup_cache_metrics": [
+        {
+          "avg_generation_throughput_tokens_per_s": 0.0,
+          "avg_prompt_throughput_tokens_per_s": 0.0,
+          "gpu_kv_cache_usage_pct": 0.0,
+          "label": "cold_after_warmup",
+          "line": "INFO vllm.v1.metrics.loggers: Engine 000: Avg prompt throughput: 0.0 tokens/s, Avg generation throughput: 0.0 tokens/s, Running: 0 reqs, Waiting: 0 reqs, GPU KV cache usage: 0.0%, Prefix cache hit rate: 0.0%",
+          "prefix_cache_hit_rate_pct": 0.0
+        }
+      ],
+      "cold_warmup_cache_metrics_log_stats": {
+        "captured_logs": [
+          "INFO vllm.v1.metrics.loggers: Engine 000: Avg prompt throughput: 0.0 tokens/s, Avg generation throughput: 0.0 tokens/s, Running: 0 reqs, Waiting: 0 reqs, GPU KV cache usage: 0.0%, Prefix cache hit rate: 0.0%",
+          "INFO vllm.v1.metrics.loggers: Engine 000: Avg prompt throughput: 0.0 tokens/s, Avg generation throughput: 0.0 tokens/s, Running: 0 reqs, Waiting: 0 reqs, GPU KV cache usage: 0.0%, Prefix cache hit rate: 0.0%"
+        ],
+        "elapsed_ms": 0.10144799995259746,
+        "label": "cold_after_warmup",
+        "ok": true,
+        "return_repr": "None",
+        "return_type": "NoneType",
+        "stderr": "",
+        "stdout": ""
+      },
+      "cold_warmup_prefix_cache_counter": {
+        "error": "",
+        "hit_rate_pct": 0.0,
+        "label": "cold_after_warmup",
+        "ok": true,
+        "source_count": 1,
+        "sources": [
+          {
+            "empty": true,
+            "hit_rate_pct": 0.0,
+            "hits": 0,
+            "logger_type": "LoggingStatLogger",
+            "path": "logger_manager.stat_loggers[0].per_engine[0]",
+            "queries": 0,
+            "requests": 0
+          }
+        ],
+        "total_hits": 0,
+        "total_queries": 0,
+        "total_requests": 0
+      },
+      "cold_warmup_prefix_cache_counter_delta": {
+        "hit_rate_pct": 0.0,
+        "hits": 0,
+        "queries": 0,
+        "requests": 0
+      },
+      "isolation_call_index": 2,
+      "max_new_tokens": 8,
+      "phase_order": "cold_first",
+      "prompt_profile": "shared_prefix_long_no_repeat_variant",
+      "repeat_index": 1,
+      "request_count": 16,
+      "scenario_id": "shared_prefix_long_no_repeat_variant_out8_n16",
+      "warmup_prompt_profile": "neutral_long",
+      "warmup_runs": 1,
+      "warmup_scenario_count": 1
+    },
+    {
+      "cache_cache_metrics": [
+        {
+          "avg_generation_throughput_tokens_per_s": 355.4,
+          "avg_prompt_throughput_tokens_per_s": 14163.8,
+          "gpu_kv_cache_usage_pct": 0.0,
+          "label": "cache_rep00-run000_matched_unique_prefix_no_repeat_variant_out8_n16",
+          "line": "INFO vllm.v1.metrics.loggers: Engine 000: Avg prompt throughput: 14163.8 tokens/s, Avg generation throughput: 355.4 tokens/s, Running: 0 reqs, Waiting: 0 reqs, GPU KV cache usage: 0.0%, Prefix cache hit rate: 31.6%",
+          "prefix_cache_hit_rate_pct": 31.6
+        }
+      ],
+      "cache_cache_metrics_log_stats": {
+        "captured_logs": [
+          "INFO vllm.v1.metrics.loggers: Engine 000: Avg prompt throughput: 14163.8 tokens/s, Avg generation throughput: 355.4 tokens/s, Running: 0 reqs, Waiting: 0 reqs, GPU KV cache usage: 0.0%, Prefix cache hit rate: 31.6%",
+          "INFO vllm.v1.metrics.loggers: Engine 000: Avg prompt throughput: 14163.8 tokens/s, Avg generation throughput: 355.4 tokens/s, Running: 0 reqs, Waiting: 0 reqs, GPU KV cache usage: 0.0%, Prefix cache hit rate: 31.6%"
+        ],
+        "elapsed_ms": 0.2972700000327677,
+        "label": "cache_rep00-run000_matched_unique_prefix_no_repeat_variant_out8_n16",
+        "ok": true,
+        "return_repr": "None",
+        "return_type": "NoneType",
+        "stderr": "",
+        "stdout": ""
+      },
+      "cache_engine_load_ms": 27177.33407100002,
+      "cache_initial_prefix_cache_counter": {
+        "error": "",
+        "hit_rate_pct": 0.0,
+        "label": "cache_after_engine_load",
+        "ok": true,
+        "source_count": 1,
+        "sources": [
+          {
+            "empty": true,
+            "hit_rate_pct": 0.0,
+            "hits": 0,
+            "logger_type": "LoggingStatLogger",
+            "path": "logger_manager.stat_loggers[0].per_engine[0]",
+            "queries": 0,
+            "requests": 0
+          }
+        ],
+        "total_hits": 0,
+        "total_queries": 0,
+        "total_requests": 0
+      },
+      "cache_prefix_cache_counter_after": {
+        "error": "",
+        "hit_rate_pct": 31.58139174858735,
+        "label": "cache_rep00-run000_matched_unique_prefix_no_repeat_variant_out8_n16_after",
+        "ok": true,
+        "source_count": 1,
+        "sources": [
+          {
+            "empty": false,
+            "hit_rate_pct": 31.58139174858735,
+            "hits": 4080,
+            "logger_type": "LoggingStatLogger",
+            "path": "logger_manager.stat_loggers[0].per_engine[0]",
+            "queries": 12919,
+            "requests": 32
+          }
+        ],
+        "total_hits": 4080,
+        "total_queries": 12919,
+        "total_requests": 32
+      },
+      "cache_prefix_cache_counter_before": {
+        "error": "",
+        "hit_rate_pct": 50.56863263686855,
+        "label": "cache_rep00-run000_matched_unique_prefix_no_repeat_variant_out8_n16_before",
+        "ok": true,
+        "source_count": 1,
+        "sources": [
+          {
+            "empty": false,
+            "hit_rate_pct": 50.56863263686855,
+            "hits": 3824,
+            "logger_type": "LoggingStatLogger",
+            "path": "logger_manager.stat_loggers[0].per_engine[0]",
+            "queries": 7562,
+            "requests": 16
+          }
+        ],
+        "total_hits": 3824,
+        "total_queries": 7562,
+        "total_requests": 16
+      },
+      "cache_prefix_cache_counter_delta": {
+        "hit_rate_pct": 4.7787941011760315,
+        "hits": 256,
+        "queries": 5357,
+        "requests": 16
+      },
+      "cache_prefix_cache_counter_hit_rate_pct": 4.7787941011760315,
+      "cache_prefix_cache_counter_hits": 256,
+      "cache_prefix_cache_counter_queries": 5357,
+      "cache_prefix_cache_hit_rate_pct": 31.6,
+      "cache_to_cold_output_tokens_per_second_ratio": 0.8270730427957704,
+      "cache_to_cold_p95_latency_ms_ratio": 1.209285439031153,
+      "cache_to_cold_prefix_cache_counter_hit_rate_pct_delta": 4.7787941011760315,
+      "cache_to_cold_prefix_cache_hit_rate_pct_delta": 31.6,
+      "cache_warmup": {
+        "summaries": [
+          {
+            "batch_wall_ms": 193.6988930000325,
+            "max_new_tokens": 1,
+            "prompt_profile": "neutral_long",
+            "prompt_tokens_mean": 472.625,
+            "request_count": 16,
+            "scenario_id": "warmup_neutral_long_out8_n16",
+            "total_output_tokens": 16,
+            "total_prompt_tokens": 7562,
+            "warmup_index": 0
+          }
+        ],
+        "total_output_tokens": 16,
+        "warmup_runs": 1,
+        "warmup_scenario_runs": 1,
+        "warmup_wall_ms": 194.26874900000257
+      },
+      "cache_warmup_cache_metrics": [
+        {
+          "avg_generation_throughput_tokens_per_s": 0.0,
+          "avg_prompt_throughput_tokens_per_s": 0.0,
+          "gpu_kv_cache_usage_pct": 0.0,
+          "label": "cache_after_warmup",
+          "line": "INFO vllm.v1.metrics.loggers: Engine 000: Avg prompt throughput: 0.0 tokens/s, Avg generation throughput: 0.0 tokens/s, Running: 0 reqs, Waiting: 0 reqs, GPU KV cache usage: 0.0%, Prefix cache hit rate: 50.6%",
+          "prefix_cache_hit_rate_pct": 50.6
+        }
+      ],
+      "cache_warmup_cache_metrics_log_stats": {
+        "captured_logs": [
+          "INFO vllm.v1.metrics.loggers: Engine 000: Avg prompt throughput: 0.0 tokens/s, Avg generation throughput: 0.0 tokens/s, Running: 0 reqs, Waiting: 0 reqs, GPU KV cache usage: 0.0%, Prefix cache hit rate: 50.6%",
+          "INFO vllm.v1.metrics.loggers: Engine 000: Avg prompt throughput: 0.0 tokens/s, Avg generation throughput: 0.0 tokens/s, Running: 0 reqs, Waiting: 0 reqs, GPU KV cache usage: 0.0%, Prefix cache hit rate: 50.6%"
+        ],
+        "elapsed_ms": 0.279158000012103,
+        "label": "cache_after_warmup",
+        "ok": true,
+        "return_repr": "None",
+        "return_type": "NoneType",
+        "stderr": "",
+        "stdout": ""
+      },
+      "cache_warmup_prefix_cache_counter": {
+        "error": "",
+        "hit_rate_pct": 50.56863263686855,
+        "label": "cache_after_warmup",
+        "ok": true,
+        "source_count": 1,
+        "sources": [
+          {
+            "empty": false,
+            "hit_rate_pct": 50.56863263686855,
+            "hits": 3824,
+            "logger_type": "LoggingStatLogger",
+            "path": "logger_manager.stat_loggers[0].per_engine[0]",
+            "queries": 7562,
+            "requests": 16
+          }
+        ],
+        "total_hits": 3824,
+        "total_queries": 7562,
+        "total_requests": 16
+      },
+      "cache_warmup_prefix_cache_counter_delta": {
+        "hit_rate_pct": 50.56863263686855,
+        "hits": 3824,
+        "queries": 7562,
+        "requests": 16
+      },
+      "cold_cache_metrics": [
+        {
+          "avg_generation_throughput_tokens_per_s": 429.8,
+          "avg_prompt_throughput_tokens_per_s": 17989.2,
+          "gpu_kv_cache_usage_pct": 0.0,
+          "label": "cold_rep00-run000_matched_unique_prefix_no_repeat_variant_out8_n16",
+          "line": "INFO vllm.v1.metrics.loggers: Engine 000: Avg prompt throughput: 17989.2 tokens/s, Avg generation throughput: 429.8 tokens/s, Running: 0 reqs, Waiting: 0 reqs, GPU KV cache usage: 0.0%, Prefix cache hit rate: 0.0%",
+          "prefix_cache_hit_rate_pct": 0.0
+        }
+      ],
+      "cold_cache_metrics_log_stats": {
+        "captured_logs": [
+          "INFO vllm.v1.metrics.loggers: Engine 000: Avg prompt throughput: 17989.2 tokens/s, Avg generation throughput: 429.8 tokens/s, Running: 0 reqs, Waiting: 0 reqs, GPU KV cache usage: 0.0%, Prefix cache hit rate: 0.0%",
+          "INFO vllm.v1.metrics.loggers: Engine 000: Avg prompt throughput: 17989.2 tokens/s, Avg generation throughput: 429.8 tokens/s, Running: 0 reqs, Waiting: 0 reqs, GPU KV cache usage: 0.0%, Prefix cache hit rate: 0.0%"
+        ],
+        "elapsed_ms": 0.352733999989141,
+        "label": "cold_rep00-run000_matched_unique_prefix_no_repeat_variant_out8_n16",
+        "ok": true,
+        "return_repr": "None",
+        "return_type": "NoneType",
+        "stderr": "",
+        "stdout": ""
+      },
+      "cold_engine_load_ms": 22697.46814299998,
+      "cold_initial_prefix_cache_counter": {
+        "error": "",
+        "hit_rate_pct": 0.0,
+        "label": "cold_after_engine_load",
+        "ok": true,
+        "source_count": 1,
+        "sources": [
+          {
+            "empty": true,
+            "hit_rate_pct": 0.0,
+            "hits": 0,
+            "logger_type": "LoggingStatLogger",
+            "path": "logger_manager.stat_loggers[0].per_engine[0]",
+            "queries": 0,
+            "requests": 0
+          }
+        ],
+        "total_hits": 0,
+        "total_queries": 0,
+        "total_requests": 0
+      },
+      "cold_prefix_cache_counter_after": {
+        "error": "",
+        "hit_rate_pct": 0.0,
+        "label": "cold_rep00-run000_matched_unique_prefix_no_repeat_variant_out8_n16_after",
+        "ok": true,
+        "source_count": 1,
+        "sources": [
+          {
+            "empty": true,
+            "hit_rate_pct": 0.0,
+            "hits": 0,
+            "logger_type": "LoggingStatLogger",
+            "path": "logger_manager.stat_loggers[0].per_engine[0]",
+            "queries": 0,
+            "requests": 0
+          }
+        ],
+        "total_hits": 0,
+        "total_queries": 0,
+        "total_requests": 0
+      },
+      "cold_prefix_cache_counter_before": {
+        "error": "",
+        "hit_rate_pct": 0.0,
+        "label": "cold_rep00-run000_matched_unique_prefix_no_repeat_variant_out8_n16_before",
+        "ok": true,
+        "source_count": 1,
+        "sources": [
+          {
+            "empty": true,
+            "hit_rate_pct": 0.0,
+            "hits": 0,
+            "logger_type": "LoggingStatLogger",
+            "path": "logger_manager.stat_loggers[0].per_engine[0]",
+            "queries": 0,
+            "requests": 0
+          }
+        ],
+        "total_hits": 0,
+        "total_queries": 0,
+        "total_requests": 0
+      },
+      "cold_prefix_cache_counter_delta": {
+        "hit_rate_pct": 0.0,
+        "hits": 0,
+        "queries": 0,
+        "requests": 0
+      },
+      "cold_prefix_cache_counter_hit_rate_pct": 0.0,
+      "cold_prefix_cache_counter_hits": 0,
+      "cold_prefix_cache_counter_queries": 0,
+      "cold_prefix_cache_hit_rate_pct": 0.0,
+      "cold_warmup": {
+        "summaries": [
+          {
+            "batch_wall_ms": 313.2739019999917,
+            "max_new_tokens": 1,
+            "prompt_profile": "neutral_long",
+            "prompt_tokens_mean": 472.625,
+            "request_count": 16,
+            "scenario_id": "warmup_neutral_long_out8_n16",
+            "total_output_tokens": 16,
+            "total_prompt_tokens": 7562,
+            "warmup_index": 0
+          }
+        ],
+        "total_output_tokens": 16,
+        "warmup_runs": 1,
+        "warmup_scenario_runs": 1,
+        "warmup_wall_ms": 313.8149420000218
+      },
+      "cold_warmup_cache_metrics": [
+        {
+          "avg_generation_throughput_tokens_per_s": 0.0,
+          "avg_prompt_throughput_tokens_per_s": 0.0,
+          "gpu_kv_cache_usage_pct": 0.0,
+          "label": "cold_after_warmup",
+          "line": "INFO vllm.v1.metrics.loggers: Engine 000: Avg prompt throughput: 0.0 tokens/s, Avg generation throughput: 0.0 tokens/s, Running: 0 reqs, Waiting: 0 reqs, GPU KV cache usage: 0.0%, Prefix cache hit rate: 0.0%",
+          "prefix_cache_hit_rate_pct": 0.0
+        }
+      ],
+      "cold_warmup_cache_metrics_log_stats": {
+        "captured_logs": [
+          "INFO vllm.v1.metrics.loggers: Engine 000: Avg prompt throughput: 0.0 tokens/s, Avg generation throughput: 0.0 tokens/s, Running: 0 reqs, Waiting: 0 reqs, GPU KV cache usage: 0.0%, Prefix cache hit rate: 0.0%",
+          "INFO vllm.v1.metrics.loggers: Engine 000: Avg prompt throughput: 0.0 tokens/s, Avg generation throughput: 0.0 tokens/s, Running: 0 reqs, Waiting: 0 reqs, GPU KV cache usage: 0.0%, Prefix cache hit rate: 0.0%"
+        ],
+        "elapsed_ms": 0.1534319999905165,
+        "label": "cold_after_warmup",
+        "ok": true,
+        "return_repr": "None",
+        "return_type": "NoneType",
+        "stderr": "",
+        "stdout": ""
+      },
+      "cold_warmup_prefix_cache_counter": {
+        "error": "",
+        "hit_rate_pct": 0.0,
+        "label": "cold_after_warmup",
+        "ok": true,
+        "source_count": 1,
+        "sources": [
+          {
+            "empty": true,
+            "hit_rate_pct": 0.0,
+            "hits": 0,
+            "logger_type": "LoggingStatLogger",
+            "path": "logger_manager.stat_loggers[0].per_engine[0]",
+            "queries": 0,
+            "requests": 0
+          }
+        ],
+        "total_hits": 0,
+        "total_queries": 0,
+        "total_requests": 0
+      },
+      "cold_warmup_prefix_cache_counter_delta": {
+        "hit_rate_pct": 0.0,
+        "hits": 0,
+        "queries": 0,
+        "requests": 0
+      },
+      "isolation_call_index": 3,
+      "max_new_tokens": 8,
+      "phase_order": "cold_first",
+      "prompt_profile": "matched_unique_prefix_no_repeat_variant",
+      "repeat_index": 1,
+      "request_count": 16,
+      "scenario_id": "matched_unique_prefix_no_repeat_variant_out8_n16",
+      "warmup_prompt_profile": "neutral_long",
+      "warmup_runs": 1,
+      "warmup_scenario_count": 1
+    },
+    {
+      "cache_cache_metrics": [
+        {
+          "avg_generation_throughput_tokens_per_s": 559.8,
+          "avg_prompt_throughput_tokens_per_s": 3975.4,
+          "gpu_kv_cache_usage_pct": 0.0,
+          "label": "cache_rep00-run000_shared_prefix_long_no_repeat_variant_out8_n16",
+          "line": "INFO vllm.v1.metrics.loggers: Engine 000: Avg prompt throughput: 3975.4 tokens/s, Avg generation throughput: 559.8 tokens/s, Running: 0 reqs, Waiting: 0 reqs, GPU KV cache usage: 0.0%, Prefix cache hit rate: 64.4%",
+          "prefix_cache_hit_rate_pct": 64.4
+        }
+      ],
+      "cache_cache_metrics_log_stats": {
+        "captured_logs": [
+          "INFO vllm.v1.metrics.loggers: Engine 000: Avg prompt throughput: 3975.4 tokens/s, Avg generation throughput: 559.8 tokens/s, Running: 0 reqs, Waiting: 0 reqs, GPU KV cache usage: 0.0%, Prefix cache hit rate: 64.4%",
+          "INFO vllm.v1.metrics.loggers: Engine 000: Avg prompt throughput: 3975.4 tokens/s, Avg generation throughput: 559.8 tokens/s, Running: 0 reqs, Waiting: 0 reqs, GPU KV cache usage: 0.0%, Prefix cache hit rate: 64.4%"
+        ],
+        "elapsed_ms": 0.20832100000234277,
+        "label": "cache_rep00-run000_shared_prefix_long_no_repeat_variant_out8_n16",
+        "ok": true,
+        "return_repr": "None",
+        "return_type": "NoneType",
+        "stderr": "",
+        "stdout": ""
+      },
+      "cache_engine_load_ms": 20827.539699999987,
+      "cache_initial_prefix_cache_counter": {
+        "error": "",
+        "hit_rate_pct": 0.0,
+        "label": "cache_after_engine_load",
+        "ok": true,
+        "source_count": 1,
+        "sources": [
+          {
+            "empty": true,
+            "hit_rate_pct": 0.0,
+            "hits": 0,
+            "logger_type": "LoggingStatLogger",
+            "path": "logger_manager.stat_loggers[0].per_engine[0]",
+            "queries": 0,
+            "requests": 0
+          }
+        ],
+        "total_hits": 0,
+        "total_queries": 0,
+        "total_requests": 0
+      },
+      "cache_prefix_cache_counter_after": {
+        "error": "",
+        "hit_rate_pct": 64.38261669349275,
+        "label": "cache_rep00-run000_shared_prefix_long_no_repeat_variant_out8_n16_after",
+        "ok": true,
+        "source_count": 1,
+        "sources": [
+          {
+            "empty": false,
+            "hit_rate_pct": 64.38261669349275,
+            "hits": 8400,
+            "logger_type": "LoggingStatLogger",
+            "path": "logger_manager.stat_loggers[0].per_engine[0]",
+            "queries": 13047,
+            "requests": 32
+          }
+        ],
+        "total_hits": 8400,
+        "total_queries": 13047,
+        "total_requests": 32
+      },
+      "cache_prefix_cache_counter_before": {
+        "error": "",
+        "hit_rate_pct": 50.56863263686855,
+        "label": "cache_rep00-run000_shared_prefix_long_no_repeat_variant_out8_n16_before",
+        "ok": true,
+        "source_count": 1,
+        "sources": [
+          {
+            "empty": false,
+            "hit_rate_pct": 50.56863263686855,
+            "hits": 3824,
+            "logger_type": "LoggingStatLogger",
+            "path": "logger_manager.stat_loggers[0].per_engine[0]",
+            "queries": 7562,
+            "requests": 16
+          }
+        ],
+        "total_hits": 3824,
+        "total_queries": 7562,
+        "total_requests": 16
+      },
+      "cache_prefix_cache_counter_delta": {
+        "hit_rate_pct": 83.42752962625342,
+        "hits": 4576,
+        "queries": 5485,
+        "requests": 16
+      },
+      "cache_prefix_cache_counter_hit_rate_pct": 83.42752962625342,
+      "cache_prefix_cache_counter_hits": 4576,
+      "cache_prefix_cache_counter_queries": 5485,
+      "cache_prefix_cache_hit_rate_pct": 64.4,
+      "cache_to_cold_output_tokens_per_second_ratio": 1.3057185336070316,
+      "cache_to_cold_p95_latency_ms_ratio": 0.7650802205214855,
+      "cache_to_cold_prefix_cache_counter_hit_rate_pct_delta": 83.42752962625342,
+      "cache_to_cold_prefix_cache_hit_rate_pct_delta": 64.4,
+      "cache_warmup": {
+        "summaries": [
+          {
+            "batch_wall_ms": 211.18408699999236,
+            "max_new_tokens": 1,
+            "prompt_profile": "neutral_long",
+            "prompt_tokens_mean": 472.625,
+            "request_count": 16,
+            "scenario_id": "warmup_neutral_long_out8_n16",
+            "total_output_tokens": 16,
+            "total_prompt_tokens": 7562,
+            "warmup_index": 0
+          }
+        ],
+        "total_output_tokens": 16,
+        "warmup_runs": 1,
+        "warmup_scenario_runs": 1,
+        "warmup_wall_ms": 211.67697599997837
+      },
+      "cache_warmup_cache_metrics": [
+        {
+          "avg_generation_throughput_tokens_per_s": 0.0,
+          "avg_prompt_throughput_tokens_per_s": 0.0,
+          "gpu_kv_cache_usage_pct": 0.0,
+          "label": "cache_after_warmup",
+          "line": "INFO vllm.v1.metrics.loggers: Engine 000: Avg prompt throughput: 0.0 tokens/s, Avg generation throughput: 0.0 tokens/s, Running: 0 reqs, Waiting: 0 reqs, GPU KV cache usage: 0.0%, Prefix cache hit rate: 50.6%",
+          "prefix_cache_hit_rate_pct": 50.6
+        }
+      ],
+      "cache_warmup_cache_metrics_log_stats": {
+        "captured_logs": [
+          "INFO vllm.v1.metrics.loggers: Engine 000: Avg prompt throughput: 0.0 tokens/s, Avg generation throughput: 0.0 tokens/s, Running: 0 reqs, Waiting: 0 reqs, GPU KV cache usage: 0.0%, Prefix cache hit rate: 50.6%",
+          "INFO vllm.v1.metrics.loggers: Engine 000: Avg prompt throughput: 0.0 tokens/s, Avg generation throughput: 0.0 tokens/s, Running: 0 reqs, Waiting: 0 reqs, GPU KV cache usage: 0.0%, Prefix cache hit rate: 50.6%"
+        ],
+        "elapsed_ms": 0.1062759999967966,
+        "label": "cache_after_warmup",
+        "ok": true,
+        "return_repr": "None",
+        "return_type": "NoneType",
+        "stderr": "",
+        "stdout": ""
+      },
+      "cache_warmup_prefix_cache_counter": {
+        "error": "",
+        "hit_rate_pct": 50.56863263686855,
+        "label": "cache_after_warmup",
+        "ok": true,
+        "source_count": 1,
+        "sources": [
+          {
+            "empty": false,
+            "hit_rate_pct": 50.56863263686855,
+            "hits": 3824,
+            "logger_type": "LoggingStatLogger",
+            "path": "logger_manager.stat_loggers[0].per_engine[0]",
+            "queries": 7562,
+            "requests": 16
+          }
+        ],
+        "total_hits": 3824,
+        "total_queries": 7562,
+        "total_requests": 16
+      },
+      "cache_warmup_prefix_cache_counter_delta": {
+        "hit_rate_pct": 50.56863263686855,
+        "hits": 3824,
+        "queries": 7562,
+        "requests": 16
+      },
+      "cold_cache_metrics": [
+        {
+          "avg_generation_throughput_tokens_per_s": 428.9,
+          "avg_prompt_throughput_tokens_per_s": 18377.3,
+          "gpu_kv_cache_usage_pct": 0.0,
+          "label": "cold_rep00-run000_shared_prefix_long_no_repeat_variant_out8_n16",
+          "line": "INFO vllm.v1.metrics.loggers: Engine 000: Avg prompt throughput: 18377.3 tokens/s, Avg generation throughput: 428.9 tokens/s, Running: 0 reqs, Waiting: 0 reqs, GPU KV cache usage: 0.0%, Prefix cache hit rate: 0.0%",
+          "prefix_cache_hit_rate_pct": 0.0
+        }
+      ],
+      "cold_cache_metrics_log_stats": {
+        "captured_logs": [
+          "INFO vllm.v1.metrics.loggers: Engine 000: Avg prompt throughput: 18377.3 tokens/s, Avg generation throughput: 428.9 tokens/s, Running: 0 reqs, Waiting: 0 reqs, GPU KV cache usage: 0.0%, Prefix cache hit rate: 0.0%",
+          "INFO vllm.v1.metrics.loggers: Engine 000: Avg prompt throughput: 18377.3 tokens/s, Avg generation throughput: 428.9 tokens/s, Running: 0 reqs, Waiting: 0 reqs, GPU KV cache usage: 0.0%, Prefix cache hit rate: 0.0%"
+        ],
+        "elapsed_ms": 0.21883299996261485,
+        "label": "cold_rep00-run000_shared_prefix_long_no_repeat_variant_out8_n16",
+        "ok": true,
+        "return_repr": "None",
+        "return_type": "NoneType",
+        "stderr": "",
+        "stdout": ""
+      },
+      "cold_engine_load_ms": 20153.790721999998,
+      "cold_initial_prefix_cache_counter": {
+        "error": "",
+        "hit_rate_pct": 0.0,
+        "label": "cold_after_engine_load",
+        "ok": true,
+        "source_count": 1,
+        "sources": [
+          {
+            "empty": true,
+            "hit_rate_pct": 0.0,
+            "hits": 0,
+            "logger_type": "LoggingStatLogger",
+            "path": "logger_manager.stat_loggers[0].per_engine[0]",
+            "queries": 0,
+            "requests": 0
+          }
+        ],
+        "total_hits": 0,
+        "total_queries": 0,
+        "total_requests": 0
+      },
+      "cold_prefix_cache_counter_after": {
+        "error": "",
+        "hit_rate_pct": 0.0,
+        "label": "cold_rep00-run000_shared_prefix_long_no_repeat_variant_out8_n16_after",
+        "ok": true,
+        "source_count": 1,
+        "sources": [
+          {
+            "empty": true,
+            "hit_rate_pct": 0.0,
+            "hits": 0,
+            "logger_type": "LoggingStatLogger",
+            "path": "logger_manager.stat_loggers[0].per_engine[0]",
+            "queries": 0,
+            "requests": 0
+          }
+        ],
+        "total_hits": 0,
+        "total_queries": 0,
+        "total_requests": 0
+      },
+      "cold_prefix_cache_counter_before": {
+        "error": "",
+        "hit_rate_pct": 0.0,
+        "label": "cold_rep00-run000_shared_prefix_long_no_repeat_variant_out8_n16_before",
+        "ok": true,
+        "source_count": 1,
+        "sources": [
+          {
+            "empty": true,
+            "hit_rate_pct": 0.0,
+            "hits": 0,
+            "logger_type": "LoggingStatLogger",
+            "path": "logger_manager.stat_loggers[0].per_engine[0]",
+            "queries": 0,
+            "requests": 0
+          }
+        ],
+        "total_hits": 0,
+        "total_queries": 0,
+        "total_requests": 0
+      },
+      "cold_prefix_cache_counter_delta": {
+        "hit_rate_pct": 0.0,
+        "hits": 0,
+        "queries": 0,
+        "requests": 0
+      },
+      "cold_prefix_cache_counter_hit_rate_pct": 0.0,
+      "cold_prefix_cache_counter_hits": 0,
+      "cold_prefix_cache_counter_queries": 0,
+      "cold_prefix_cache_hit_rate_pct": 0.0,
+      "cold_warmup": {
+        "summaries": [
+          {
+            "batch_wall_ms": 269.37619700004234,
+            "max_new_tokens": 1,
+            "prompt_profile": "neutral_long",
+            "prompt_tokens_mean": 472.625,
+            "request_count": 16,
+            "scenario_id": "warmup_neutral_long_out8_n16",
+            "total_output_tokens": 16,
+            "total_prompt_tokens": 7562,
+            "warmup_index": 0
+          }
+        ],
+        "total_output_tokens": 16,
+        "warmup_runs": 1,
+        "warmup_scenario_runs": 1,
+        "warmup_wall_ms": 269.89513800003806
+      },
+      "cold_warmup_cache_metrics": [
+        {
+          "avg_generation_throughput_tokens_per_s": 0.0,
+          "avg_prompt_throughput_tokens_per_s": 0.0,
+          "gpu_kv_cache_usage_pct": 0.0,
+          "label": "cold_after_warmup",
+          "line": "INFO vllm.v1.metrics.loggers: Engine 000: Avg prompt throughput: 0.0 tokens/s, Avg generation throughput: 0.0 tokens/s, Running: 0 reqs, Waiting: 0 reqs, GPU KV cache usage: 0.0%, Prefix cache hit rate: 0.0%",
+          "prefix_cache_hit_rate_pct": 0.0
+        }
+      ],
+      "cold_warmup_cache_metrics_log_stats": {
+        "captured_logs": [
+          "INFO vllm.v1.metrics.loggers: Engine 000: Avg prompt throughput: 0.0 tokens/s, Avg generation throughput: 0.0 tokens/s, Running: 0 reqs, Waiting: 0 reqs, GPU KV cache usage: 0.0%, Prefix cache hit rate: 0.0%",
+          "INFO vllm.v1.metrics.loggers: Engine 000: Avg prompt throughput: 0.0 tokens/s, Avg generation throughput: 0.0 tokens/s, Running: 0 reqs, Waiting: 0 reqs, GPU KV cache usage: 0.0%, Prefix cache hit rate: 0.0%"
+        ],
+        "elapsed_ms": 0.10305899996865264,
+        "label": "cold_after_warmup",
+        "ok": true,
+        "return_repr": "None",
+        "return_type": "NoneType",
+        "stderr": "",
+        "stdout": ""
+      },
+      "cold_warmup_prefix_cache_counter": {
+        "error": "",
+        "hit_rate_pct": 0.0,
+        "label": "cold_after_warmup",
+        "ok": true,
+        "source_count": 1,
+        "sources": [
+          {
+            "empty": true,
+            "hit_rate_pct": 0.0,
+            "hits": 0,
+            "logger_type": "LoggingStatLogger",
+            "path": "logger_manager.stat_loggers[0].per_engine[0]",
+            "queries": 0,
+            "requests": 0
+          }
+        ],
+        "total_hits": 0,
+        "total_queries": 0,
+        "total_requests": 0
+      },
+      "cold_warmup_prefix_cache_counter_delta": {
+        "hit_rate_pct": 0.0,
+        "hits": 0,
+        "queries": 0,
+        "requests": 0
+      },
+      "isolation_call_index": 4,
+      "max_new_tokens": 8,
+      "phase_order": "cold_first",
+      "prompt_profile": "shared_prefix_long_no_repeat_variant",
+      "repeat_index": 2,
+      "request_count": 16,
+      "scenario_id": "shared_prefix_long_no_repeat_variant_out8_n16",
+      "warmup_prompt_profile": "neutral_long",
+      "warmup_runs": 1,
+      "warmup_scenario_count": 1
+    },
+    {
+      "cache_cache_metrics": [
+        {
+          "avg_generation_throughput_tokens_per_s": 442.8,
+          "avg_prompt_throughput_tokens_per_s": 18584.4,
+          "gpu_kv_cache_usage_pct": 0.0,
+          "label": "cache_rep00-run000_matched_unique_prefix_no_repeat_variant_out8_n16",
+          "line": "INFO vllm.v1.metrics.loggers: Engine 000: Avg prompt throughput: 18584.4 tokens/s, Avg generation throughput: 442.8 tokens/s, Running: 0 reqs, Waiting: 0 reqs, GPU KV cache usage: 0.0%, Prefix cache hit rate: 30.9%",
+          "prefix_cache_hit_rate_pct": 30.9
+        }
+      ],
+      "cache_cache_metrics_log_stats": {
+        "captured_logs": [
+          "INFO vllm.v1.metrics.loggers: Engine 000: Avg prompt throughput: 18584.4 tokens/s, Avg generation throughput: 442.8 tokens/s, Running: 0 reqs, Waiting: 0 reqs, GPU KV cache usage: 0.0%, Prefix cache hit rate: 30.9%",
+          "INFO vllm.v1.metrics.loggers: Engine 000: Avg prompt throughput: 18584.4 tokens/s, Avg generation throughput: 442.8 tokens/s, Running: 0 reqs, Waiting: 0 reqs, GPU KV cache usage: 0.0%, Prefix cache hit rate: 30.9%"
+        ],
+        "elapsed_ms": 0.21603800001912532,
+        "label": "cache_rep00-run000_matched_unique_prefix_no_repeat_variant_out8_n16",
+        "ok": true,
+        "return_repr": "None",
+        "return_type": "NoneType",
+        "stderr": "",
+        "stdout": ""
+      },
+      "cache_engine_load_ms": 21408.362006999992,
+      "cache_initial_prefix_cache_counter": {
+        "error": "",
+        "hit_rate_pct": 0.0,
+        "label": "cache_after_engine_load",
+        "ok": true,
+        "source_count": 1,
+        "sources": [
+          {
+            "empty": true,
+            "hit_rate_pct": 0.0,
+            "hits": 0,
+            "logger_type": "LoggingStatLogger",
+            "path": "logger_manager.stat_loggers[0].per_engine[0]",
+            "queries": 0,
+            "requests": 0
+          }
+        ],
+        "total_hits": 0,
+        "total_queries": 0,
+        "total_requests": 0
+      },
+      "cache_prefix_cache_counter_after": {
+        "error": "",
+        "hit_rate_pct": 30.932524639878693,
+        "label": "cache_rep00-run000_matched_unique_prefix_no_repeat_variant_out8_n16_after",
+        "ok": true,
+        "source_count": 1,
+        "sources": [
+          {
+            "empty": false,
+            "hit_rate_pct": 30.932524639878693,
+            "hits": 4080,
+            "logger_type": "LoggingStatLogger",
+            "path": "logger_manager.stat_loggers[0].per_engine[0]",
+            "queries": 13190,
+            "requests": 32
+          }
+        ],
+        "total_hits": 4080,
+        "total_queries": 13190,
+        "total_requests": 32
+      },
+      "cache_prefix_cache_counter_before": {
+        "error": "",
+        "hit_rate_pct": 50.56863263686855,
+        "label": "cache_rep00-run000_matched_unique_prefix_no_repeat_variant_out8_n16_before",
+        "ok": true,
+        "source_count": 1,
+        "sources": [
+          {
+            "empty": false,
+            "hit_rate_pct": 50.56863263686855,
+            "hits": 3824,
+            "logger_type": "LoggingStatLogger",
+            "path": "logger_manager.stat_loggers[0].per_engine[0]",
+            "queries": 7562,
+            "requests": 16
+          }
+        ],
+        "total_hits": 3824,
+        "total_queries": 7562,
+        "total_requests": 16
+      },
+      "cache_prefix_cache_counter_delta": {
+        "hit_rate_pct": 4.548685145700071,
+        "hits": 256,
+        "queries": 5628,
+        "requests": 16
+      },
+      "cache_prefix_cache_counter_hit_rate_pct": 4.548685145700071,
+      "cache_prefix_cache_counter_hits": 256,
+      "cache_prefix_cache_counter_queries": 5628,
+      "cache_prefix_cache_hit_rate_pct": 30.9,
+      "cache_to_cold_output_tokens_per_second_ratio": 1.1692176241453742,
+      "cache_to_cold_p95_latency_ms_ratio": 0.8702562500906714,
+      "cache_to_cold_prefix_cache_counter_hit_rate_pct_delta": 4.548685145700071,
+      "cache_to_cold_prefix_cache_hit_rate_pct_delta": 30.9,
+      "cache_warmup": {
+        "summaries": [
+          {
+            "batch_wall_ms": 190.58890600001632,
+            "max_new_tokens": 1,
+            "prompt_profile": "neutral_long",
+            "prompt_tokens_mean": 472.625,
+            "request_count": 16,
+            "scenario_id": "warmup_neutral_long_out8_n16",
+            "total_output_tokens": 16,
+            "total_prompt_tokens": 7562,
+            "warmup_index": 0
+          }
+        ],
+        "total_output_tokens": 16,
+        "warmup_runs": 1,
+        "warmup_scenario_runs": 1,
+        "warmup_wall_ms": 191.0897620000469
+      },
+      "cache_warmup_cache_metrics": [
+        {
+          "avg_generation_throughput_tokens_per_s": 0.0,
+          "avg_prompt_throughput_tokens_per_s": 0.0,
+          "gpu_kv_cache_usage_pct": 0.0,
+          "label": "cache_after_warmup",
+          "line": "INFO vllm.v1.metrics.loggers: Engine 000: Avg prompt throughput: 0.0 tokens/s, Avg generation throughput: 0.0 tokens/s, Running: 0 reqs, Waiting: 0 reqs, GPU KV cache usage: 0.0%, Prefix cache hit rate: 50.6%",
+          "prefix_cache_hit_rate_pct": 50.6
+        }
+      ],
+      "cache_warmup_cache_metrics_log_stats": {
+        "captured_logs": [
+          "INFO vllm.v1.metrics.loggers: Engine 000: Avg prompt throughput: 0.0 tokens/s, Avg generation throughput: 0.0 tokens/s, Running: 0 reqs, Waiting: 0 reqs, GPU KV cache usage: 0.0%, Prefix cache hit rate: 50.6%",
+          "INFO vllm.v1.metrics.loggers: Engine 000: Avg prompt throughput: 0.0 tokens/s, Avg generation throughput: 0.0 tokens/s, Running: 0 reqs, Waiting: 0 reqs, GPU KV cache usage: 0.0%, Prefix cache hit rate: 50.6%"
+        ],
+        "elapsed_ms": 0.10063599995646655,
+        "label": "cache_after_warmup",
+        "ok": true,
+        "return_repr": "None",
+        "return_type": "NoneType",
+        "stderr": "",
+        "stdout": ""
+      },
+      "cache_warmup_prefix_cache_counter": {
+        "error": "",
+        "hit_rate_pct": 50.56863263686855,
+        "label": "cache_after_warmup",
+        "ok": true,
+        "source_count": 1,
+        "sources": [
+          {
+            "empty": false,
+            "hit_rate_pct": 50.56863263686855,
+            "hits": 3824,
+            "logger_type": "LoggingStatLogger",
+            "path": "logger_manager.stat_loggers[0].per_engine[0]",
+            "queries": 7562,
+            "requests": 16
+          }
+        ],
+        "total_hits": 3824,
+        "total_queries": 7562,
+        "total_requests": 16
+      },
+      "cache_warmup_prefix_cache_counter_delta": {
+        "hit_rate_pct": 50.56863263686855,
+        "hits": 3824,
+        "queries": 7562,
+        "requests": 16
+      },
+      "cold_cache_metrics": [
+        {
+          "avg_generation_throughput_tokens_per_s": 378.6,
+          "avg_prompt_throughput_tokens_per_s": 16646.0,
+          "gpu_kv_cache_usage_pct": 0.0,
+          "label": "cold_rep00-run000_matched_unique_prefix_no_repeat_variant_out8_n16",
+          "line": "INFO vllm.v1.metrics.loggers: Engine 000: Avg prompt throughput: 16646.0 tokens/s, Avg generation throughput: 378.6 tokens/s, Running: 0 reqs, Waiting: 0 reqs, GPU KV cache usage: 0.0%, Prefix cache hit rate: 0.0%",
+          "prefix_cache_hit_rate_pct": 0.0
+        }
+      ],
+      "cold_cache_metrics_log_stats": {
+        "captured_logs": [
+          "INFO vllm.v1.metrics.loggers: Engine 000: Avg prompt throughput: 16646.0 tokens/s, Avg generation throughput: 378.6 tokens/s, Running: 0 reqs, Waiting: 0 reqs, GPU KV cache usage: 0.0%, Prefix cache hit rate: 0.0%",
+          "INFO vllm.v1.metrics.loggers: Engine 000: Avg prompt throughput: 16646.0 tokens/s, Avg generation throughput: 378.6 tokens/s, Running: 0 reqs, Waiting: 0 reqs, GPU KV cache usage: 0.0%, Prefix cache hit rate: 0.0%"
+        ],
+        "elapsed_ms": 0.38756399999329005,
+        "label": "cold_rep00-run000_matched_unique_prefix_no_repeat_variant_out8_n16",
+        "ok": true,
+        "return_repr": "None",
+        "return_type": "NoneType",
+        "stderr": "",
+        "stdout": ""
+      },
+      "cold_engine_load_ms": 20060.793380999996,
+      "cold_initial_prefix_cache_counter": {
+        "error": "",
+        "hit_rate_pct": 0.0,
+        "label": "cold_after_engine_load",
+        "ok": true,
+        "source_count": 1,
+        "sources": [
+          {
+            "empty": true,
+            "hit_rate_pct": 0.0,
+            "hits": 0,
+            "logger_type": "LoggingStatLogger",
+            "path": "logger_manager.stat_loggers[0].per_engine[0]",
+            "queries": 0,
+            "requests": 0
+          }
+        ],
+        "total_hits": 0,
+        "total_queries": 0,
+        "total_requests": 0
+      },
+      "cold_prefix_cache_counter_after": {
+        "error": "",
+        "hit_rate_pct": 0.0,
+        "label": "cold_rep00-run000_matched_unique_prefix_no_repeat_variant_out8_n16_after",
+        "ok": true,
+        "source_count": 1,
+        "sources": [
+          {
+            "empty": true,
+            "hit_rate_pct": 0.0,
+            "hits": 0,
+            "logger_type": "LoggingStatLogger",
+            "path": "logger_manager.stat_loggers[0].per_engine[0]",
+            "queries": 0,
+            "requests": 0
+          }
+        ],
+        "total_hits": 0,
+        "total_queries": 0,
+        "total_requests": 0
+      },
+      "cold_prefix_cache_counter_before": {
+        "error": "",
+        "hit_rate_pct": 0.0,
+        "label": "cold_rep00-run000_matched_unique_prefix_no_repeat_variant_out8_n16_before",
+        "ok": true,
+        "source_count": 1,
+        "sources": [
+          {
+            "empty": true,
+            "hit_rate_pct": 0.0,
+            "hits": 0,
+            "logger_type": "LoggingStatLogger",
+            "path": "logger_manager.stat_loggers[0].per_engine[0]",
+            "queries": 0,
+            "requests": 0
+          }
+        ],
+        "total_hits": 0,
+        "total_queries": 0,
+        "total_requests": 0
+      },
+      "cold_prefix_cache_counter_delta": {
+        "hit_rate_pct": 0.0,
+        "hits": 0,
+        "queries": 0,
+        "requests": 0
+      },
+      "cold_prefix_cache_counter_hit_rate_pct": 0.0,
+      "cold_prefix_cache_counter_hits": 0,
+      "cold_prefix_cache_counter_queries": 0,
+      "cold_prefix_cache_hit_rate_pct": 0.0,
+      "cold_warmup": {
+        "summaries": [
+          {
+            "batch_wall_ms": 254.60337300000901,
+            "max_new_tokens": 1,
+            "prompt_profile": "neutral_long",
+            "prompt_tokens_mean": 472.625,
+            "request_count": 16,
+            "scenario_id": "warmup_neutral_long_out8_n16",
+            "total_output_tokens": 16,
+            "total_prompt_tokens": 7562,
+            "warmup_index": 0
+          }
+        ],
+        "total_output_tokens": 16,
+        "warmup_runs": 1,
+        "warmup_scenario_runs": 1,
+        "warmup_wall_ms": 255.4028410000342
+      },
+      "cold_warmup_cache_metrics": [
+        {
+          "avg_generation_throughput_tokens_per_s": 0.0,
+          "avg_prompt_throughput_tokens_per_s": 0.0,
+          "gpu_kv_cache_usage_pct": 0.0,
+          "label": "cold_after_warmup",
+          "line": "INFO vllm.v1.metrics.loggers: Engine 000: Avg prompt throughput: 0.0 tokens/s, Avg generation throughput: 0.0 tokens/s, Running: 0 reqs, Waiting: 0 reqs, GPU KV cache usage: 0.0%, Prefix cache hit rate: 0.0%",
+          "prefix_cache_hit_rate_pct": 0.0
+        }
+      ],
+      "cold_warmup_cache_metrics_log_stats": {
+        "captured_logs": [
+          "INFO vllm.v1.metrics.loggers: Engine 000: Avg prompt throughput: 0.0 tokens/s, Avg generation throughput: 0.0 tokens/s, Running: 0 reqs, Waiting: 0 reqs, GPU KV cache usage: 0.0%, Prefix cache hit rate: 0.0%",
+          "INFO vllm.v1.metrics.loggers: Engine 000: Avg prompt throughput: 0.0 tokens/s, Avg generation throughput: 0.0 tokens/s, Running: 0 reqs, Waiting: 0 reqs, GPU KV cache usage: 0.0%, Prefix cache hit rate: 0.0%"
+        ],
+        "elapsed_ms": 0.26334400001815084,
+        "label": "cold_after_warmup",
+        "ok": true,
+        "return_repr": "None",
+        "return_type": "NoneType",
+        "stderr": "",
+        "stdout": ""
+      },
+      "cold_warmup_prefix_cache_counter": {
+        "error": "",
+        "hit_rate_pct": 0.0,
+        "label": "cold_after_warmup",
+        "ok": true,
+        "source_count": 1,
+        "sources": [
+          {
+            "empty": true,
+            "hit_rate_pct": 0.0,
+            "hits": 0,
+            "logger_type": "LoggingStatLogger",
+            "path": "logger_manager.stat_loggers[0].per_engine[0]",
+            "queries": 0,
+            "requests": 0
+          }
+        ],
+        "total_hits": 0,
+        "total_queries": 0,
+        "total_requests": 0
+      },
+      "cold_warmup_prefix_cache_counter_delta": {
+        "hit_rate_pct": 0.0,
+        "hits": 0,
+        "queries": 0,
+        "requests": 0
+      },
+      "isolation_call_index": 5,
+      "max_new_tokens": 8,
+      "phase_order": "cold_first",
+      "prompt_profile": "matched_unique_prefix_no_repeat_variant",
+      "repeat_index": 2,
+      "request_count": 16,
+      "scenario_id": "matched_unique_prefix_no_repeat_variant_out8_n16",
+      "warmup_prompt_profile": "neutral_long",
+      "warmup_runs": 1,
+      "warmup_scenario_count": 1
+    }
+  ],
+  "repeats": 3,
+  "request_counts": [
+    16
+  ],
+  "scenario_count": 2,
+  "scenario_seed": 577,
+  "schema_version": 1,
+  "summary": [
+    {
+      "cache_gpu_kv_cache_usage_pct_median": 0.0,
+      "cache_output_tokens_per_second_median": 443.32924818126094,
+      "cache_p95_first_event_ms_median": 145.90636599996287,
+      "cache_p95_latency_ms_median": 288.01868400000785,
+      "cache_p95_stream_tpot_ms_median": 31.5619317142851,
+      "cache_prefix_cache_counter_hit_rate_pct_median": 4.7654504839910645,
+      "cache_prefix_cache_counter_hits_median": 256.0,
+      "cache_prefix_cache_counter_queries_median": 5372.0,
+      "cache_prefix_cache_hit_rate_pct_median": 31.5,
+      "cache_to_cold_batch_wall_ms_ratio_median": 1.0843016894485882,
+      "cache_to_cold_batch_wall_ms_ratio_p95": 1.209083053438281,
+      "cache_to_cold_gpu_kv_cache_usage_pct_delta_median": 0.0,
+      "cache_to_cold_output_tokens_per_second_ratio_median": 0.9222525517861555,
+      "cache_to_cold_output_tokens_per_second_ratio_p95": 1.1692176241453742,
+      "cache_to_cold_p95_first_event_ms_ratio_median": 1.1973038091584687,
+      "cache_to_cold_p95_first_event_ms_ratio_p95": 1.3562321156360824,
+      "cache_to_cold_p95_latency_ms_ratio_median": 1.0798160275824908,
+      "cache_to_cold_p95_latency_ms_ratio_p95": 1.209285439031153,
+      "cache_to_cold_p95_stream_tpot_ms_ratio_median": 1.0822893248534025,
+      "cache_to_cold_p95_stream_tpot_ms_ratio_p95": 1.1707260123435055,
+      "cache_to_cold_prefix_cache_counter_hit_rate_pct_delta_median": 4.7654504839910645,
+      "cache_to_cold_prefix_cache_hit_rate_pct_delta_median": 31.5,
+      "cold_gpu_kv_cache_usage_pct_median": 0.0,
+      "cold_output_tokens_per_second_median": 430.41657639691766,
+      "cold_p95_first_event_ms_median": 121.86244200000829,
+      "cold_p95_latency_ms_median": 296.6500119999864,
+      "cold_p95_stream_tpot_ms_median": 31.09561342856588,
+      "cold_prefix_cache_counter_hit_rate_pct_median": 0.0,
+      "cold_prefix_cache_counter_hits_median": 0.0,
+      "cold_prefix_cache_counter_queries_median": 0.0,
+      "cold_prefix_cache_hit_rate_pct_median": 0.0,
+      "max_new_tokens": 8,
+      "pairs": 3,
+      "prompt_profile": "matched_unique_prefix_no_repeat_variant",
+      "prompt_tokens_mean": 335.75,
+      "request_count": 16,
+      "scenario_id": "matched_unique_prefix_no_repeat_variant_out8_n16"
+    },
+    {
+      "cache_gpu_kv_cache_usage_pct_median": 0.0,
+      "cache_output_tokens_per_second_median": 560.62101215871,
+      "cache_p95_first_event_ms_median": 84.93104000001495,
+      "cache_p95_latency_ms_median": 227.56696799996234,
+      "cache_p95_stream_tpot_ms_median": 23.981324714278735,
+      "cache_prefix_cache_counter_hit_rate_pct_median": 83.16072113540469,
+      "cache_prefix_cache_counter_hits_median": 4336.0,
+      "cache_prefix_cache_counter_queries_median": 5229.0,
+      "cache_prefix_cache_hit_rate_pct_median": 63.9,
+      "cache_to_cold_batch_wall_ms_ratio_median": 0.7658618410183029,
+      "cache_to_cold_batch_wall_ms_ratio_p95": 0.8460178228214736,
+      "cache_to_cold_gpu_kv_cache_usage_pct_delta_median": 0.0,
+      "cache_to_cold_output_tokens_per_second_ratio_median": 1.3057185336070316,
+      "cache_to_cold_output_tokens_per_second_ratio_p95": 1.625976804299273,
+      "cache_to_cold_p95_first_event_ms_ratio_median": 0.5523501760203429,
+      "cache_to_cold_p95_first_event_ms_ratio_p95": 0.6473966503064236,
+      "cache_to_cold_p95_latency_ms_ratio_median": 0.7650802205214855,
+      "cache_to_cold_p95_latency_ms_ratio_p95": 0.8457744894314013,
+      "cache_to_cold_p95_stream_tpot_ms_ratio_median": 0.7065774012298616,
+      "cache_to_cold_p95_stream_tpot_ms_ratio_p95": 0.791662080659491,
+      "cache_to_cold_prefix_cache_counter_hit_rate_pct_delta_median": 83.16072113540469,
+      "cache_to_cold_prefix_cache_hit_rate_pct_delta_median": 63.9,
+      "cold_gpu_kv_cache_usage_pct_median": 0.0,
+      "cold_output_tokens_per_second_median": 429.358240485414,
+      "cold_p95_first_event_ms_median": 153.76303599998664,
+      "cold_p95_latency_ms_median": 297.4419700000226,
+      "cold_p95_stream_tpot_ms_median": 33.94012414285693,
+      "cold_prefix_cache_counter_hit_rate_pct_median": 0.0,
+      "cold_prefix_cache_counter_hits_median": 0.0,
+      "cold_prefix_cache_counter_queries_median": 0.0,
+      "cold_prefix_cache_hit_rate_pct_median": 0.0,
+      "max_new_tokens": 8,
+      "pairs": 3,
+      "prompt_profile": "shared_prefix_long_no_repeat_variant",
+      "prompt_tokens_mean": 326.8125,
+      "request_count": 16,
+      "scenario_id": "shared_prefix_long_no_repeat_variant_out8_n16"
+    }
+  ],
+  "warmup_prompt_profile": "neutral_long",
+  "warmup_runs": 1
+}

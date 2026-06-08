@@ -641,6 +641,38 @@ modal run modal_app.py --mode vllm-prefix-cache-prompt-audit \
   --output-dir results/modal-vllm-prefix-cache-prompt-audit-variant-n16
 ```
 
+Run the no-repeat n=16 variant probe, which removes exact duplicate prompts
+from the matched control:
+
+```bash
+modal run modal_app.py --mode vllm-prefix-cache-prompt-audit \
+  --prompt-profiles shared_prefix_long_no_repeat_variant,matched_unique_prefix_no_repeat_variant \
+  --output-tokens 8 \
+  --request-counts 16 \
+  --repeats 3 \
+  --scenario-seed 577 \
+  --kv-cache-block-size 16 \
+  --output-dir results/modal-vllm-prefix-cache-prompt-audit-no-repeat-n16
+
+modal run modal_app.py --mode vllm-prefix-cache-isolated-neutral-warmup \
+  --prompt-profiles shared_prefix_long_no_repeat_variant,matched_unique_prefix_no_repeat_variant \
+  --output-tokens 8 \
+  --request-counts 16 \
+  --repeats 3 \
+  --scenario-seed 577 \
+  --phase-order cold_first \
+  --kv-cache-metrics-sample 1.0 \
+  --prefix-cache-shared-profile shared_prefix_long_no_repeat_variant \
+  --prefix-cache-control-profile matched_unique_prefix_no_repeat_variant \
+  --output-dir results/modal-vllm-prefix-cache-no-repeat-n16
+
+modal run modal_app.py --mode vllm-prefix-cache-isolated-stability-summary \
+  --prefix-cache-isolated-metrics-dir results/modal-vllm-prefix-cache-no-repeat-n16 \
+  --prefix-cache-shared-profile shared_prefix_long_no_repeat_variant \
+  --prefix-cache-control-profile matched_unique_prefix_no_repeat_variant \
+  --output-dir results/modal-vllm-prefix-cache-no-repeat-n16-summary
+```
+
 Modal training is documented in
 [`docs/modal-training.md`](docs/modal-training.md).
 

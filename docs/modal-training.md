@@ -4558,3 +4558,158 @@ non-cycling variant prompt family or by expanding the task suffix and control
 label pools beyond sixteen entries. Then rerun request count sixteen with no
 exact duplicate prompts and compare the direct counter and timing intervals
 against Training 042.
+
+# Training 044: No-Repeat n=16 Prefix-Cache Probe
+
+Training 044 adds no-repeat variant prompt profiles and reruns the n=16
+prefix-cache experiment with the duplicate-control confound removed.
+
+## Goal
+
+Convert Training 042's timing-positive n=16 result into a cleaner
+shared-prefix versus unique-prefix comparison. Training 043 showed that the
+original n=16 control profile repeated eight exact prompts twice, which
+explained its unexpectedly high direct cache hit rate. Training 044 keeps the
+same family, seed, request count, output length, neutral warmup, and cold-first
+phase order, but uses new prompt profiles that produce sixteen unique prompts
+per scenario:
+
+- `shared_prefix_long_no_repeat_variant`
+- `matched_unique_prefix_no_repeat_variant`
+
+## Command
+
+Audit the no-repeat prompt/block shape:
+
+```bash
+modal run modal_app.py --mode vllm-prefix-cache-prompt-audit \
+  --prompt-profiles shared_prefix_long_no_repeat_variant,matched_unique_prefix_no_repeat_variant \
+  --output-tokens 8 \
+  --request-counts 16 \
+  --repeats 3 \
+  --scenario-seed 577 \
+  --kv-cache-block-size 16 \
+  --output-dir results/modal-vllm-prefix-cache-prompt-audit-no-repeat-n16
+```
+
+Run the no-repeat n=16 timing probe:
+
+```bash
+modal run modal_app.py --mode vllm-prefix-cache-isolated-neutral-warmup \
+  --prompt-profiles shared_prefix_long_no_repeat_variant,matched_unique_prefix_no_repeat_variant \
+  --output-tokens 8 \
+  --request-counts 16 \
+  --repeats 3 \
+  --scenario-seed 577 \
+  --phase-order cold_first \
+  --kv-cache-metrics-sample 1.0 \
+  --prefix-cache-shared-profile shared_prefix_long_no_repeat_variant \
+  --prefix-cache-control-profile matched_unique_prefix_no_repeat_variant \
+  --output-dir results/modal-vllm-prefix-cache-no-repeat-n16
+```
+
+Generate the no-repeat stability summary:
+
+```bash
+modal run modal_app.py --mode vllm-prefix-cache-isolated-stability-summary \
+  --prefix-cache-isolated-metrics-dir results/modal-vllm-prefix-cache-no-repeat-n16 \
+  --prefix-cache-shared-profile shared_prefix_long_no_repeat_variant \
+  --prefix-cache-control-profile matched_unique_prefix_no_repeat_variant \
+  --output-dir results/modal-vllm-prefix-cache-no-repeat-n16-summary
+```
+
+## Artifacts
+
+```text
+results/modal-vllm-prefix-cache-prompt-audit-no-repeat-n16/prefix-cache-prompt-audit.json
+results/modal-vllm-prefix-cache-prompt-audit-no-repeat-n16/prefix-cache-prompt-audit-scenarios.csv
+results/modal-vllm-prefix-cache-prompt-audit-no-repeat-n16/prefix-cache-prompt-audit-prompts.csv
+results/modal-vllm-prefix-cache-prompt-audit-no-repeat-n16/prefix-cache-prompt-audit-profile-control.csv
+results/modal-vllm-prefix-cache-prompt-audit-no-repeat-n16/prefix-cache-prompt-audit.md
+results/modal-vllm-prefix-cache-no-repeat-n16/prefix-cache-isolated-metrics.json
+results/modal-vllm-prefix-cache-no-repeat-n16/prefix-cache-isolated-metrics-summary.csv
+results/modal-vllm-prefix-cache-no-repeat-n16/prefix-cache-isolated-metrics-runs.csv
+results/modal-vllm-prefix-cache-no-repeat-n16/prefix-cache-isolated-profile-control.csv
+results/modal-vllm-prefix-cache-no-repeat-n16-summary/prefix-cache-isolated-stability-summary.json
+results/modal-vllm-prefix-cache-no-repeat-n16-summary/prefix-cache-isolated-stability-summary.csv
+results/modal-vllm-prefix-cache-no-repeat-n16-summary/prefix-cache-isolated-stability-profile-control.csv
+results/modal-vllm-prefix-cache-no-repeat-n16-summary/prefix-cache-isolated-stability-summary.md
+```
+
+## Result
+
+The no-repeat prompt audit confirmed the duplicate confound was removed.
+
+| Metric | Value |
+| --- | ---: |
+| Scenarios | 6 |
+| Prompts | 96 |
+| Mean shared common-prefix full blocks | 18.333 |
+| Mean control common-prefix full blocks | 1.000 |
+| Mean shared-minus-control reusable block tokens | 4160.000 |
+| Mean shared exact-duplicate reusable block tokens | 0.000 |
+| Mean control exact-duplicate reusable block tokens | 0.000 |
+| Mean control exact-duplicate reusable block fraction | 0.000 |
+
+The raw timing run produced two scenarios, six paired runs, and six isolated
+remote calls. The top-level raw metrics were:
+
+| Metric | Value |
+| --- | ---: |
+| Mean cache-to-cold throughput ratio | 1.172 |
+| Mean cache-to-cold latency ratio | 0.897 |
+| Mean shared-minus-control logged cache-hit delta | 32.400 pp |
+| Mean shared-minus-control direct counter delta | 78.395 pp |
+
+Counter-aware stability summary:
+
+| Metric | Value |
+| --- | ---: |
+| Mean shared-minus-control cumulative logged cache hit rate | 32.700 pp |
+| Mean shared-minus-control direct counter hit rate | 78.472 pp |
+| Direct counter hit-rate 90% bootstrap interval | 78.232 pp to 78.713 pp |
+| Throughput-ratio delta 90% bootstrap interval | 0.209 to 0.587 |
+| p95 latency-ratio delta 90% bootstrap interval | -0.432 to -0.191 |
+| Max direct counter hit-rate population stdev | 0.206 |
+
+Scenario direct counters:
+
+| Profile | Requests | Runs | Logged Hit Mean | Direct Counter Hit Mean | Direct Queries | Direct Hits |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| `matched_unique_prefix_no_repeat_variant` | 16 | 3 | 31.333% | 4.698% | 5452.333 | 256.000 |
+| `shared_prefix_long_no_repeat_variant` | 16 | 3 | 64.033% | 83.170% | 5309.333 | 4416.000 |
+
+Shared-prefix versus matched control:
+
+| Requests | Paired Obs | Direct Counter Delta | Direct Counter 90% CI | Throughput Delta | Throughput 90% CI | p95 Latency Delta | p95 Latency 90% CI |
+| ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| 16 | 3 | 78.472 pp | 78.232 pp to 78.713 pp | 0.398 | 0.209 to 0.587 | -0.311 | -0.432 to -0.191 |
+
+## Interpretation
+
+This is the strongest prefix-cache result in the project so far. With exact
+duplicates removed, the no-repeat control drops back to a low direct
+measured-window hit rate of `4.698%`, while the shared-prefix profile reports
+`83.170%`. The direct shared-minus-control interval is tight and positive:
+`78.232 pp` to `78.713 pp`.
+
+The timing result also survives the cleaner control. The shared profile's
+cache-to-cold throughput ratio exceeds the control's by `0.398`, with a 90%
+interval from `0.209` to `0.587`. The p95 latency ratio improves by `-0.311`,
+with a 90% interval from `-0.432` to `-0.191`. This is now a clean n=16
+evidence point that exact shared-prefix KV-cache reuse can show up end to end
+under this Modal/vLLM/T4 configuration.
+
+The claim still stays scoped. This is one request count, three paired
+observations, one small model, eager execution, and one GPU class. It is enough
+for a credible benchmark milestone, not enough for a broad serving-system
+claim.
+
+## Next Step
+
+Training 045 should test reproducibility rather than add another prompt shape.
+The next useful run is a larger no-repeat stability pass, either more repeats
+at request count sixteen or a no-repeat request-count sweep such as 8, 12, 16,
+and 20. That would tell us whether the timing-positive result is stable across
+more paired observations and where the shared-prefix timing effect starts to
+separate from small-model noise.

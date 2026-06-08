@@ -1,0 +1,25 @@
+scenario_id,prompt_profile,repeat_index,variant_index,request_count,max_new_tokens,prompt_format,kv_cache_block_size,prompt_tokens_min,prompt_tokens_max,prompt_tokens_mean,total_prompt_tokens,common_prefix_tokens,common_prefix_full_blocks,common_prefix_block_tokens,common_prefix_remainder_tokens,suffix_after_common_tokens_min,suffix_after_common_tokens_max,suffix_after_common_tokens_mean,unique_prompt_count,exact_duplicate_prompt_group_count,exact_duplicate_prompt_repeated_count,exact_duplicate_prompt_max_group_size,estimated_exact_duplicate_reusable_block_tokens,estimated_exact_duplicate_reusable_block_token_fraction_of_total_prompt,estimated_reusable_block_tokens,estimated_reusable_block_token_fraction_of_total_prompt,common_prefix_token_fraction_of_prompt_mean,common_prefix_text_preview
+shared_prefix_long_no_repeat_variant_out8_n16_rep00,shared_prefix_long_no_repeat_variant,0,577,16,8,chat_template,16,322,331,326.8125,5229,303,18,288,15,19,28,23.8125,16,0,0,1,0,0.0,4320,0.8261617900172117,0.9271371199082042,"<|im_start|>system
+You are a helpful AI assistant named SmolLM, trained by Hugging Face<|im_end|>
+<|im_start|>user
+Search Indexer shared incident packet. Every request in this batch begins with the same search indexing pipeline runbook, rol"
+matched_unique_prefix_no_repeat_variant_out8_n16_rep00,matched_unique_prefix_no_repeat_variant,0,577,16,8,chat_template,16,331,340,335.75,5372,24,1,16,8,307,316,311.75,16,0,0,1,0,0.0,240,0.044676098287416234,0.07148175725986597,"<|im_start|>system
+You are a helpful AI assistant named SmolLM, trained by Hugging Face<|im_end|>
+<|im_start|>user
+"
+shared_prefix_long_no_repeat_variant_out8_n16_rep01,shared_prefix_long_no_repeat_variant,1,578,16,8,chat_template,16,321,330,325.875,5214,302,18,288,14,19,28,23.875,16,0,0,1,0,0.0,4320,0.8285385500575374,0.9267357115458381,"<|im_start|>system
+You are a helpful AI assistant named SmolLM, trained by Hugging Face<|im_end|>
+<|im_start|>user
+Telemetry Warehouse shared incident packet. Every request in this batch begins with the same telemetry warehouse ingestion se"
+matched_unique_prefix_no_repeat_variant_out8_n16_rep01,matched_unique_prefix_no_repeat_variant,1,578,16,8,chat_template,16,330,339,334.8125,5357,24,1,16,8,306,315,310.8125,16,0,0,1,0,0.0,240,0.044801194698525296,0.07168191151764047,"<|im_start|>system
+You are a helpful AI assistant named SmolLM, trained by Hugging Face<|im_end|>
+<|im_start|>user
+"
+shared_prefix_long_no_repeat_variant_out8_n16_rep02,shared_prefix_long_no_repeat_variant,2,579,16,8,chat_template,16,338,347,342.8125,5485,319,19,304,15,19,28,23.8125,16,0,0,1,0,0.0,4560,0.8313582497721057,0.9305378304466727,"<|im_start|>system
+You are a helpful AI assistant named SmolLM, trained by Hugging Face<|im_end|>
+<|im_start|>user
+Payments Relay shared incident packet. Every request in this batch begins with the same payment authorization gateway runbook"
+matched_unique_prefix_no_repeat_variant_out8_n16_rep02,matched_unique_prefix_no_repeat_variant,2,579,16,8,chat_template,16,347,356,351.75,5628,24,1,16,8,323,332,327.75,16,0,0,1,0,0.0,240,0.042643923240938165,0.06823027718550106,"<|im_start|>system
+You are a helpful AI assistant named SmolLM, trained by Hugging Face<|im_end|>
+<|im_start|>user
+"
