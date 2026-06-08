@@ -81,6 +81,9 @@ DEFAULT_VLLM_PREFIX_CACHE_ISOLATED_NEUTRAL_WARMUP_OUTPUT = (
 DEFAULT_VLLM_PREFIX_CACHE_ISOLATED_STABILITY_OUTPUT = (
     "results/modal-vllm-prefix-cache-isolated-stability-summary"
 )
+DEFAULT_VLLM_PREFIX_CACHE_ISOLATED_WINDOW_OUTPUT = (
+    "results/modal-vllm-prefix-cache-isolated-window-summary"
+)
 DEFAULT_VLLM_SWEEP_REQUEST_COUNTS = "1,2,4,8"
 DEFAULT_VLLM_SWEEP_PROMPT_PROFILES = "short,long"
 DEFAULT_VLLM_SWEEP_OUTPUT_TOKENS = "16,32"
@@ -773,7 +776,11 @@ def run_vllm_prefix_cache_paired_remote(
                         {
                             "warmup_index": warmup_index,
                             "scenario_id": spec["scenario_id"],
+                            "prompt_profile": spec["prompt_profile"],
                             "request_count": spec["request_count"],
+                            "max_new_tokens": 1,
+                            "prompt_tokens_mean": spec["prompt_tokens_mean"],
+                            "total_prompt_tokens": spec["total_prompt_tokens"],
                             "batch_wall_ms": result["batch_wall_ms"],
                             "total_output_tokens": result["total_output_tokens"],
                         }
@@ -887,6 +894,14 @@ def run_vllm_prefix_cache_paired_remote(
         "cache_engine_load_ms": cache_result["engine_load_ms"],
         "cold_warmup": cold_result["warmup"],
         "cache_warmup": cache_result["warmup"],
+        "cold_warmup_cache_metrics": cold_result["warmup_cache_metrics"],
+        "cache_warmup_cache_metrics": cache_result["warmup_cache_metrics"],
+        "cold_warmup_cache_metrics_log_stats": cold_result[
+            "warmup_cache_metrics_log_stats"
+        ],
+        "cache_warmup_cache_metrics_log_stats": cache_result[
+            "warmup_cache_metrics_log_stats"
+        ],
         "scenario_plan": plan_summary,
         "summary": _vllm_prefix_cache_paired_summary_rows(paired_scenarios),
         "paired_runs": paired_runs,
@@ -3827,7 +3842,10 @@ def main(
         output_path = Path(output_dir or DEFAULT_GPU_PROBE_OUTPUT)
         output_path.mkdir(parents=True, exist_ok=True)
         json_path = output_path / "probe.json"
-        json_path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+        json_path.write_text(
+            json.dumps(payload, indent=2, sort_keys=True) + "\n",
+            encoding="utf-8",
+        )
 
         print(f"cuda_available: {payload['cuda_available']}")
         if payload.get("device_name"):
@@ -4241,6 +4259,33 @@ def main(
         print(f"runs_csv: {run_csv_path}")
         return
 
+    if mode == "vllm-prefix-cache-isolated-window-summary":
+        payload = _summarize_vllm_prefix_cache_isolated_window(
+            isolated_metrics_dir=Path(prefix_cache_isolated_metrics_dir),
+        )
+        output_path = Path(output_dir or DEFAULT_VLLM_PREFIX_CACHE_ISOLATED_WINDOW_OUTPUT)
+        output_path.mkdir(parents=True, exist_ok=True)
+        json_path = output_path / "prefix-cache-window-summary.json"
+        csv_path = output_path / "prefix-cache-window-summary.csv"
+        profile_csv_path = output_path / "prefix-cache-window-profile-control.csv"
+        markdown_path = output_path / "prefix-cache-window-summary.md"
+        json_path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+        _write_records_csv(csv_path, payload["scenario_rows"])
+        _write_records_csv(profile_csv_path, payload["profile_control_rows"])
+        markdown_path.write_text(payload["markdown"], encoding="utf-8")
+
+        print(f"scenario_rows: {payload['scenario_count']}")
+        print(f"profile_control_rows: {payload['profile_control_row_count']}")
+        print(
+            "mean_shared_minus_control_estimated_measured_cache_hit_rate_pct: "
+            f"{payload['summary']['mean_shared_minus_control_estimated_measured_cache_hit_rate_pct']:.3f}"
+        )
+        print(f"json: {json_path}")
+        print(f"csv: {csv_path}")
+        print(f"profile_csv: {profile_csv_path}")
+        print(f"markdown: {markdown_path}")
+        return
+
     if mode == "vllm-prefix-cache-isolated-stability-summary":
         payload = _summarize_vllm_prefix_cache_isolated_stability(
             isolated_metrics_dir=Path(prefix_cache_isolated_metrics_dir),
@@ -4384,6 +4429,18 @@ def main(
                                 "warmup_runs": effective_warmup_runs,
                                 "cold_warmup": single_payload["cold_warmup"],
                                 "cache_warmup": single_payload["cache_warmup"],
+                                "cold_warmup_cache_metrics": single_payload[
+                                    "cold_warmup_cache_metrics"
+                                ],
+                                "cache_warmup_cache_metrics": single_payload[
+                                    "cache_warmup_cache_metrics"
+                                ],
+                                "cold_warmup_cache_metrics_log_stats": single_payload[
+                                    "cold_warmup_cache_metrics_log_stats"
+                                ],
+                                "cache_warmup_cache_metrics_log_stats": single_payload[
+                                    "cache_warmup_cache_metrics_log_stats"
+                                ],
                                 "cold_cache_metrics": cold_run.get("cache_metrics"),
                                 "cache_cache_metrics": cache_run.get("cache_metrics"),
                                 "cold_cache_metrics_log_stats": cold_run.get(
@@ -4667,6 +4724,7 @@ def main(
             "'vllm-server-async-phase-order-compare', "
             "'vllm-server-async-multitrial-aggregate', "
             "'vllm-server-async-workload-compare', 'vllm-sweep', or "
+            "'vllm-prefix-cache-isolated-window-summary', "
             "'vllm-prefix-cache-isolated-stability-summary', "
             "'vllm-prefix-cache-isolated-neutral-warmup', "
             "'vllm-prefix-cache-isolated-warm-window', "
@@ -6322,6 +6380,386 @@ def _vllm_prefix_cache_isolated_profile_control_summary(
         for row in profile_control_rows
     )
     return summary
+
+
+def _latest_cache_metric_field(
+    metrics: list[dict[str, Any]] | None,
+    field: str,
+) -> float | None:
+    for row in reversed(metrics or []):
+        value = row.get(field)
+        if value is not None:
+            return float(value)
+    return None
+
+
+def _estimated_window_rate_pct(
+    *,
+    warmup_rate_pct: float | None,
+    after_rate_pct: float | None,
+    warmup_tokens: float | None,
+    measured_tokens: float | None,
+) -> float | None:
+    if (
+        warmup_rate_pct is None
+        or after_rate_pct is None
+        or warmup_tokens is None
+        or measured_tokens is None
+        or measured_tokens <= 0
+    ):
+        return None
+    total_tokens = warmup_tokens + measured_tokens
+    estimated = (
+        (after_rate_pct / 100.0 * total_tokens)
+        - (warmup_rate_pct / 100.0 * warmup_tokens)
+    ) / measured_tokens * 100.0
+    return max(0.0, min(100.0, estimated))
+
+
+def _summarize_vllm_prefix_cache_isolated_window(
+    isolated_metrics_dir: Path,
+    shared_profile: str = "shared_prefix_long",
+    control_profile: str = "matched_unique_prefix",
+) -> dict[str, Any]:
+    source_json = isolated_metrics_dir / "prefix-cache-isolated-metrics.json"
+    source_payload = json.loads(source_json.read_text(encoding="utf-8"))
+    paired_runs = source_payload["paired_runs"]
+    remote_calls = {
+        int(row["isolation_call_index"]): row
+        for row in source_payload["remote_call_summaries"]
+    }
+    window_rows = []
+    for paired in paired_runs:
+        call = remote_calls[int(paired["isolation_call_index"])]
+        warmup_summaries = call.get("cache_warmup", {}).get("summaries", [])
+        warmup_prompt_tokens = sum(
+            float(row.get("total_prompt_tokens") or 0.0)
+            for row in warmup_summaries
+        )
+        measured_prompt_tokens = (
+            float(paired["prompt_tokens_mean"]) * int(paired["request_count"])
+        )
+        cache_warmup_hit = _latest_cache_metric_field(
+            call.get("cache_warmup_cache_metrics"),
+            "prefix_cache_hit_rate_pct",
+        )
+        cache_after_hit = paired.get("cache_prefix_cache_hit_rate_pct")
+        cold_warmup_hit = _latest_cache_metric_field(
+            call.get("cold_warmup_cache_metrics"),
+            "prefix_cache_hit_rate_pct",
+        )
+        cold_after_hit = paired.get("cold_prefix_cache_hit_rate_pct")
+        cache_estimated = _estimated_window_rate_pct(
+            warmup_rate_pct=cache_warmup_hit,
+            after_rate_pct=cache_after_hit,
+            warmup_tokens=warmup_prompt_tokens,
+            measured_tokens=measured_prompt_tokens,
+        )
+        cold_estimated = _estimated_window_rate_pct(
+            warmup_rate_pct=cold_warmup_hit,
+            after_rate_pct=cold_after_hit,
+            warmup_tokens=warmup_prompt_tokens,
+            measured_tokens=measured_prompt_tokens,
+        )
+        window_rows.append(
+            {
+                "scenario_id": paired["scenario_id"],
+                "prompt_profile": paired["prompt_profile"],
+                "request_count": int(paired["request_count"]),
+                "max_new_tokens": int(paired["max_new_tokens"]),
+                "repeat_index": int(paired["repeat_index"]),
+                "isolation_call_index": int(paired["isolation_call_index"]),
+                "warmup_prompt_profile": call.get("warmup_prompt_profile"),
+                "warmup_prompt_tokens": warmup_prompt_tokens,
+                "measured_prompt_tokens": measured_prompt_tokens,
+                "cache_warmup_prefix_cache_hit_rate_pct": cache_warmup_hit,
+                "cache_after_prefix_cache_hit_rate_pct": cache_after_hit,
+                "cache_estimated_measured_prefix_cache_hit_rate_pct": cache_estimated,
+                "cold_warmup_prefix_cache_hit_rate_pct": cold_warmup_hit,
+                "cold_after_prefix_cache_hit_rate_pct": cold_after_hit,
+                "cold_estimated_measured_prefix_cache_hit_rate_pct": cold_estimated,
+                "cache_to_cold_estimated_measured_prefix_cache_hit_rate_pct_delta": _delta(
+                    cache_estimated,
+                    cold_estimated,
+                ),
+                "cache_to_cold_output_tokens_per_second_ratio": paired[
+                    "cache_to_cold_output_tokens_per_second_ratio"
+                ],
+                "cache_to_cold_p95_latency_ms_ratio": paired[
+                    "cache_to_cold_p95_latency_ms_ratio"
+                ],
+            }
+        )
+
+    def add_stats(row: dict[str, Any], prefix: str, values: list[float]) -> None:
+        row[f"{prefix}_mean"] = sum(values) / len(values) if values else None
+        row[f"{prefix}_min"] = min(values) if values else None
+        row[f"{prefix}_max"] = max(values) if values else None
+        row[f"{prefix}_population_stdev"] = (
+            statistics.pstdev(values) if len(values) > 1 else 0.0 if values else None
+        )
+
+    grouped: dict[tuple[str, int, int], list[dict[str, Any]]] = {}
+    for row in window_rows:
+        key = (
+            row["prompt_profile"],
+            int(row["request_count"]),
+            int(row["max_new_tokens"]),
+        )
+        grouped.setdefault(key, []).append(row)
+
+    scenario_rows = []
+    for key, rows in sorted(
+        grouped.items(),
+        key=lambda item: (item[0][0], item[0][2], item[0][1]),
+    ):
+        prompt_profile, request_count, max_new_tokens = key
+        first = rows[0]
+        scenario: dict[str, Any] = {
+            "scenario_id": first["scenario_id"],
+            "prompt_profile": prompt_profile,
+            "request_count": request_count,
+            "max_new_tokens": max_new_tokens,
+            "runs": len(rows),
+            "warmup_prompt_profile": first["warmup_prompt_profile"],
+            "warmup_prompt_tokens_mean": _mean_present(
+                row["warmup_prompt_tokens"] for row in rows
+            ),
+            "measured_prompt_tokens_mean": _mean_present(
+                row["measured_prompt_tokens"] for row in rows
+            ),
+        }
+        for field in (
+            "cache_warmup_prefix_cache_hit_rate_pct",
+            "cache_after_prefix_cache_hit_rate_pct",
+            "cache_estimated_measured_prefix_cache_hit_rate_pct",
+            "cold_estimated_measured_prefix_cache_hit_rate_pct",
+            "cache_to_cold_estimated_measured_prefix_cache_hit_rate_pct_delta",
+            "cache_to_cold_output_tokens_per_second_ratio",
+            "cache_to_cold_p95_latency_ms_ratio",
+        ):
+            values = [
+                float(row[field])
+                for row in rows
+                if row.get(field) is not None
+            ]
+            add_stats(scenario, field, values)
+        scenario_rows.append(scenario)
+
+    by_profile_and_shape = {
+        (
+            row["prompt_profile"],
+            int(row["request_count"]),
+            int(row["max_new_tokens"]),
+        ): row
+        for row in scenario_rows
+    }
+    comparison_keys = sorted(
+        {
+            (request_count, max_new_tokens)
+            for profile, request_count, max_new_tokens in by_profile_and_shape
+            if profile == shared_profile
+        }
+        & {
+            (request_count, max_new_tokens)
+            for profile, request_count, max_new_tokens in by_profile_and_shape
+            if profile == control_profile
+        }
+    )
+    profile_control_rows = []
+    for request_count, max_new_tokens in comparison_keys:
+        shared = by_profile_and_shape[(shared_profile, request_count, max_new_tokens)]
+        control = by_profile_and_shape[(control_profile, request_count, max_new_tokens)]
+        shared_estimated = shared[
+            "cache_estimated_measured_prefix_cache_hit_rate_pct_mean"
+        ]
+        control_estimated = control[
+            "cache_estimated_measured_prefix_cache_hit_rate_pct_mean"
+        ]
+        shared_after = shared["cache_after_prefix_cache_hit_rate_pct_mean"]
+        control_after = control["cache_after_prefix_cache_hit_rate_pct_mean"]
+        shared_throughput = shared[
+            "cache_to_cold_output_tokens_per_second_ratio_mean"
+        ]
+        control_throughput = control[
+            "cache_to_cold_output_tokens_per_second_ratio_mean"
+        ]
+        shared_latency = shared["cache_to_cold_p95_latency_ms_ratio_mean"]
+        control_latency = control["cache_to_cold_p95_latency_ms_ratio_mean"]
+        profile_control_rows.append(
+            {
+                "request_count": request_count,
+                "max_new_tokens": max_new_tokens,
+                "shared_profile": shared_profile,
+                "control_profile": control_profile,
+                "shared_estimated_measured_cache_hit_rate_pct": shared_estimated,
+                "control_estimated_measured_cache_hit_rate_pct": control_estimated,
+                "shared_minus_control_estimated_measured_cache_hit_rate_pct": _delta(
+                    shared_estimated,
+                    control_estimated,
+                ),
+                "shared_after_cache_hit_rate_pct": shared_after,
+                "control_after_cache_hit_rate_pct": control_after,
+                "shared_minus_control_after_cache_hit_rate_pct": _delta(
+                    shared_after,
+                    control_after,
+                ),
+                "shared_cache_to_cold_throughput_ratio_mean": shared_throughput,
+                "control_cache_to_cold_throughput_ratio_mean": control_throughput,
+                "shared_minus_control_cache_to_cold_throughput_ratio_mean": _delta(
+                    shared_throughput,
+                    control_throughput,
+                ),
+                "shared_cache_to_cold_p95_latency_ratio_mean": shared_latency,
+                "control_cache_to_cold_p95_latency_ratio_mean": control_latency,
+                "shared_minus_control_cache_to_cold_p95_latency_ratio_mean": _delta(
+                    shared_latency,
+                    control_latency,
+                ),
+            }
+        )
+
+    estimated_stdevs = [
+        row["cache_estimated_measured_prefix_cache_hit_rate_pct_population_stdev"]
+        for row in scenario_rows
+        if row["cache_estimated_measured_prefix_cache_hit_rate_pct_population_stdev"]
+        is not None
+    ]
+    summary = {
+        "mean_shared_minus_control_estimated_measured_cache_hit_rate_pct": _mean_present(
+            row["shared_minus_control_estimated_measured_cache_hit_rate_pct"]
+            for row in profile_control_rows
+        ),
+        "mean_shared_minus_control_after_cache_hit_rate_pct": _mean_present(
+            row["shared_minus_control_after_cache_hit_rate_pct"]
+            for row in profile_control_rows
+        ),
+        "mean_shared_minus_control_cache_to_cold_throughput_ratio": _mean_present(
+            row["shared_minus_control_cache_to_cold_throughput_ratio_mean"]
+            for row in profile_control_rows
+        ),
+        "mean_shared_minus_control_cache_to_cold_p95_latency_ratio": _mean_present(
+            row["shared_minus_control_cache_to_cold_p95_latency_ratio_mean"]
+            for row in profile_control_rows
+        ),
+        "max_estimated_measured_cache_hit_rate_population_stdev": (
+            max(estimated_stdevs) if estimated_stdevs else None
+        ),
+    }
+    markdown = _format_vllm_prefix_cache_isolated_window_markdown(
+        source_dir=isolated_metrics_dir,
+        source_mode=source_payload.get("mode"),
+        source_warmup_runs=source_payload.get("warmup_runs"),
+        source_warmup_prompt_profile=source_payload.get("warmup_prompt_profile"),
+        scenario_rows=scenario_rows,
+        profile_control_rows=profile_control_rows,
+        summary=summary,
+    )
+    return {
+        "schema_version": 1,
+        "mode": "vllm-prefix-cache-isolated-window-summary",
+        "source_dir": str(isolated_metrics_dir),
+        "source_json": str(source_json),
+        "source_mode": source_payload.get("mode"),
+        "source_warmup_runs": source_payload.get("warmup_runs"),
+        "source_warmup_prompt_profile": source_payload.get("warmup_prompt_profile"),
+        "source_scenario_count": source_payload["scenario_count"],
+        "source_paired_run_count": source_payload["paired_run_count"],
+        "source_remote_call_count": source_payload["remote_call_count"],
+        "estimate_method": (
+            "Token-weighted before/after rate estimate: "
+            "after_rate * (warmup_prompt_tokens + measured_prompt_tokens) "
+            "minus warmup_rate * warmup_prompt_tokens, divided by measured_prompt_tokens."
+        ),
+        "scenario_count": len(scenario_rows),
+        "profile_control_row_count": len(profile_control_rows),
+        "shared_profile": shared_profile,
+        "control_profile": control_profile,
+        "summary": summary,
+        "window_rows": window_rows,
+        "scenario_rows": scenario_rows,
+        "profile_control_rows": profile_control_rows,
+        "markdown": markdown,
+    }
+
+
+def _format_vllm_prefix_cache_isolated_window_markdown(
+    source_dir: Path,
+    source_mode: Any,
+    source_warmup_runs: Any,
+    source_warmup_prompt_profile: Any,
+    scenario_rows: list[dict[str, Any]],
+    profile_control_rows: list[dict[str, Any]],
+    summary: dict[str, Any],
+) -> str:
+    def fmt(value: Any, suffix: str = "") -> str:
+        if value is None:
+            return "n/a"
+        return f"{float(value):.3f}{suffix}"
+
+    lines = [
+        "# Prefix-Cache Measured-Window Estimate",
+        "",
+        f"Source: `{source_dir}`",
+        f"Source mode: `{source_mode}`",
+        f"Warmup runs: `{source_warmup_runs}`",
+        f"Warmup prompt profile: `{source_warmup_prompt_profile}`",
+        "",
+        "## Summary",
+        "",
+        "| Metric | Value |",
+        "| --- | ---: |",
+        (
+            "| Mean shared-minus-control estimated measured cache hit rate | "
+            f"{fmt(summary['mean_shared_minus_control_estimated_measured_cache_hit_rate_pct'], ' pp')} |"
+        ),
+        (
+            "| Mean shared-minus-control logged after-window cache hit rate | "
+            f"{fmt(summary['mean_shared_minus_control_after_cache_hit_rate_pct'], ' pp')} |"
+        ),
+        "",
+        "## Scenario Estimates",
+        "",
+        "| Profile | Requests | Runs | Warmup hit | Logged after | Estimated measured |",
+        "| --- | ---: | ---: | ---: | ---: | ---: |",
+    ]
+    for row in scenario_rows:
+        lines.append(
+            "| "
+            f"`{row['prompt_profile']}` | "
+            f"{row['request_count']} | "
+            f"{row['runs']} | "
+            f"{fmt(row['cache_warmup_prefix_cache_hit_rate_pct_mean'], '%')} | "
+            f"{fmt(row['cache_after_prefix_cache_hit_rate_pct_mean'], '%')} | "
+            f"{fmt(row['cache_estimated_measured_prefix_cache_hit_rate_pct_mean'], '%')} |"
+        )
+    lines.extend(
+        [
+            "",
+            "## Shared Vs Control",
+            "",
+            "| Requests | Estimated Shared | Estimated Control | Delta | Throughput Delta | p95 Latency Delta |",
+            "| ---: | ---: | ---: | ---: | ---: | ---: |",
+        ]
+    )
+    for row in profile_control_rows:
+        lines.append(
+            "| "
+            f"{row['request_count']} | "
+            f"{fmt(row['shared_estimated_measured_cache_hit_rate_pct'], '%')} | "
+            f"{fmt(row['control_estimated_measured_cache_hit_rate_pct'], '%')} | "
+            f"{fmt(row['shared_minus_control_estimated_measured_cache_hit_rate_pct'], ' pp')} | "
+            f"{fmt(row['shared_minus_control_cache_to_cold_throughput_ratio_mean'])} | "
+            f"{fmt(row['shared_minus_control_cache_to_cold_p95_latency_ratio_mean'])} |"
+        )
+    lines.extend(
+        [
+            "",
+            "Estimate method: token-weighted before/after rate delta. This is an approximation until direct vLLM hit/miss counters are captured.",
+            "",
+        ]
+    )
+    return "\n".join(lines)
 
 
 def _summarize_vllm_prefix_cache_isolated_stability(

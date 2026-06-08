@@ -498,6 +498,15 @@ modal run modal_app.py --mode vllm-prefix-cache-isolated-stability-summary \
   --output-dir results/modal-vllm-prefix-cache-isolated-neutral-warmup-summary
 ```
 
+Generate a measured-window estimate from a neutral-warmup run that includes
+warmup-before cache metrics:
+
+```bash
+modal run modal_app.py --mode vllm-prefix-cache-isolated-window-summary \
+  --prefix-cache-isolated-metrics-dir results/modal-vllm-prefix-cache-isolated-neutral-warmup-window-source \
+  --output-dir results/modal-vllm-prefix-cache-isolated-window-summary
+```
+
 Modal training is documented in
 [`docs/modal-training.md`](docs/modal-training.md).
 
