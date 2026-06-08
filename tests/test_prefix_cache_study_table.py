@@ -24,7 +24,7 @@ SUMMARY_JSON = (
 )
 EXTRA_LONG_SUMMARY_JSON = (
     ROOT
-    / "results/modal-vllm-prefix-cache-extra-long-no-repeat-n16-merged-r6-summary"
+    / "results/modal-vllm-prefix-cache-extra-long-no-repeat-n16-merged-r8-summary"
     / "prefix-cache-isolated-stability-summary.json"
 )
 
@@ -75,8 +75,8 @@ class PrefixCacheStudyTableTests(unittest.TestCase):
             by_metric["p95 latency-ratio delta"]["interpretation"],
         )
         self.assertIn("scale: 0.000 pp to 94.", chart)
-        self.assertIn("scale: -0.988 to 1.211", chart)
-        self.assertIn("1.111", chart)
+        self.assertIn("scale: -0.881 to 1.101", chart)
+        self.assertIn("1.011", chart)
 
     def test_builds_interval_chart_from_key_effects(self) -> None:
         payload = json.loads(SUMMARY_JSON.read_text())

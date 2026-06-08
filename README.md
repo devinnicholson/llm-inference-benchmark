@@ -19,7 +19,7 @@ Generated result artifacts:
 and [`results/prefix-cache-study/intervals.md`](results/prefix-cache-study/intervals.md)
 
 Latest extra-long follow-up:
-[`results/prefix-cache-study-extra-long-merged-r6/key-results.md`](results/prefix-cache-study-extra-long-merged-r6/key-results.md)
+[`results/prefix-cache-study-extra-long-merged-r8/key-results.md`](results/prefix-cache-study-extra-long-merged-r8/key-results.md)
 
 ## Course Track
 
@@ -745,16 +745,16 @@ Merge smaller isolated metrics chunks into a single stability source:
 
 ```bash
 modal run modal_app.py --mode vllm-prefix-cache-isolated-merge \
-  --prefix-cache-isolated-merge-dirs results/modal-vllm-prefix-cache-extra-long-no-repeat-n16-smoke-r3,results/modal-vllm-prefix-cache-extra-long-no-repeat-n16-chunk-r3-seed680 \
+  --prefix-cache-isolated-merge-dirs results/modal-vllm-prefix-cache-extra-long-no-repeat-n16-smoke-r3,results/modal-vllm-prefix-cache-extra-long-no-repeat-n16-chunk-r3-seed680,results/modal-vllm-prefix-cache-extra-long-no-repeat-n16-chunk-r2-seed790 \
   --prefix-cache-shared-profile shared_prefix_extra_long_no_repeat_variant \
   --prefix-cache-control-profile matched_unique_prefix_extra_long_no_repeat_variant \
-  --output-dir results/modal-vllm-prefix-cache-extra-long-no-repeat-n16-merged-r6
+  --output-dir results/modal-vllm-prefix-cache-extra-long-no-repeat-n16-merged-r8
 
 modal run modal_app.py --mode vllm-prefix-cache-isolated-stability-summary \
-  --prefix-cache-isolated-metrics-dir results/modal-vllm-prefix-cache-extra-long-no-repeat-n16-merged-r6 \
+  --prefix-cache-isolated-metrics-dir results/modal-vllm-prefix-cache-extra-long-no-repeat-n16-merged-r8 \
   --prefix-cache-shared-profile shared_prefix_extra_long_no_repeat_variant \
   --prefix-cache-control-profile matched_unique_prefix_extra_long_no_repeat_variant \
-  --output-dir results/modal-vllm-prefix-cache-extra-long-no-repeat-n16-merged-r6-summary
+  --output-dir results/modal-vllm-prefix-cache-extra-long-no-repeat-n16-merged-r8-summary
 ```
 
 Modal training is documented in

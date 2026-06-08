@@ -96,14 +96,14 @@ The tokenizer audit shows:
 - shared-minus-control reusable block tokens: `17,040`
 - exact duplicate reusable tokens: `0` for both profiles
 
-The r3 GPU smoke was promising, and the merged r6 follow-up is stronger:
+The r3 GPU smoke was promising, and the merged r8 follow-up is stronger:
 
 ```text
-results/prefix-cache-study-extra-long-merged-r6/key-results.md
-results/prefix-cache-study-extra-long-merged-r6/intervals.md
+results/prefix-cache-study-extra-long-merged-r8/key-results.md
+results/prefix-cache-study-extra-long-merged-r8/intervals.md
 ```
 
-In the r6 merge, direct counter reuse, p95 first-event/TTFT, throughput,
+In the r8 merge, direct counter reuse, p95 first-event/TTFT, throughput,
 end-to-end p95 latency, and stream TPOT all stay on the favorable side of zero.
 This is still a follow-up to the r8 no-repeat primary result, but it is now the
 best evidence that larger prefill work can turn the cache mechanism into broader
@@ -181,9 +181,9 @@ Extra-long follow-up:
 
 ```text
 results/modal-vllm-prefix-cache-prompt-audit-extra-long-no-repeat-n16/prefix-cache-prompt-audit.md
-results/modal-vllm-prefix-cache-extra-long-no-repeat-n16-merged-r6-summary/prefix-cache-isolated-stability-summary.md
-results/prefix-cache-study-extra-long-merged-r6/key-results.md
-results/prefix-cache-study-extra-long-merged-r6/intervals.md
+results/modal-vllm-prefix-cache-extra-long-no-repeat-n16-merged-r8-summary/prefix-cache-isolated-stability-summary.md
+results/prefix-cache-study-extra-long-merged-r8/key-results.md
+results/prefix-cache-study-extra-long-merged-r8/intervals.md
 ```
 
 ## Next Step

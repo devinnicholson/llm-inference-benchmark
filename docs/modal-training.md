@@ -5439,3 +5439,85 @@ The result now supports a stronger extra-long follow-up claim. The next useful
 iteration is methodological: either add one more r2 chunk to match the original
 eight-repeat count or compare against a larger model/GPU configuration where
 prefill cost is more realistic.
+
+# Training 055: Extra-Long Merged r8 Stability
+
+Training 055 adds one more extra-long r2 chunk with scenario seed `790`, then
+merges the original r3 smoke, the seed-680 r3 chunk, and the seed-790 r2 chunk
+into an eight-observation stability artifact.
+
+## Goal
+
+Match the original no-repeat primary result's repeat count while preserving the
+extra-long prompt/control methodology. This gives a cleaner comparison between
+the original n=16 no-repeat result and the higher-prefill-cost extra-long
+follow-up.
+
+## Reproduce
+
+Run the r2 chunk:
+
+```bash
+modal run modal_app.py --mode vllm-prefix-cache-isolated-neutral-warmup \
+  --prompt-profiles shared_prefix_extra_long_no_repeat_variant,matched_unique_prefix_extra_long_no_repeat_variant \
+  --output-tokens 8 \
+  --request-counts 16 \
+  --repeats 2 \
+  --scenario-seed 790 \
+  --phase-order cold_first \
+  --kv-cache-metrics-sample 1.0 \
+  --warmup-prompt-profile neutral_extra_long \
+  --prefix-cache-shared-profile shared_prefix_extra_long_no_repeat_variant \
+  --prefix-cache-control-profile matched_unique_prefix_extra_long_no_repeat_variant \
+  --output-dir results/modal-vllm-prefix-cache-extra-long-no-repeat-n16-chunk-r2-seed790
+```
+
+Merge and summarize:
+
+```bash
+modal run modal_app.py --mode vllm-prefix-cache-isolated-merge \
+  --prefix-cache-isolated-merge-dirs results/modal-vllm-prefix-cache-extra-long-no-repeat-n16-smoke-r3,results/modal-vllm-prefix-cache-extra-long-no-repeat-n16-chunk-r3-seed680,results/modal-vllm-prefix-cache-extra-long-no-repeat-n16-chunk-r2-seed790 \
+  --prefix-cache-shared-profile shared_prefix_extra_long_no_repeat_variant \
+  --prefix-cache-control-profile matched_unique_prefix_extra_long_no_repeat_variant \
+  --output-dir results/modal-vllm-prefix-cache-extra-long-no-repeat-n16-merged-r8
+
+modal run modal_app.py --mode vllm-prefix-cache-isolated-stability-summary \
+  --prefix-cache-isolated-metrics-dir results/modal-vllm-prefix-cache-extra-long-no-repeat-n16-merged-r8 \
+  --prefix-cache-shared-profile shared_prefix_extra_long_no_repeat_variant \
+  --prefix-cache-control-profile matched_unique_prefix_extra_long_no_repeat_variant \
+  --output-dir results/modal-vllm-prefix-cache-extra-long-no-repeat-n16-merged-r8-summary
+
+python3 scripts/build_prefix_cache_study_table.py \
+  --summary-json results/modal-vllm-prefix-cache-extra-long-no-repeat-n16-merged-r8-summary/prefix-cache-isolated-stability-summary.json \
+  --output-dir results/prefix-cache-study-extra-long-merged-r8
+```
+
+## Result
+
+The merged artifact has `8` paired shared/control observations for `n=16`.
+
+- control direct counter hit rate: `1.343%`
+- shared direct counter hit rate: `91.229%`
+- shared-minus-control direct counter delta: `89.885 pp`, interval
+  `89.867 pp` to `89.909 pp`
+- p95 first-event/TTFT ratio delta: `-0.589`, interval `-0.694` to `-0.445`
+- throughput-ratio delta: `0.761`, interval `0.489` to `1.011`
+- p95 latency-ratio delta: `-0.500`, interval `-0.747` to `-0.284`
+- p95 stream TPOT-ratio delta: `-0.567`, interval `-0.791` to `-0.399`
+
+Generated artifacts:
+
+```text
+results/modal-vllm-prefix-cache-extra-long-no-repeat-n16-chunk-r2-seed790/prefix-cache-isolated-metrics.json
+results/modal-vllm-prefix-cache-extra-long-no-repeat-n16-merged-r8/prefix-cache-isolated-metrics.json
+results/modal-vllm-prefix-cache-extra-long-no-repeat-n16-merged-r8-summary/prefix-cache-isolated-stability-summary.md
+results/prefix-cache-study-extra-long-merged-r8/key-results.md
+results/prefix-cache-study-extra-long-merged-r8/intervals.md
+```
+
+## Next Step
+
+The extra-long r8 result is now a credible second result, not just a smoke. The
+next research iteration should change hardware/model shape: larger model,
+longer context, or a GPU configuration where prefill is a bigger fraction of
+serving cost.
