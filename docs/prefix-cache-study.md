@@ -217,6 +217,21 @@ and favorable timing intervals: p95 first-event/TTFT ratio delta `-0.915`,
 throughput-ratio delta `7.342`, p95 latency-ratio delta `-0.898`, and p95
 stream TPOT-ratio delta `-0.948`.
 
+Training 067 promotes the Qwen 1.5B L4 model-size axis to r5:
+
+```text
+results/prefix-cache-study-mega-long-qwen15b-l4-merged-r5/key-results.md
+results/prefix-cache-study-mega-long-qwen15b-l4-merged-r5/intervals.md
+```
+
+The merged r5 artifact has `10` scenario-level cold/cache paired runs, which
+produce `5` shared/control comparisons. It keeps the direct-cache mechanism
+stable with a `92.623 pp` direct counter delta and favorable timing intervals:
+p95 first-event/TTFT ratio delta `-0.908`, throughput-ratio delta `7.487`, p95
+latency-ratio delta `-0.898`, and p95 stream TPOT-ratio delta `-0.949`. This
+is now the best Qwen 1.5B L4 model-size artifact and the current larger-model
+control point.
+
 ## Reproduce
 
 Run the no-repeat n=16 fixed-shape stability pass:
@@ -333,10 +348,15 @@ results/modal-vllm-prefix-cache-mega-long-qwen15b-l4-n16-smoke-r2/prefix-cache-i
 results/modal-vllm-prefix-cache-mega-long-qwen15b-l4-n16-smoke-r2-summary/prefix-cache-isolated-stability-summary.md
 results/prefix-cache-study-mega-long-qwen15b-l4-smoke-r2/key-results.md
 results/prefix-cache-study-mega-long-qwen15b-l4-smoke-r2/intervals.md
+results/modal-vllm-prefix-cache-mega-long-qwen15b-l4-n16-chunk-r3-seed2101/prefix-cache-isolated-metrics.json
+results/modal-vllm-prefix-cache-mega-long-qwen15b-l4-n16-merged-r5/prefix-cache-isolated-metrics.json
+results/modal-vllm-prefix-cache-mega-long-qwen15b-l4-n16-merged-r5-summary/prefix-cache-isolated-stability-summary.md
+results/prefix-cache-study-mega-long-qwen15b-l4-merged-r5/key-results.md
+results/prefix-cache-study-mega-long-qwen15b-l4-merged-r5/intervals.md
 ```
 
 ## Next Step
 
-Promote the Qwen 1.5B L4 model-size smoke with more repeats, or run a backend
-comparison with the same prompt/control pair. The next useful artifact should
-separate "larger model" from backend behavior.
+Promote the Qwen 1.5B L4 model-size result to r8, or run a backend comparison
+with the same prompt/control pair. The next useful artifact should separate
+"larger model" from backend behavior.

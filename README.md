@@ -10,7 +10,7 @@ comparisons against real inference engines.
 
 Current report: [`docs/prefix-cache-study.md`](docs/prefix-cache-study.md)
 summarizes the no-repeat vLLM prefix-cache result, longer-context follow-ups,
-and the first L4-scale context smoke. The primary no-repeat claim is stable
+and L4 context/model-size follow-ups. The primary no-repeat claim is stable
 measured-window KV-cache reuse plus a p95 first-event/TTFT improvement; the
 longer Qwen follow-ups now show broader favorable timing when prefill work is
 larger.
@@ -31,8 +31,8 @@ Latest longer-context follow-up:
 Latest L4-scale context follow-up:
 [`results/prefix-cache-study-mega-long-qwen05b-l4-merged-r8/key-results.md`](results/prefix-cache-study-mega-long-qwen05b-l4-merged-r8/key-results.md)
 
-Latest L4 model-size smoke:
-[`results/prefix-cache-study-mega-long-qwen15b-l4-smoke-r2/key-results.md`](results/prefix-cache-study-mega-long-qwen15b-l4-smoke-r2/key-results.md)
+Latest L4 model-size follow-up:
+[`results/prefix-cache-study-mega-long-qwen15b-l4-merged-r5/key-results.md`](results/prefix-cache-study-mega-long-qwen15b-l4-merged-r5/key-results.md)
 
 ## Course Track
 

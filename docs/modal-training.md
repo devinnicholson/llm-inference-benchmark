@@ -6497,3 +6497,89 @@ results/prefix-cache-study-mega-long-qwen15b-l4-smoke-r2/intervals.md
 
 Promote this Qwen 1.5B L4 model-size smoke to r5, then compare its stability
 against the Qwen 0.5B L4 r8 control point.
+
+# Training 067: Qwen 1.5B Mega-Long L4 Merged r5
+
+Training 067 adds a three-repeat Qwen 1.5B mega-long L4 chunk and merges it
+with the Training 066 r2 smoke. This promotes the larger-model L4 axis from a
+smoke to a five-repeat result while keeping the prompt/control pair, request
+count, output tokens, L4 hardware target, and `max_model_len=3790` fixed.
+
+## Goal
+
+Check whether the Qwen 1.5B model-size signal remains stable after more repeats
+and compare it against the Qwen 0.5B L4 context-shape control point.
+
+## Chunk Run
+
+```bash
+modal run modal_app.py --mode vllm-prefix-cache-isolated-neutral-warmup \
+  --modal-gpu L4 \
+  --hf-model Qwen/Qwen2.5-1.5B-Instruct \
+  --prompt-profiles shared_prefix_mega_long_no_repeat_variant,matched_unique_prefix_mega_long_no_repeat_variant \
+  --output-tokens 8 \
+  --request-counts 16 \
+  --repeats 3 \
+  --scenario-seed 2101 \
+  --phase-order cold_first \
+  --kv-cache-metrics-sample 1.0 \
+  --warmup-prompt-profile neutral_mega_long \
+  --prefix-cache-shared-profile shared_prefix_mega_long_no_repeat_variant \
+  --prefix-cache-control-profile matched_unique_prefix_mega_long_no_repeat_variant \
+  --output-dir results/modal-vllm-prefix-cache-mega-long-qwen15b-l4-n16-chunk-r3-seed2101
+```
+
+The chunk produced `6` scenario-level cold/cache paired runs, or `3`
+shared/control comparisons, and preserved the L4 hardware evidence in
+`nvidia-smi` samples. The run reported `158,540` GPU KV-cache tokens for
+`max_model_len=3790`, matching the Training 066 Qwen 1.5B smoke capacity.
+
+## Merge And Report
+
+```bash
+modal run modal_app.py --mode vllm-prefix-cache-isolated-merge \
+  --prefix-cache-isolated-merge-dirs results/modal-vllm-prefix-cache-mega-long-qwen15b-l4-n16-smoke-r2,results/modal-vllm-prefix-cache-mega-long-qwen15b-l4-n16-chunk-r3-seed2101 \
+  --prefix-cache-shared-profile shared_prefix_mega_long_no_repeat_variant \
+  --prefix-cache-control-profile matched_unique_prefix_mega_long_no_repeat_variant \
+  --output-dir results/modal-vllm-prefix-cache-mega-long-qwen15b-l4-n16-merged-r5
+
+modal run modal_app.py --mode vllm-prefix-cache-isolated-stability-summary \
+  --prefix-cache-isolated-metrics-dir results/modal-vllm-prefix-cache-mega-long-qwen15b-l4-n16-merged-r5 \
+  --prefix-cache-shared-profile shared_prefix_mega_long_no_repeat_variant \
+  --prefix-cache-control-profile matched_unique_prefix_mega_long_no_repeat_variant \
+  --output-dir results/modal-vllm-prefix-cache-mega-long-qwen15b-l4-n16-merged-r5-summary
+
+python3 scripts/build_prefix_cache_study_table.py \
+  --summary-json results/modal-vllm-prefix-cache-mega-long-qwen15b-l4-n16-merged-r5-summary/prefix-cache-isolated-stability-summary.json \
+  --output-dir results/prefix-cache-study-mega-long-qwen15b-l4-merged-r5
+```
+
+## Result
+
+The merged artifact has `10` scenario-level cold/cache paired runs, or `5`
+shared/control comparisons, for `n=16`.
+
+- control direct counter hit rate: `0.447%`
+- shared direct counter hit rate: `93.070%`
+- shared-minus-control direct counter delta: `92.623 pp`, interval
+  `92.549 pp` to `92.698 pp`
+- p95 first-event/TTFT ratio delta: `-0.908`, interval `-0.921` to `-0.894`
+- throughput-ratio delta: `7.487`, interval `7.057` to `7.921`
+- p95 latency-ratio delta: `-0.898`, interval `-0.913` to `-0.881`
+- p95 stream TPOT-ratio delta: `-0.949`, interval `-0.958` to `-0.939`
+
+Generated artifacts:
+
+```text
+results/modal-vllm-prefix-cache-mega-long-qwen15b-l4-n16-chunk-r3-seed2101/prefix-cache-isolated-metrics.json
+results/modal-vllm-prefix-cache-mega-long-qwen15b-l4-n16-merged-r5/prefix-cache-isolated-metrics.json
+results/modal-vllm-prefix-cache-mega-long-qwen15b-l4-n16-merged-r5-summary/prefix-cache-isolated-stability-summary.md
+results/prefix-cache-study-mega-long-qwen15b-l4-merged-r5/key-results.md
+results/prefix-cache-study-mega-long-qwen15b-l4-merged-r5/intervals.md
+```
+
+## Next Step
+
+Promote this Qwen 1.5B L4 model-size artifact to r8, then decide whether the
+next axis should be backend comparison or larger batch pressure at the same
+context shape.
