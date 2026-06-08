@@ -99,6 +99,7 @@ DEFAULT_VLLM_SWEEP_SEED = 568
 DEFAULT_HF_MODEL = "HuggingFaceTB/SmolLM2-135M-Instruct"
 EXTRA_LONG_PREFIX_CONTEXT_REPEATS = 6
 ULTRA_LONG_PREFIX_CONTEXT_REPEATS = 12
+MEGA_LONG_PREFIX_CONTEXT_REPEATS = 24
 DEFAULT_INFERENCE_PROMPT = "Explain KV cache in LLM inference in two concise sentences."
 DEFAULT_CONCURRENT_PROMPTS = (
     "Explain KV cache pressure in LLM serving in two concise sentences.",
@@ -116,14 +117,17 @@ VALID_VLLM_PROMPT_PROFILES = {
     "shared_prefix_long_no_repeat_variant",
     "shared_prefix_extra_long_no_repeat_variant",
     "shared_prefix_ultra_long_no_repeat_variant",
+    "shared_prefix_mega_long_no_repeat_variant",
     "matched_unique_prefix",
     "matched_unique_prefix_variant",
     "matched_unique_prefix_no_repeat_variant",
     "matched_unique_prefix_extra_long_no_repeat_variant",
     "matched_unique_prefix_ultra_long_no_repeat_variant",
+    "matched_unique_prefix_mega_long_no_repeat_variant",
     "neutral_long",
     "neutral_extra_long",
     "neutral_ultra_long",
+    "neutral_mega_long",
 }
 HF_CACHE_PATH = "/cache"
 VLLM_CACHE_PATH = "/vllm-cache"
@@ -5432,6 +5436,13 @@ def _select_sweep_prompts(
             allow_prompt_repeats=False,
             extra_context_repeats=ULTRA_LONG_PREFIX_CONTEXT_REPEATS,
         )
+    if prompt_profile == "shared_prefix_mega_long_no_repeat_variant":
+        return _select_shared_prefix_variant_prompts(
+            prompt_count,
+            variant_index,
+            allow_prompt_repeats=False,
+            extra_context_repeats=MEGA_LONG_PREFIX_CONTEXT_REPEATS,
+        )
     if prompt_profile == "matched_unique_prefix":
         return _select_matched_unique_prefix_prompts(prompt_count)
     if prompt_profile == "matched_unique_prefix_variant":
@@ -5459,6 +5470,13 @@ def _select_sweep_prompts(
             allow_prompt_repeats=False,
             extra_context_repeats=ULTRA_LONG_PREFIX_CONTEXT_REPEATS,
         )
+    if prompt_profile == "matched_unique_prefix_mega_long_no_repeat_variant":
+        return _select_matched_unique_prefix_variant_prompts(
+            prompt_count,
+            variant_index,
+            allow_prompt_repeats=False,
+            extra_context_repeats=MEGA_LONG_PREFIX_CONTEXT_REPEATS,
+        )
     if prompt_profile == "neutral_long":
         return _select_neutral_long_prompts(prompt_count)
     if prompt_profile == "neutral_extra_long":
@@ -5471,6 +5489,12 @@ def _select_sweep_prompts(
         return _select_neutral_long_prompts(
             prompt_count,
             extra_context_repeats=ULTRA_LONG_PREFIX_CONTEXT_REPEATS,
+            allow_prompt_repeats=False,
+        )
+    if prompt_profile == "neutral_mega_long":
+        return _select_neutral_long_prompts(
+            prompt_count,
+            extra_context_repeats=MEGA_LONG_PREFIX_CONTEXT_REPEATS,
             allow_prompt_repeats=False,
         )
     valid_profiles = ", ".join(sorted(VALID_VLLM_PROMPT_PROFILES))
@@ -9504,6 +9528,10 @@ def _infer_vllm_prefix_cache_prompt_audit_pair(
 ) -> tuple[str, str]:
     profile_set = set(prompt_profiles)
     candidate_pairs = [
+        (
+            "shared_prefix_mega_long_no_repeat_variant",
+            "matched_unique_prefix_mega_long_no_repeat_variant",
+        ),
         (
             "shared_prefix_ultra_long_no_repeat_variant",
             "matched_unique_prefix_ultra_long_no_repeat_variant",

@@ -153,6 +153,25 @@ The L4 artifact records `NVIDIA L4, 23034` in `nvidia-smi` samples and reports
 mechanism with a `91.523 pp` direct counter delta and favorable timing
 intervals. It is a transfer smoke, not yet a replacement for the T4 r8 result.
 
+Training 063 uses the L4 path for a longer context shape instead of just
+repeating the same ultra-long workload:
+
+```text
+results/prefix-cache-study-mega-long-qwen05b-l4-smoke-r2/key-results.md
+results/prefix-cache-study-mega-long-qwen05b-l4-smoke-r2/intervals.md
+```
+
+The mega-long prompt audit raises the shared common prefix to `3,570` tokens,
+or `223` full KV-cache blocks, while the matched unique-prefix control stays at
+`1` full block. At n=16, both profiles still have sixteen unique prompts and
+zero exact duplicate reusable tokens. On Modal L4, vLLM reported `695,249` GPU
+KV-cache tokens available for `max_model_len=3790`, and the artifact records
+`NVIDIA L4, 23034` in `nvidia-smi` samples. The r2 smoke shows a `92.605 pp`
+direct counter delta, p95 first-event/TTFT ratio delta `-0.911`,
+throughput-ratio delta `3.969`, p95 latency-ratio delta `-0.842`, and p95
+stream TPOT-ratio delta `-0.902`. This is now the best L4 context-shape smoke;
+the T4 r8 ultra-long result remains the stronger repeat-count artifact.
+
 ## Reproduce
 
 Run the no-repeat n=16 fixed-shape stability pass:
@@ -250,11 +269,16 @@ results/prefix-cache-study-ultra-long-qwen05b-merged-r8/intervals.md
 results/modal-vllm-prefix-cache-ultra-long-qwen05b-l4-n16-smoke-r2-summary/prefix-cache-isolated-stability-summary.md
 results/prefix-cache-study-ultra-long-qwen05b-l4-smoke-r2/key-results.md
 results/prefix-cache-study-ultra-long-qwen05b-l4-smoke-r2/intervals.md
+results/modal-vllm-prefix-cache-prompt-audit-mega-long-qwen05b-n16/prefix-cache-prompt-audit.md
+results/modal-vllm-prefix-cache-mega-long-qwen05b-l4-n16-smoke-r2/prefix-cache-isolated-metrics.json
+results/modal-vllm-prefix-cache-mega-long-qwen05b-l4-n16-smoke-r2-summary/prefix-cache-isolated-stability-summary.md
+results/prefix-cache-study-mega-long-qwen05b-l4-smoke-r2/key-results.md
+results/prefix-cache-study-mega-long-qwen05b-l4-smoke-r2/intervals.md
 ```
 
 ## Next Step
 
-The next GPU experiment should use L4 for a larger model or a longer-context
-profile that T4 cannot comfortably support. The current L4 result is only a
-smoke, but it proves the harness can transfer the same prompt-control design to
-a larger GPU.
+Promote the mega-long L4 smoke with more repeats, or use the same L4 context
+shape to test a larger small model. The next useful artifact should separate
+"longer reusable prefix" from "model size" instead of only repeating the old
+ultra-long T4 workload.

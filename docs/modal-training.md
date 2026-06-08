@@ -6119,3 +6119,126 @@ results/prefix-cache-study-ultra-long-qwen05b-l4-smoke-r2/intervals.md
 Use the L4 path for a larger model or a longer-context prompt profile that is
 not a comfortable T4 target. More repeats of this exact L4 smoke are less useful
 than using the extra KV-cache budget to test a new workload shape.
+
+# Training 063: Qwen 0.5B Mega-Long L4 Smoke
+
+Training 063 adds a mega-long no-repeat prompt/control pair and runs it on
+Modal L4. This uses the extra L4 KV-cache budget for a new context shape instead
+of only transferring the previous ultra-long T4 workload.
+
+## Goal
+
+Check whether a much longer reusable prefix still has a clean matched-control
+audit and whether the isolated L4 harness preserves favorable cache and timing
+effects at that larger context length.
+
+## Harness Change
+
+The prompt generator now supports:
+
+```text
+shared_prefix_mega_long_no_repeat_variant
+matched_unique_prefix_mega_long_no_repeat_variant
+neutral_mega_long
+```
+
+The mega-long profiles use `MEGA_LONG_PREFIX_CONTEXT_REPEATS = 24`, and the
+prompt-audit pair inference prefers the mega-long shared/control pair when
+those profiles are present.
+
+## Prompt Audit
+
+```bash
+modal run modal_app.py --mode vllm-prefix-cache-prompt-audit \
+  --hf-model Qwen/Qwen2.5-0.5B-Instruct \
+  --prompt-profiles shared_prefix_mega_long_no_repeat_variant,matched_unique_prefix_mega_long_no_repeat_variant \
+  --request-counts 16 \
+  --output-tokens 8 \
+  --repeats 1 \
+  --scenario-seed 1701 \
+  --kv-cache-block-size 16 \
+  --output-dir results/modal-vllm-prefix-cache-prompt-audit-mega-long-qwen05b-n16
+```
+
+The audit stays clean:
+
+- shared common-prefix tokens: `3,570`
+- shared common-prefix full blocks: `223`
+- shared reusable block tokens: `53,520`
+- control common-prefix tokens: `24`
+- control common-prefix full blocks: `1`
+- control reusable block tokens: `240`
+- shared-minus-control reusable block tokens: `53,280`
+- unique prompts: `16` for both profiles
+- exact duplicate reusable tokens: `0` for both profiles
+
+## Run
+
+```bash
+modal run modal_app.py --mode vllm-prefix-cache-isolated-neutral-warmup \
+  --modal-gpu L4 \
+  --hf-model Qwen/Qwen2.5-0.5B-Instruct \
+  --prompt-profiles shared_prefix_mega_long_no_repeat_variant,matched_unique_prefix_mega_long_no_repeat_variant \
+  --output-tokens 8 \
+  --request-counts 16 \
+  --repeats 2 \
+  --scenario-seed 1701 \
+  --phase-order cold_first \
+  --kv-cache-metrics-sample 1.0 \
+  --warmup-prompt-profile neutral_mega_long \
+  --prefix-cache-shared-profile shared_prefix_mega_long_no_repeat_variant \
+  --prefix-cache-control-profile matched_unique_prefix_mega_long_no_repeat_variant \
+  --output-dir results/modal-vllm-prefix-cache-mega-long-qwen05b-l4-n16-smoke-r2
+
+modal run modal_app.py --mode vllm-prefix-cache-isolated-stability-summary \
+  --prefix-cache-isolated-metrics-dir results/modal-vllm-prefix-cache-mega-long-qwen05b-l4-n16-smoke-r2 \
+  --prefix-cache-shared-profile shared_prefix_mega_long_no_repeat_variant \
+  --prefix-cache-control-profile matched_unique_prefix_mega_long_no_repeat_variant \
+  --output-dir results/modal-vllm-prefix-cache-mega-long-qwen05b-l4-n16-smoke-r2-summary
+
+python3 scripts/build_prefix_cache_study_table.py \
+  --summary-json results/modal-vllm-prefix-cache-mega-long-qwen05b-l4-n16-smoke-r2-summary/prefix-cache-isolated-stability-summary.json \
+  --output-dir results/prefix-cache-study-mega-long-qwen05b-l4-smoke-r2
+```
+
+## Hardware Evidence
+
+The artifact records `modal_gpu: L4` and `nvidia-smi` samples such as:
+
+```text
+NVIDIA L4, 23034, 22564, 580.95.05
+NVIDIA L4, 23034, 22370, 580.95.05
+```
+
+During the remote run, vLLM selected FlashAttention 2 and reported `695,249`
+GPU KV-cache tokens available for `max_model_len=3790`.
+
+## Result
+
+The smoke artifact has `4` paired shared/control observations across `2`
+repeats for `n=16`.
+
+- control direct counter hit rate: `0.446%`
+- shared direct counter hit rate: `93.051%`
+- shared-minus-control direct counter delta: `92.605 pp`, interval
+  `92.512 pp` to `92.697 pp`
+- p95 first-event/TTFT ratio delta: `-0.911`, interval `-0.952` to `-0.870`
+- throughput-ratio delta: `3.969`, interval `3.261` to `4.678`
+- p95 latency-ratio delta: `-0.842`, interval `-0.869` to `-0.814`
+- p95 stream TPOT-ratio delta: `-0.902`, interval `-0.938` to `-0.865`
+
+Generated artifacts:
+
+```text
+results/modal-vllm-prefix-cache-prompt-audit-mega-long-qwen05b-n16/prefix-cache-prompt-audit.md
+results/modal-vllm-prefix-cache-mega-long-qwen05b-l4-n16-smoke-r2/prefix-cache-isolated-metrics.json
+results/modal-vllm-prefix-cache-mega-long-qwen05b-l4-n16-smoke-r2-summary/prefix-cache-isolated-stability-summary.md
+results/prefix-cache-study-mega-long-qwen05b-l4-smoke-r2/key-results.md
+results/prefix-cache-study-mega-long-qwen05b-l4-smoke-r2/intervals.md
+```
+
+## Next Step
+
+Promote this mega-long L4 result to more repeats, then decide whether the next
+axis should be larger model size on L4 or a backend comparison using the same
+prompt/control pair.
