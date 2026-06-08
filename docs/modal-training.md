@@ -4328,10 +4328,128 @@ isolated engines, eager execution, and repeated scheduler/JIT effects. Training
 
 ## Next Step
 
-Training 042 should instrument prefill and decode more directly. Two useful
-paths are:
+Training 042 should instrument prefill and decode more directly, or rerun one
+larger request-count shape to see whether avoided prefill work starts to
+dominate small-model overhead. Two useful paths are:
 
 - add a per-phase timing probe that separates prompt prefill time from decode
   time for shared and matched-control profiles
 - rerun the variant grid with a larger model or larger request counts so the
   reusable prefill work is big enough to dominate small-model overhead
+
+# Training 042: Variant n=16 Timing Probe
+
+Training 042 reruns the Training 040 variant prompt-family benchmark at a
+single larger request count: sixteen requests per measured scenario.
+
+## Goal
+
+Test whether increasing batch size makes the direct measured-window
+prefix-cache signal appear in end-to-end timing. Training 040 proved large
+shared-prefix counter deltas at request counts two, four, and eight, but the
+timing intervals still crossed zero. Training 042 keeps the same model,
+profiles, seed, output length, neutral warmup, and cold-first phase order while
+doubling the largest previous batch size.
+
+## Command
+
+Run the n=16 variant probe:
+
+```bash
+modal run modal_app.py --mode vllm-prefix-cache-isolated-neutral-warmup \
+  --prompt-profiles shared_prefix_long_variant,matched_unique_prefix_variant \
+  --output-tokens 8 \
+  --request-counts 16 \
+  --repeats 3 \
+  --scenario-seed 577 \
+  --phase-order cold_first \
+  --kv-cache-metrics-sample 1.0 \
+  --prefix-cache-shared-profile shared_prefix_long_variant \
+  --prefix-cache-control-profile matched_unique_prefix_variant \
+  --output-dir results/modal-vllm-prefix-cache-variant-n16
+```
+
+Generate the n=16 stability summary:
+
+```bash
+modal run modal_app.py --mode vllm-prefix-cache-isolated-stability-summary \
+  --prefix-cache-isolated-metrics-dir results/modal-vllm-prefix-cache-variant-n16 \
+  --prefix-cache-shared-profile shared_prefix_long_variant \
+  --prefix-cache-control-profile matched_unique_prefix_variant \
+  --output-dir results/modal-vllm-prefix-cache-variant-n16-summary
+```
+
+## Artifacts
+
+```text
+results/modal-vllm-prefix-cache-variant-n16/prefix-cache-isolated-metrics.json
+results/modal-vllm-prefix-cache-variant-n16/prefix-cache-isolated-metrics-summary.csv
+results/modal-vllm-prefix-cache-variant-n16/prefix-cache-isolated-metrics-runs.csv
+results/modal-vllm-prefix-cache-variant-n16/prefix-cache-isolated-profile-control.csv
+results/modal-vllm-prefix-cache-variant-n16-summary/prefix-cache-isolated-stability-summary.json
+results/modal-vllm-prefix-cache-variant-n16-summary/prefix-cache-isolated-stability-summary.csv
+results/modal-vllm-prefix-cache-variant-n16-summary/prefix-cache-isolated-stability-profile-control.csv
+results/modal-vllm-prefix-cache-variant-n16-summary/prefix-cache-isolated-stability-summary.md
+```
+
+## Result
+
+The raw run produced two scenarios, six paired runs, and six isolated remote
+calls. The top-level raw metrics were:
+
+| Metric | Value |
+| --- | ---: |
+| Mean cache-to-cold throughput ratio | 1.265 |
+| Mean cache-to-cold latency ratio | 0.812 |
+| Mean shared-minus-control logged cache-hit delta | 15.600 pp |
+| Mean shared-minus-control direct counter delta | 38.366 pp |
+
+Counter-aware stability summary:
+
+| Metric | Value |
+| --- | ---: |
+| Mean shared-minus-control cumulative logged cache hit rate | 15.700 pp |
+| Mean shared-minus-control direct counter hit rate | 38.250 pp |
+| Direct counter hit-rate 90% bootstrap interval | 38.162 pp to 38.338 pp |
+| Throughput-ratio delta 90% bootstrap interval | 0.108 to 0.422 |
+| p95 latency-ratio delta 90% bootstrap interval | -0.212 to -0.082 |
+| Max direct counter hit-rate population stdev | 0.114 |
+
+Scenario direct counters:
+
+| Profile | Requests | Runs | Logged Hit Mean | Direct Counter Hit Mean | Direct Queries | Direct Hits |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| `matched_unique_prefix_variant` | 16 | 3 | 50.533% | 50.525% | 5404.667 | 2730.667 |
+| `shared_prefix_long_variant` | 16 | 3 | 66.233% | 88.775% | 5262.667 | 4672.000 |
+
+Shared-prefix versus matched control:
+
+| Requests | Paired Obs | Direct Counter Delta | Direct Counter 90% CI | Throughput Delta | Throughput 90% CI | p95 Latency Delta | p95 Latency 90% CI |
+| ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| 16 | 3 | 38.250 pp | 38.162 pp to 38.338 pp | 0.265 | 0.108 to 0.422 | -0.147 | -0.212 to -0.082 |
+
+## Interpretation
+
+This is the first variant-profile shape where the timing intervals move in the
+same direction as the direct counter signal. For request count sixteen, the
+shared-prefix workload improved its cache-to-cold throughput ratio more than
+the matched-control workload by `0.265`, with a 90% interval from `0.108` to
+`0.422`. Its p95 latency ratio also improved by `-0.147`, with a 90% interval
+from `-0.212` to `-0.082`.
+
+The result is promising but not yet a general speedup claim. It is one shape,
+three paired observations, one small 135M model, eager execution, and a T4. The
+matched-control profile also reports a high `50.525%` direct measured-window
+hit rate at n=16, which means the control is no longer close to zero-reuse at
+this larger batch size. The useful claim is narrower: increasing request count
+made the shared-minus-control counter advantage large enough to show up in
+timing for this exact configuration.
+
+## Next Step
+
+Training 043 should audit prompt token and cache-block alignment at request
+count sixteen. The earlier audit only covered request counts two, four, and
+eight. Because the n=16 matched-control profile now reports substantial direct
+cache hits, the next check is whether those hits come from repeated full blocks
+inside the expanded control batch, tokenizer scaffolding, or a measurement
+effect.

@@ -605,6 +605,28 @@ modal run modal_app.py --mode vllm-prefix-cache-prompt-audit \
   --output-dir results/modal-vllm-prefix-cache-prompt-audit-variant-stability
 ```
 
+Run the n=16 variant timing probe and summary:
+
+```bash
+modal run modal_app.py --mode vllm-prefix-cache-isolated-neutral-warmup \
+  --prompt-profiles shared_prefix_long_variant,matched_unique_prefix_variant \
+  --output-tokens 8 \
+  --request-counts 16 \
+  --repeats 3 \
+  --scenario-seed 577 \
+  --phase-order cold_first \
+  --kv-cache-metrics-sample 1.0 \
+  --prefix-cache-shared-profile shared_prefix_long_variant \
+  --prefix-cache-control-profile matched_unique_prefix_variant \
+  --output-dir results/modal-vllm-prefix-cache-variant-n16
+
+modal run modal_app.py --mode vllm-prefix-cache-isolated-stability-summary \
+  --prefix-cache-isolated-metrics-dir results/modal-vllm-prefix-cache-variant-n16 \
+  --prefix-cache-shared-profile shared_prefix_long_variant \
+  --prefix-cache-control-profile matched_unique_prefix_variant \
+  --output-dir results/modal-vllm-prefix-cache-variant-n16-summary
+```
+
 Modal training is documented in
 [`docs/modal-training.md`](docs/modal-training.md).
 
