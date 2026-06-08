@@ -27,6 +27,9 @@ Latest model-shape follow-up:
 Latest longer-context follow-up:
 [`results/prefix-cache-study-ultra-long-qwen05b-merged-r8/key-results.md`](results/prefix-cache-study-ultra-long-qwen05b-merged-r8/key-results.md)
 
+Latest hardware-transfer smoke:
+[`results/prefix-cache-study-ultra-long-qwen05b-l4-smoke-r2/key-results.md`](results/prefix-cache-study-ultra-long-qwen05b-l4-smoke-r2/key-results.md)
+
 ## Course Track
 
 This repo starts with the 568 path:

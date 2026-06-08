@@ -416,13 +416,7 @@ def run_vllm_prefix_cache_prompt_audit_remote(
     return payload
 
 
-@app.function(
-    image=vllm_image,
-    gpu="T4",
-    timeout=1800,
-    volumes={HF_CACHE_PATH: hf_cache_volume, VLLM_CACHE_PATH: vllm_cache_volume},
-)
-def run_vllm_prefix_cache_paired_remote(
+def _run_vllm_prefix_cache_paired_payload(
     hf_model: str = DEFAULT_HF_MODEL,
     request_counts: str = DEFAULT_VLLM_SWEEP_REQUEST_COUNTS,
     prompt_profiles: str = DEFAULT_VLLM_SWEEP_PROMPT_PROFILES,
@@ -434,6 +428,7 @@ def run_vllm_prefix_cache_paired_remote(
     phase_order: str = "cold_first",
     collect_cache_metrics: bool = False,
     kv_cache_metrics_sample: float = 1.0,
+    modal_gpu_label: str = "T4",
 ) -> dict[str, Any]:
     import asyncio
     import contextlib
@@ -1087,6 +1082,7 @@ def run_vllm_prefix_cache_paired_remote(
         "execution": "modal",
         "mode": "vllm-prefix-cache-paired",
         "backend": "vllm-paired-prefix-cache",
+        "modal_gpu": modal_gpu_label,
         "model_id": hf_model,
         "request_counts": request_count_values,
         "prompt_profiles": prompt_profile_values,
@@ -1166,6 +1162,85 @@ def run_vllm_prefix_cache_paired_remote(
             "compare matching scenario_id and repeat_index."
         ),
     }
+
+
+@app.function(
+    image=vllm_image,
+    gpu="T4",
+    timeout=1800,
+    volumes={HF_CACHE_PATH: hf_cache_volume, VLLM_CACHE_PATH: vllm_cache_volume},
+)
+def run_vllm_prefix_cache_paired_remote(
+    hf_model: str = DEFAULT_HF_MODEL,
+    request_counts: str = DEFAULT_VLLM_SWEEP_REQUEST_COUNTS,
+    prompt_profiles: str = DEFAULT_VLLM_SWEEP_PROMPT_PROFILES,
+    output_tokens: str = DEFAULT_VLLM_SWEEP_OUTPUT_TOKENS,
+    repeats: int = DEFAULT_VLLM_SWEEP_REPEATS,
+    scenario_seed: int = DEFAULT_VLLM_SWEEP_SEED,
+    warmup_runs: int = 1,
+    warmup_prompt_profile: str = "",
+    phase_order: str = "cold_first",
+    collect_cache_metrics: bool = False,
+    kv_cache_metrics_sample: float = 1.0,
+) -> dict[str, Any]:
+    return _run_vllm_prefix_cache_paired_payload(
+        hf_model=hf_model,
+        request_counts=request_counts,
+        prompt_profiles=prompt_profiles,
+        output_tokens=output_tokens,
+        repeats=repeats,
+        scenario_seed=scenario_seed,
+        warmup_runs=warmup_runs,
+        warmup_prompt_profile=warmup_prompt_profile,
+        phase_order=phase_order,
+        collect_cache_metrics=collect_cache_metrics,
+        kv_cache_metrics_sample=kv_cache_metrics_sample,
+        modal_gpu_label="T4",
+    )
+
+
+@app.function(
+    image=vllm_image,
+    gpu="L4",
+    timeout=1800,
+    volumes={HF_CACHE_PATH: hf_cache_volume, VLLM_CACHE_PATH: vllm_cache_volume},
+)
+def run_vllm_prefix_cache_paired_l4_remote(
+    hf_model: str = DEFAULT_HF_MODEL,
+    request_counts: str = DEFAULT_VLLM_SWEEP_REQUEST_COUNTS,
+    prompt_profiles: str = DEFAULT_VLLM_SWEEP_PROMPT_PROFILES,
+    output_tokens: str = DEFAULT_VLLM_SWEEP_OUTPUT_TOKENS,
+    repeats: int = DEFAULT_VLLM_SWEEP_REPEATS,
+    scenario_seed: int = DEFAULT_VLLM_SWEEP_SEED,
+    warmup_runs: int = 1,
+    warmup_prompt_profile: str = "",
+    phase_order: str = "cold_first",
+    collect_cache_metrics: bool = False,
+    kv_cache_metrics_sample: float = 1.0,
+) -> dict[str, Any]:
+    return _run_vllm_prefix_cache_paired_payload(
+        hf_model=hf_model,
+        request_counts=request_counts,
+        prompt_profiles=prompt_profiles,
+        output_tokens=output_tokens,
+        repeats=repeats,
+        scenario_seed=scenario_seed,
+        warmup_runs=warmup_runs,
+        warmup_prompt_profile=warmup_prompt_profile,
+        phase_order=phase_order,
+        collect_cache_metrics=collect_cache_metrics,
+        kv_cache_metrics_sample=kv_cache_metrics_sample,
+        modal_gpu_label="L4",
+    )
+
+
+def _select_vllm_prefix_cache_paired_remote(modal_gpu: str) -> Any:
+    normalized_gpu = modal_gpu.strip().upper().replace("_", "-")
+    if normalized_gpu == "T4":
+        return run_vllm_prefix_cache_paired_remote
+    if normalized_gpu == "L4":
+        return run_vllm_prefix_cache_paired_l4_remote
+    raise ValueError("modal_gpu must be one of: T4, L4")
 
 
 @app.function(
@@ -4057,6 +4132,7 @@ def main(
     cache_metrics: str = "off",
     kv_cache_metrics_sample: float = 1.0,
     kv_cache_block_size: int = 16,
+    modal_gpu: str = "T4",
     cold_sweep_dir: str = DEFAULT_VLLM_SWEEP_OUTPUT,
     prefix_sweep_dir: str = DEFAULT_VLLM_PREFIX_CACHE_SWEEP_OUTPUT,
     async_sweep_dir: str = DEFAULT_VLLM_SWEEP_OUTPUT,
@@ -4685,6 +4761,8 @@ def main(
         "vllm-prefix-cache-isolated-warm-window",
         "vllm-prefix-cache-isolated-neutral-warmup",
     }:
+        paired_remote = _select_vllm_prefix_cache_paired_remote(modal_gpu)
+        modal_gpu_value = modal_gpu.strip().upper().replace("_", "-")
         shared_profile, control_profile = normalized_prefix_cache_control_profiles()
         request_count_values = _split_positive_int_csv(request_counts, "request_counts")
         prompt_profile_values = [
@@ -4749,6 +4827,7 @@ def main(
                 "execution": "modal",
                 "mode": mode,
                 "backend": "vllm-paired-prefix-cache",
+                "modal_gpu": modal_gpu_value,
                 "model_id": hf_model,
                 "request_counts": request_count_values,
                 "prompt_profiles": prompt_profile_values,
@@ -4838,7 +4917,7 @@ def main(
             for prompt_profile_value in prompt_profile_values:
                 for max_tokens in output_token_values:
                     for request_count_value in request_count_values:
-                        single_payload = run_vllm_prefix_cache_paired_remote.remote(
+                        single_payload = paired_remote.remote(
                             hf_model=hf_model,
                             request_counts=str(request_count_value),
                             prompt_profiles=prompt_profile_value,
@@ -4856,6 +4935,7 @@ def main(
                                 "Expected one paired run from isolated metrics call"
                             )
                         row = dict(single_payload["paired_runs"][0])
+                        row["modal_gpu"] = single_payload.get("modal_gpu")
                         row["repeat_index"] = repeat_index
                         row["pair_id"] = (
                             f"{row['scenario_id']}_isolated_rep{repeat_index:02d}"
@@ -4873,6 +4953,7 @@ def main(
                         remote_call_summaries.append(
                             {
                                 "isolation_call_index": call_index,
+                                "modal_gpu": single_payload.get("modal_gpu"),
                                 "repeat_index": repeat_index,
                                 "scenario_id": row["scenario_id"],
                                 "prompt_profile": row["prompt_profile"],
@@ -4891,6 +4972,12 @@ def main(
                                 "cache_engine_load_ms": single_payload[
                                     "cache_engine_load_ms"
                                 ],
+                                "nvidia_smi_before": single_payload.get(
+                                    "nvidia_smi_before"
+                                ),
+                                "nvidia_smi_after": single_payload.get(
+                                    "nvidia_smi_after"
+                                ),
                                 "cold_prefix_cache_hit_rate_pct": row[
                                     "cold_prefix_cache_hit_rate_pct"
                                 ],
@@ -5014,6 +5101,7 @@ def main(
         print(f"paired_runs: {payload['paired_run_count']}")
         print(f"remote_calls: {payload['remote_call_count']}")
         print(f"phase_order: {payload['phase_order']}")
+        print(f"modal_gpu: {payload['modal_gpu']}")
         print(f"warmup_runs: {payload['warmup_runs']}")
         print(f"warmup_prompt_profile: {payload['warmup_prompt_profile']}")
         print(
@@ -5047,7 +5135,8 @@ def main(
 
     if mode == "vllm-prefix-cache-paired":
         collect_cache_metrics = _parse_bool_choice(cache_metrics, "cache_metrics")
-        payload = run_vllm_prefix_cache_paired_remote.remote(
+        paired_remote = _select_vllm_prefix_cache_paired_remote(modal_gpu)
+        payload = paired_remote.remote(
             hf_model=hf_model,
             request_counts=request_counts,
             prompt_profiles=prompt_profiles,
@@ -5082,6 +5171,7 @@ def main(
         print(f"warmup_runs: {payload['warmup_runs']}")
         print(f"warmup_prompt_profile: {payload['warmup_prompt_profile']}")
         print(f"phase_order: {payload['phase_order']}")
+        print(f"modal_gpu: {payload['modal_gpu']}")
         print(f"collect_cache_metrics: {payload['collect_cache_metrics']}")
         print(
             "mean_cache_to_cold_throughput_ratio: "

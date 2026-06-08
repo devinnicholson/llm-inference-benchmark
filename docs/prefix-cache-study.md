@@ -139,6 +139,20 @@ throughput-ratio delta `3.308`, p95 latency-ratio delta `-0.795`, and p95
 stream TPOT-ratio delta `-0.791`. This is the strongest longer-context artifact
 so far.
 
+Training 062 adds a hardware-transfer smoke for the same ultra-long Qwen
+workload on Modal L4:
+
+```text
+results/prefix-cache-study-ultra-long-qwen05b-l4-smoke-r2/key-results.md
+results/prefix-cache-study-ultra-long-qwen05b-l4-smoke-r2/intervals.md
+```
+
+The L4 artifact records `NVIDIA L4, 23034` in `nvidia-smi` samples and reports
+`772,020` GPU KV-cache tokens available for `max_model_len=2158`, versus roughly
+`447,089` on the prior T4 runs. The r2 smoke preserves the direct-cache
+mechanism with a `91.523 pp` direct counter delta and favorable timing
+intervals. It is a transfer smoke, not yet a replacement for the T4 r8 result.
+
 ## Reproduce
 
 Run the no-repeat n=16 fixed-shape stability pass:
@@ -233,11 +247,14 @@ results/prefix-cache-study-ultra-long-qwen05b-merged-r5/intervals.md
 results/modal-vllm-prefix-cache-ultra-long-qwen05b-n16-merged-r8-summary/prefix-cache-isolated-stability-summary.md
 results/prefix-cache-study-ultra-long-qwen05b-merged-r8/key-results.md
 results/prefix-cache-study-ultra-long-qwen05b-merged-r8/intervals.md
+results/modal-vllm-prefix-cache-ultra-long-qwen05b-l4-n16-smoke-r2-summary/prefix-cache-isolated-stability-summary.md
+results/prefix-cache-study-ultra-long-qwen05b-l4-smoke-r2/key-results.md
+results/prefix-cache-study-ultra-long-qwen05b-l4-smoke-r2/intervals.md
 ```
 
 ## Next Step
 
-The next GPU experiment should make prefill a larger fraction of total request
-cost. Two reasonable directions are a larger model or longer shared prefixes.
-The next software step is to keep improving the report around TTFT, direct cache
-counters, and explicit non-claims for throughput and decode TPOT.
+The next GPU experiment should use L4 for a larger model or a longer-context
+profile that T4 cannot comfortably support. The current L4 result is only a
+smoke, but it proves the harness can transfer the same prompt-control design to
+a larger GPU.

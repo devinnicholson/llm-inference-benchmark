@@ -6030,3 +6030,92 @@ results/prefix-cache-study-ultra-long-qwen05b-merged-r8/intervals.md
 Stop increasing repeats on the same T4/Qwen setup for now. The better research
 move is a new axis: larger GPU/model, longer contexts on a GPU with more memory,
 or a backend comparison using the same prompt-control design.
+
+# Training 062: Qwen 0.5B Ultra-Long L4 Smoke
+
+Training 062 adds a Modal GPU selector for the isolated prefix-cache harness and
+runs the ultra-long Qwen prompt/control pair on L4. This is the first
+hardware-transfer checkpoint after the T4 r8 result.
+
+## Goal
+
+Check whether the clean ultra-long prompt-control design transfers from T4 to a
+larger GPU with a different attention backend and larger KV-cache budget.
+
+## Harness Change
+
+The isolated prefix-cache modes now accept `--modal-gpu T4` or `--modal-gpu L4`.
+The default remains `T4`, so previous commands keep the same behavior. Each
+isolated payload records `modal_gpu`, and each remote-call summary now stores
+`nvidia_smi_before` and `nvidia_smi_after`.
+
+## Run
+
+```bash
+modal run modal_app.py --mode vllm-prefix-cache-isolated-neutral-warmup \
+  --modal-gpu L4 \
+  --hf-model Qwen/Qwen2.5-0.5B-Instruct \
+  --prompt-profiles shared_prefix_ultra_long_no_repeat_variant,matched_unique_prefix_ultra_long_no_repeat_variant \
+  --output-tokens 8 \
+  --request-counts 16 \
+  --repeats 2 \
+  --scenario-seed 1601 \
+  --phase-order cold_first \
+  --kv-cache-metrics-sample 1.0 \
+  --warmup-prompt-profile neutral_ultra_long \
+  --prefix-cache-shared-profile shared_prefix_ultra_long_no_repeat_variant \
+  --prefix-cache-control-profile matched_unique_prefix_ultra_long_no_repeat_variant \
+  --output-dir results/modal-vllm-prefix-cache-ultra-long-qwen05b-l4-n16-smoke-r2
+
+modal run modal_app.py --mode vllm-prefix-cache-isolated-stability-summary \
+  --prefix-cache-isolated-metrics-dir results/modal-vllm-prefix-cache-ultra-long-qwen05b-l4-n16-smoke-r2 \
+  --prefix-cache-shared-profile shared_prefix_ultra_long_no_repeat_variant \
+  --prefix-cache-control-profile matched_unique_prefix_ultra_long_no_repeat_variant \
+  --output-dir results/modal-vllm-prefix-cache-ultra-long-qwen05b-l4-n16-smoke-r2-summary
+
+python3 scripts/build_prefix_cache_study_table.py \
+  --summary-json results/modal-vllm-prefix-cache-ultra-long-qwen05b-l4-n16-smoke-r2-summary/prefix-cache-isolated-stability-summary.json \
+  --output-dir results/prefix-cache-study-ultra-long-qwen05b-l4-smoke-r2
+```
+
+## Hardware Evidence
+
+The artifact records `modal_gpu: L4` and `nvidia-smi` samples such as:
+
+```text
+NVIDIA L4, 23034, 22564, 580.95.05
+NVIDIA L4, 23034, 22370, 580.95.05
+```
+
+During the remote run, vLLM selected FlashAttention 2 and reported `772,020`
+GPU KV-cache tokens available for `max_model_len=2158`. The comparable T4
+ultra-long runs reported about `447,089` GPU KV-cache tokens.
+
+## Result
+
+The smoke artifact has `4` paired shared/control observations across `2`
+repeats for `n=16`.
+
+- control direct counter hit rate: `0.822%`
+- shared direct counter hit rate: `92.344%`
+- shared-minus-control direct counter delta: `91.523 pp`, interval
+  `91.426 pp` to `91.619 pp`
+- p95 first-event/TTFT ratio delta: `-0.925`, interval `-0.965` to `-0.886`
+- throughput-ratio delta: `3.268`, interval `1.358` to `5.178`
+- p95 latency-ratio delta: `-0.738`, interval `-0.855` to `-0.620`
+- p95 stream TPOT-ratio delta: `-0.795`, interval `-0.841` to `-0.749`
+
+Generated artifacts:
+
+```text
+results/modal-vllm-prefix-cache-ultra-long-qwen05b-l4-n16-smoke-r2/prefix-cache-isolated-metrics.json
+results/modal-vllm-prefix-cache-ultra-long-qwen05b-l4-n16-smoke-r2-summary/prefix-cache-isolated-stability-summary.md
+results/prefix-cache-study-ultra-long-qwen05b-l4-smoke-r2/key-results.md
+results/prefix-cache-study-ultra-long-qwen05b-l4-smoke-r2/intervals.md
+```
+
+## Next Step
+
+Use the L4 path for a larger model or a longer-context prompt profile that is
+not a comfortable T4 target. More repeats of this exact L4 smoke are less useful
+than using the extra KV-cache budget to test a new workload shape.
