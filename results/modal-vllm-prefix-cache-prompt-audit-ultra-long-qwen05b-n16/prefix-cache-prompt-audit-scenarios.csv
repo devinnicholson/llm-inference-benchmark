@@ -1,0 +1,9 @@
+scenario_id,prompt_profile,repeat_index,variant_index,request_count,max_new_tokens,prompt_format,kv_cache_block_size,prompt_tokens_min,prompt_tokens_max,prompt_tokens_mean,total_prompt_tokens,common_prefix_tokens,common_prefix_full_blocks,common_prefix_block_tokens,common_prefix_remainder_tokens,suffix_after_common_tokens_min,suffix_after_common_tokens_max,suffix_after_common_tokens_mean,unique_prompt_count,exact_duplicate_prompt_group_count,exact_duplicate_prompt_repeated_count,exact_duplicate_prompt_max_group_size,estimated_exact_duplicate_reusable_block_tokens,estimated_exact_duplicate_reusable_block_token_fraction_of_total_prompt,estimated_reusable_block_tokens,estimated_reusable_block_token_fraction_of_total_prompt,common_prefix_token_fraction_of_prompt_mean,common_prefix_text_preview
+shared_prefix_ultra_long_no_repeat_variant_out8_n16_rep00,shared_prefix_ultra_long_no_repeat_variant,0,1301,16,8,chat_template,16,1948,1957,1952.3125,31237,1930,120,1920,10,18,27,22.3125,16,0,0,1,0,0.0,28800,0.9219835451547844,0.9885712456381854,"<|im_start|>system
+You are Qwen, created by Alibaba Cloud. You are a helpful assistant.<|im_end|>
+<|im_start|>user
+Telemetry Warehouse shared incident packet. Every request in this batch begins with the same telemetry warehouse ingestion se"
+matched_unique_prefix_ultra_long_no_repeat_variant_out8_n16_rep00,matched_unique_prefix_ultra_long_no_repeat_variant,0,1301,16,8,chat_template,16,1934,1956,1943.5625,31097,24,1,16,8,1910,1932,1919.5625,16,0,0,1,0,0.0,240,0.007717786281634885,0.012348458050615815,"<|im_start|>system
+You are Qwen, created by Alibaba Cloud. You are a helpful assistant.<|im_end|>
+<|im_start|>user
+"

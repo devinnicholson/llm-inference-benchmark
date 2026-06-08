@@ -5777,3 +5777,97 @@ The next research iteration should move beyond more repeats of the same T4
 setup. The strongest options are a larger model on a larger GPU, longer
 contexts, or a serving-backend comparison that tests whether the same prompt
 control design transfers outside vLLM.
+
+# Training 059: Qwen 0.5B Ultra-Long Smoke
+
+Training 059 adds a new ultra-long no-repeat prompt/control pair and runs a
+two-repeat Qwen2.5-0.5B smoke. This is a longer-context methodology checkpoint,
+not a replacement for the repeat-count-matched Qwen r8 result.
+
+## Goal
+
+Increase prefill pressure while preserving the clean prompt-control design:
+unique prompts, no exact duplicate prompt reuse, a long shared leading block in
+the treatment, and a matched unique-prefix control with similar prompt length.
+
+## Prompt Audit
+
+```bash
+modal run modal_app.py --mode vllm-prefix-cache-prompt-audit \
+  --hf-model Qwen/Qwen2.5-0.5B-Instruct \
+  --prompt-profiles shared_prefix_ultra_long_no_repeat_variant,matched_unique_prefix_ultra_long_no_repeat_variant \
+  --request-counts 16 \
+  --output-tokens 8 \
+  --repeats 1 \
+  --scenario-seed 1301 \
+  --kv-cache-block-size 16 \
+  --output-dir results/modal-vllm-prefix-cache-prompt-audit-ultra-long-qwen05b-n16
+```
+
+Result:
+
+- shared prompt tokens mean: `1,952.3125`
+- control prompt tokens mean: `1,943.5625`
+- shared common-prefix full blocks: `120`
+- control common-prefix full blocks: `1`
+- shared-minus-control reusable block tokens: `28,560`
+- exact duplicate reusable tokens: `0` for both profiles
+
+## GPU Smoke
+
+```bash
+modal run modal_app.py --mode vllm-prefix-cache-isolated-neutral-warmup \
+  --hf-model Qwen/Qwen2.5-0.5B-Instruct \
+  --prompt-profiles shared_prefix_ultra_long_no_repeat_variant,matched_unique_prefix_ultra_long_no_repeat_variant \
+  --output-tokens 8 \
+  --request-counts 16 \
+  --repeats 2 \
+  --scenario-seed 1301 \
+  --phase-order cold_first \
+  --kv-cache-metrics-sample 1.0 \
+  --warmup-prompt-profile neutral_ultra_long \
+  --prefix-cache-shared-profile shared_prefix_ultra_long_no_repeat_variant \
+  --prefix-cache-control-profile matched_unique_prefix_ultra_long_no_repeat_variant \
+  --output-dir results/modal-vllm-prefix-cache-ultra-long-qwen05b-n16-smoke-r2
+
+modal run modal_app.py --mode vllm-prefix-cache-isolated-stability-summary \
+  --prefix-cache-isolated-metrics-dir results/modal-vllm-prefix-cache-ultra-long-qwen05b-n16-smoke-r2 \
+  --prefix-cache-shared-profile shared_prefix_ultra_long_no_repeat_variant \
+  --prefix-cache-control-profile matched_unique_prefix_ultra_long_no_repeat_variant \
+  --output-dir results/modal-vllm-prefix-cache-ultra-long-qwen05b-n16-smoke-r2-summary
+
+python3 scripts/build_prefix_cache_study_table.py \
+  --summary-json results/modal-vllm-prefix-cache-ultra-long-qwen05b-n16-smoke-r2-summary/prefix-cache-isolated-stability-summary.json \
+  --output-dir results/prefix-cache-study-ultra-long-qwen05b-smoke-r2
+```
+
+## Result
+
+The smoke artifact has `2` paired shared/control observations for `n=16`.
+vLLM used `max_model_len=2158` on T4 and reported about `447,089` GPU KV-cache
+tokens available after profiling.
+
+- control direct counter hit rate: `0.822%`
+- shared direct counter hit rate: `92.344%`
+- shared-minus-control direct counter delta: `91.523 pp`, interval
+  `91.426 pp` to `91.619 pp`
+- p95 first-event/TTFT ratio delta: `-1.267`, interval `-1.725` to `-0.808`
+- throughput-ratio delta: `1.850`, interval `1.820` to `1.881`
+- p95 latency-ratio delta: `-1.057`, interval `-1.397` to `-0.717`
+- p95 stream TPOT-ratio delta: `-0.859`, interval `-0.860` to `-0.858`
+
+Generated artifacts:
+
+```text
+results/modal-vllm-prefix-cache-prompt-audit-ultra-long-qwen05b-n16/prefix-cache-prompt-audit.md
+results/modal-vllm-prefix-cache-ultra-long-qwen05b-n16-smoke-r2/prefix-cache-isolated-metrics.json
+results/modal-vllm-prefix-cache-ultra-long-qwen05b-n16-smoke-r2-summary/prefix-cache-isolated-stability-summary.md
+results/prefix-cache-study-ultra-long-qwen05b-smoke-r2/key-results.md
+results/prefix-cache-study-ultra-long-qwen05b-smoke-r2/intervals.md
+```
+
+## Next Step
+
+Run chunked ultra-long repeats to reach r8 if this longer-context axis remains
+the priority. The r2 signal is strong, but it should not be presented as
+repeat-count matched until the r8 merge exists.

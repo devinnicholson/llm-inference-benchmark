@@ -123,6 +123,18 @@ throughput, end-to-end p95 latency, and stream TPOT all stay favorable in the
 repeat-count-matched artifact, making it the best current model-shape
 follow-up.
 
+Training 059 adds an ultra-long Qwen smoke that raises the mean prompt length
+to roughly `1,948` tokens and the shared common-prefix full blocks to `120`:
+
+```text
+results/prefix-cache-study-ultra-long-qwen05b-smoke-r2/key-results.md
+results/prefix-cache-study-ultra-long-qwen05b-smoke-r2/intervals.md
+```
+
+This is only an r2 smoke, but the prompt audit is clean and the direct counter
+delta increases to `91.523 pp`. It is the next longer-context target for an r8
+stability pass.
+
 ## Reproduce
 
 Run the no-repeat n=16 fixed-shape stability pass:
@@ -207,6 +219,10 @@ results/prefix-cache-study-extra-long-qwen05b-merged-r5/intervals.md
 results/modal-vllm-prefix-cache-extra-long-qwen05b-n16-merged-r8-summary/prefix-cache-isolated-stability-summary.md
 results/prefix-cache-study-extra-long-qwen05b-merged-r8/key-results.md
 results/prefix-cache-study-extra-long-qwen05b-merged-r8/intervals.md
+results/modal-vllm-prefix-cache-prompt-audit-ultra-long-qwen05b-n16/prefix-cache-prompt-audit.md
+results/modal-vllm-prefix-cache-ultra-long-qwen05b-n16-smoke-r2-summary/prefix-cache-isolated-stability-summary.md
+results/prefix-cache-study-ultra-long-qwen05b-smoke-r2/key-results.md
+results/prefix-cache-study-ultra-long-qwen05b-smoke-r2/intervals.md
 ```
 
 ## Next Step

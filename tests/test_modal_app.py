@@ -387,6 +387,42 @@ class ModalAppTests(unittest.TestCase):
             controls[15].split(" ", 1)[0],
         )
 
+    def test_ultra_long_no_repeat_profiles_keep_n16_unique(self) -> None:
+        extra_shared = modal_app._select_sweep_prompts(
+            16,
+            "shared_prefix_extra_long_no_repeat_variant",
+            variant_index=577,
+        )
+        shared = modal_app._select_sweep_prompts(
+            16,
+            "shared_prefix_ultra_long_no_repeat_variant",
+            variant_index=577,
+        )
+        controls = modal_app._select_sweep_prompts(
+            16,
+            "matched_unique_prefix_ultra_long_no_repeat_variant",
+            variant_index=577,
+        )
+        neutral = modal_app._select_sweep_prompts(
+            16,
+            "neutral_ultra_long",
+            variant_index=577,
+        )
+
+        self.assertEqual(len(set(shared)), 16)
+        self.assertEqual(len(set(controls)), 16)
+        self.assertEqual(len(set(neutral)), 16)
+        self.assertGreater(len(shared[0].split()), len(extra_shared[0].split()))
+        self.assertGreater(len(neutral[0].split()), len(extra_shared[0].split()))
+        self.assertEqual(
+            shared[0].split("\n\nTask", 1)[0],
+            shared[15].split("\n\nTask", 1)[0],
+        )
+        self.assertNotEqual(
+            controls[0].split(" ", 1)[0],
+            controls[15].split(" ", 1)[0],
+        )
+
     def test_common_prefix_token_count_stops_at_first_difference(self) -> None:
         self.assertEqual(
             modal_app._common_prefix_token_count(
@@ -563,6 +599,60 @@ class ModalAppTests(unittest.TestCase):
             comparison["control_common_prefix_full_blocks"],
         )
         for row in extra_payload["scenario_rows"]:
+            self.assertEqual(row["unique_prompt_count"], 16)
+            self.assertEqual(row["exact_duplicate_prompt_repeated_count"], 0)
+            self.assertEqual(
+                row["estimated_exact_duplicate_reusable_block_tokens"],
+                0,
+            )
+
+    def test_prompt_audit_reports_ultra_long_no_repeat_profiles(self) -> None:
+        extra_payload = modal_app._build_vllm_prefix_cache_prompt_audit_payload(
+            tokenizer=_WhitespaceTokenizer(),
+            hf_model="fake-model",
+            request_count_values=[16],
+            prompt_profile_values=[
+                "shared_prefix_extra_long_no_repeat_variant",
+                "matched_unique_prefix_extra_long_no_repeat_variant",
+            ],
+            output_token_values=[8],
+            repeats=1,
+            scenario_seed=577,
+            kv_cache_block_size=8,
+        )
+        ultra_payload = modal_app._build_vllm_prefix_cache_prompt_audit_payload(
+            tokenizer=_WhitespaceTokenizer(),
+            hf_model="fake-model",
+            request_count_values=[16],
+            prompt_profile_values=[
+                "shared_prefix_ultra_long_no_repeat_variant",
+                "matched_unique_prefix_ultra_long_no_repeat_variant",
+            ],
+            output_token_values=[8],
+            repeats=1,
+            scenario_seed=577,
+            kv_cache_block_size=8,
+        )
+
+        self.assertEqual(ultra_payload["profile_control_row_count"], 1)
+        comparison = ultra_payload["profile_control_rows"][0]
+        self.assertEqual(
+            comparison["shared_profile"],
+            "shared_prefix_ultra_long_no_repeat_variant",
+        )
+        self.assertEqual(
+            comparison["control_profile"],
+            "matched_unique_prefix_ultra_long_no_repeat_variant",
+        )
+        self.assertGreater(
+            ultra_payload["summary"]["shared_common_prefix_full_blocks_mean"],
+            extra_payload["summary"]["shared_common_prefix_full_blocks_mean"],
+        )
+        self.assertGreater(
+            comparison["shared_common_prefix_full_blocks"],
+            comparison["control_common_prefix_full_blocks"],
+        )
+        for row in ultra_payload["scenario_rows"]:
             self.assertEqual(row["unique_prompt_count"], 16)
             self.assertEqual(row["exact_duplicate_prompt_repeated_count"], 0)
             self.assertEqual(
