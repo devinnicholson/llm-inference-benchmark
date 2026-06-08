@@ -72,6 +72,9 @@ DEFAULT_VLLM_PREFIX_CACHE_PROFILE_MULTITRIAL_OUTPUT = (
 DEFAULT_VLLM_PREFIX_CACHE_ISOLATED_METRICS_OUTPUT = (
     "results/modal-vllm-prefix-cache-isolated-metrics"
 )
+DEFAULT_VLLM_PREFIX_CACHE_ISOLATED_WARM_WINDOW_OUTPUT = (
+    "results/modal-vllm-prefix-cache-isolated-warm-window"
+)
 DEFAULT_VLLM_PREFIX_CACHE_ISOLATED_STABILITY_OUTPUT = (
     "results/modal-vllm-prefix-cache-isolated-stability-summary"
 )
@@ -4228,7 +4231,10 @@ def main(
         print(f"markdown: {markdown_path}")
         return
 
-    if mode == "vllm-prefix-cache-isolated-metrics":
+    if mode in {
+        "vllm-prefix-cache-isolated-metrics",
+        "vllm-prefix-cache-isolated-warm-window",
+    }:
         request_count_values = _split_positive_int_csv(request_counts, "request_counts")
         prompt_profile_values = [
             profile.lower().replace("-", "_")
@@ -4241,6 +4247,9 @@ def main(
         isolated_phase_order = phase_order.lower().replace("-", "_")
         if isolated_phase_order not in {"cold_first", "cache_first"}:
             isolated_phase_order = "cold_first"
+        effective_warmup_runs = (
+            1 if mode == "vllm-prefix-cache-isolated-warm-window" else 0
+        )
 
         paired_runs = []
         remote_call_summaries = []
@@ -4256,7 +4265,7 @@ def main(
                             output_tokens=str(max_tokens),
                             repeats=1,
                             scenario_seed=scenario_seed + repeat_index,
-                            warmup_runs=0,
+                            warmup_runs=effective_warmup_runs,
                             phase_order=isolated_phase_order,
                             collect_cache_metrics=True,
                             kv_cache_metrics_sample=kv_cache_metrics_sample,
@@ -4272,7 +4281,7 @@ def main(
                         )
                         row["isolation_call_index"] = call_index
                         row["isolation_phase_order"] = single_payload["phase_order"]
-                        row["isolation_warmup_runs"] = 0
+                        row["isolation_warmup_runs"] = effective_warmup_runs
                         paired_runs.append(row)
 
                         cold_run = single_payload["cold_scenario_runs"][0]
@@ -4307,6 +4316,9 @@ def main(
                                 "cache_to_cold_p95_latency_ms_ratio": row[
                                     "cache_to_cold_p95_latency_ms_ratio"
                                 ],
+                                "warmup_runs": effective_warmup_runs,
+                                "cold_warmup": single_payload["cold_warmup"],
+                                "cache_warmup": single_payload["cache_warmup"],
                                 "cold_cache_metrics": cold_run.get("cache_metrics"),
                                 "cache_cache_metrics": cache_run.get("cache_metrics"),
                                 "cold_cache_metrics_log_stats": cold_run.get(
@@ -4327,7 +4339,7 @@ def main(
         payload = {
             "schema_version": 1,
             "execution": "modal",
-            "mode": "vllm-prefix-cache-isolated-metrics",
+            "mode": mode,
             "backend": "vllm-paired-prefix-cache",
             "model_id": hf_model,
             "request_counts": request_count_values,
@@ -4336,13 +4348,14 @@ def main(
             "repeats": int(repeats),
             "scenario_seed": int(scenario_seed),
             "phase_order": isolated_phase_order,
-            "warmup_runs": 0,
+            "warmup_runs": effective_warmup_runs,
             "collect_cache_metrics": True,
             "kv_cache_metrics_sample": float(kv_cache_metrics_sample),
             "isolation_method": (
                 "Each scenario/repeat is executed by a separate remote paired "
-                "benchmark call with fresh cold/cache AsyncLLM engines and no "
-                "warmup scenario runs."
+                "benchmark call with fresh cold/cache AsyncLLM engines. The "
+                f"run uses {effective_warmup_runs} warmup scenario run(s) "
+                "inside each fresh engine before the measured scenario."
             ),
             "remote_call_count": len(remote_call_summaries),
             "scenario_count": len(paired_scenarios),
@@ -4374,12 +4387,17 @@ def main(
                 row["cache_to_cold_p95_stream_tpot_ms_ratio"] for row in paired_runs
             ),
             "note": (
-                "This is a metric-isolation harness, not a throughput benchmark. "
-                "It spends extra engine-load time to avoid carrying cache metrics "
-                "across unrelated scenarios."
+                "This is a metric-isolation harness. The warm-window mode adds "
+                "a throwaway warmup window before the measured scenario; the "
+                "default isolated mode runs with no warmup."
             ),
         }
-        output_path = Path(output_dir or DEFAULT_VLLM_PREFIX_CACHE_ISOLATED_METRICS_OUTPUT)
+        default_output = (
+            DEFAULT_VLLM_PREFIX_CACHE_ISOLATED_WARM_WINDOW_OUTPUT
+            if mode == "vllm-prefix-cache-isolated-warm-window"
+            else DEFAULT_VLLM_PREFIX_CACHE_ISOLATED_METRICS_OUTPUT
+        )
+        output_path = Path(output_dir or default_output)
         output_path.mkdir(parents=True, exist_ok=True)
         json_path = output_path / "prefix-cache-isolated-metrics.json"
         summary_csv_path = output_path / "prefix-cache-isolated-metrics-summary.csv"
@@ -4394,6 +4412,7 @@ def main(
         print(f"paired_runs: {payload['paired_run_count']}")
         print(f"remote_calls: {payload['remote_call_count']}")
         print(f"phase_order: {payload['phase_order']}")
+        print(f"warmup_runs: {payload['warmup_runs']}")
         print(
             "mean_cache_to_cold_throughput_ratio: "
             f"{payload['mean_cache_to_cold_throughput_ratio']:.3f}"
@@ -4577,6 +4596,7 @@ def main(
             "'vllm-server-async-multitrial-aggregate', "
             "'vllm-server-async-workload-compare', 'vllm-sweep', or "
             "'vllm-prefix-cache-isolated-stability-summary', "
+            "'vllm-prefix-cache-isolated-warm-window', "
             "'vllm-prefix-cache-isolated-metrics', "
             "'vllm-prefix-cache-paired', 'vllm-prefix-cache-compare', or "
             "'vllm-prefix-cache-phase-order-compare', or "
@@ -6304,8 +6324,16 @@ def _summarize_vllm_prefix_cache_isolated_stability(
         ),
         "max_cache_hit_rate_population_stdev": max(cache_stdevs) if cache_stdevs else None,
     }
+    source_mode = source_payload.get("mode")
+    source_warmup_runs = source_payload.get("warmup_runs")
+    source_repeats = source_payload.get("repeats")
+    source_phase_order = source_payload.get("phase_order")
     markdown = _format_vllm_prefix_cache_isolated_stability_markdown(
         source_dir=isolated_metrics_dir,
+        source_mode=source_mode,
+        source_warmup_runs=source_warmup_runs,
+        source_repeats=source_repeats,
+        source_phase_order=source_phase_order,
         scenario_rows=scenario_rows,
         profile_control_rows=profile_control_rows,
         summary=summary,
@@ -6319,6 +6347,10 @@ def _summarize_vllm_prefix_cache_isolated_stability(
         "source_scenario_count": source_payload["scenario_count"],
         "source_paired_run_count": source_payload["paired_run_count"],
         "source_remote_call_count": source_payload["remote_call_count"],
+        "source_mode": source_mode,
+        "source_warmup_runs": source_warmup_runs,
+        "source_repeats": source_repeats,
+        "source_phase_order": source_phase_order,
         "scenario_count": len(scenario_rows),
         "profile_control_row_count": len(profile_control_rows),
         "shared_profile": shared_profile,
@@ -6332,6 +6364,10 @@ def _summarize_vllm_prefix_cache_isolated_stability(
 
 def _format_vllm_prefix_cache_isolated_stability_markdown(
     source_dir: Path,
+    source_mode: Any,
+    source_warmup_runs: Any,
+    source_repeats: Any,
+    source_phase_order: Any,
     scenario_rows: list[dict[str, Any]],
     profile_control_rows: list[dict[str, Any]],
     summary: dict[str, Any],
@@ -6340,6 +6376,10 @@ def _format_vllm_prefix_cache_isolated_stability_markdown(
         "# Prefix-Cache Isolated Stability Summary",
         "",
         f"Source: `{source_dir}`",
+        f"Source mode: `{source_mode}`",
+        f"Warmup runs: `{source_warmup_runs}`",
+        f"Repeats: `{source_repeats}`",
+        f"Phase order: `{source_phase_order}`",
         "",
         "## Summary",
         "",

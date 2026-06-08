@@ -452,6 +452,29 @@ modal run modal_app.py --mode vllm-prefix-cache-isolated-stability-summary \
   --output-dir results/modal-vllm-prefix-cache-isolated-stability-summary
 ```
 
+Run a warmed-window isolated cache trial. This adds one throwaway warmup
+scenario run inside each fresh cold/cache engine before the measured scenario:
+
+```bash
+modal run modal_app.py --mode vllm-prefix-cache-isolated-warm-window \
+  --prompt-profiles shared_prefix_long,matched_unique_prefix \
+  --output-tokens 8 \
+  --request-counts 2,4,8 \
+  --repeats 1 \
+  --scenario-seed 574 \
+  --phase-order cold_first \
+  --kv-cache-metrics-sample 1.0 \
+  --output-dir results/modal-vllm-prefix-cache-isolated-warm-window
+```
+
+Generate a compact summary for that warmed-window trial:
+
+```bash
+modal run modal_app.py --mode vllm-prefix-cache-isolated-stability-summary \
+  --prefix-cache-isolated-metrics-dir results/modal-vllm-prefix-cache-isolated-warm-window \
+  --output-dir results/modal-vllm-prefix-cache-isolated-warm-window-summary
+```
+
 Modal training is documented in
 [`docs/modal-training.md`](docs/modal-training.md).
 
