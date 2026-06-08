@@ -430,6 +430,20 @@ modal run modal_app.py --mode vllm-prefix-cache-isolated-metrics \
   --output-dir results/modal-vllm-prefix-cache-isolated-metrics
 ```
 
+Run the repeated isolated cache-metrics stability trial:
+
+```bash
+modal run modal_app.py --mode vllm-prefix-cache-isolated-metrics \
+  --prompt-profiles shared_prefix_long,matched_unique_prefix \
+  --output-tokens 8 \
+  --request-counts 2,4,8 \
+  --repeats 2 \
+  --scenario-seed 573 \
+  --phase-order cold_first \
+  --kv-cache-metrics-sample 1.0 \
+  --output-dir results/modal-vllm-prefix-cache-isolated-metrics-repeated
+```
+
 Modal training is documented in
 [`docs/modal-training.md`](docs/modal-training.md).
 

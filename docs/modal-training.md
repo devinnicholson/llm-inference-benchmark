@@ -3179,3 +3179,106 @@ Training 032 should repeat the isolated metric run with request counts `2,4,8`
 and `repeats=2`, then separate metric stability from timing stability. If we
 want timing evidence, add a dedicated warmup/discard path that logs stats after
 warmup and then measures a fresh scenario window without mixing profiles.
+
+# Training 032: Repeated Isolated Cache-Metrics Stability
+
+Training 032 repeats the fresh-engine isolated cache-metrics run across request
+counts `2,4,8` with `repeats=2`.
+
+## Goal
+
+Test whether the isolated cache-hit metric from Training 031 is stable across
+repeated remote calls and at request count `8`.
+
+This keeps the Training 031 isolation design:
+
+- one scenario per remote paired call
+- fresh cold/cache `AsyncLLM` engines per scenario
+- `warmup_runs=0`
+- cache metrics enabled with `kv_cache_metrics_sample=1.0`
+
+## Command
+
+```bash
+modal run modal_app.py --mode vllm-prefix-cache-isolated-metrics \
+  --prompt-profiles shared_prefix_long,matched_unique_prefix \
+  --output-tokens 8 \
+  --request-counts 2,4,8 \
+  --repeats 2 \
+  --scenario-seed 573 \
+  --phase-order cold_first \
+  --kv-cache-metrics-sample 1.0 \
+  --output-dir results/modal-vllm-prefix-cache-isolated-metrics-repeated
+```
+
+## Artifacts
+
+```text
+results/modal-vllm-prefix-cache-isolated-metrics-repeated/prefix-cache-isolated-metrics.json
+results/modal-vllm-prefix-cache-isolated-metrics-repeated/prefix-cache-isolated-metrics-summary.csv
+results/modal-vllm-prefix-cache-isolated-metrics-repeated/prefix-cache-isolated-metrics-runs.csv
+results/modal-vllm-prefix-cache-isolated-metrics-repeated/prefix-cache-isolated-profile-control.csv
+```
+
+## Result
+
+The run produced six scenarios, twelve paired runs, and twelve isolated remote
+calls.
+
+Top-level means:
+
+| Metric | Value |
+| --- | ---: |
+| Mean cache-to-cold throughput ratio | 1.346 |
+| Mean cache-to-cold p95 latency ratio | 0.927 |
+| Mean shared-minus-control cache-hit delta | 66.5 pp |
+
+Cache-hit stability by scenario:
+
+| Profile | Request count | Cache hit rates | Mean | Population stdev |
+| --- | ---: | --- | ---: | ---: |
+| `shared_prefix_long` | 2 | `48.2%, 48.2%` | 48.2% | 0.0 |
+| `shared_prefix_long` | 4 | `72.4%, 72.4%` | 72.4% | 0.0 |
+| `shared_prefix_long` | 8 | `84.6%, 84.6%` | 84.6% | 0.0 |
+| `matched_unique_prefix` | 2 | `1.3%, 1.3%` | 1.3% | 0.0 |
+| `matched_unique_prefix` | 4 | `2.0%, 2.0%` | 2.0% | 0.0 |
+| `matched_unique_prefix` | 8 | `2.4%, 2.4%` | 2.4% | 0.0 |
+
+Shared-prefix minus matched-control deltas:
+
+| Request count | Cache-hit delta | Throughput-ratio delta | p95 latency-ratio delta |
+| ---: | ---: | ---: | ---: |
+| 2 | 46.9 pp | 0.024 | -0.563 |
+| 4 | 70.4 pp | -0.079 | 0.440 |
+| 8 | 82.2 pp | 0.071 | -0.135 |
+| Mean | 66.5 pp | 0.005 | -0.086 |
+
+## Interpretation
+
+This is now a stable direct-cache result, not just a one-off observation. Under
+fresh-engine isolation, the shared-prefix workload reports high prefix-cache hit
+rates and the matched-unique control stays near zero. The measured hit rates are
+identical across two repeated remote calls for every scenario.
+
+The isolated cache-hit rate also scales with request count for the shared
+profile: `48.2%` at two requests, `72.4%` at four requests, and `84.6%` at eight
+requests. That is exactly the shape expected when more requests in the same
+batch reuse the same long prefix. The matched-control profile rises only from
+`1.3%` to `2.4%`, which is consistent with small shared prompt scaffolding rather
+than the long reusable prefix.
+
+The timing ratios are much less important here. Their mean deltas are close to
+zero in the profile-control table, but no-warmup isolated timing still includes
+shape/JIT artifacts. Training 032 should be cited primarily as cache-metric
+evidence.
+
+The first remote call saw transient Hugging Face `503` responses while probing
+model files, then recovered from the local cache. That affected engine load
+time, not the post-scenario prefix-cache hit-rate fields.
+
+## Next Step
+
+Training 033 should turn this into a cleaner report artifact: a compact
+machine-readable stability summary with per-scenario hit-rate mean, min, max,
+and stdev, plus a markdown/CSV table that can be used directly in the eventual
+GitHub project report.
