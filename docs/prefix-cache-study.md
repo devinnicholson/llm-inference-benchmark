@@ -125,19 +125,19 @@ follow-up.
 
 Training 059 adds an ultra-long Qwen smoke that raises the mean prompt length
 to roughly `1,948` tokens and the shared common-prefix full blocks to `120`.
-Training 060 extends it to a five-repeat merged follow-up:
+Training 061 extends it to an eight-repeat merged follow-up:
 
 ```text
-results/prefix-cache-study-ultra-long-qwen05b-merged-r5/key-results.md
-results/prefix-cache-study-ultra-long-qwen05b-merged-r5/intervals.md
+results/prefix-cache-study-ultra-long-qwen05b-merged-r8/key-results.md
+results/prefix-cache-study-ultra-long-qwen05b-merged-r8/intervals.md
 ```
 
-The prompt audit is clean, and the r5 follow-up keeps every reported metric on
-the favorable side of zero: direct counter delta `91.472 pp`, p95
-first-event/TTFT ratio delta `-1.032`, throughput-ratio delta `2.184`, p95
-latency-ratio delta `-0.809`, and p95 stream TPOT-ratio delta `-0.773`.
-It is the strongest longer-context artifact so far, though it still needs an r8
-merge before it is repeat-count matched with the extra-long Qwen follow-up.
+The prompt audit is clean, and the r8 merge keeps every reported metric on the
+favorable side of zero at the same repeat count as the extra-long Qwen follow-up:
+direct counter delta `91.460 pp`, p95 first-event/TTFT ratio delta `-0.964`,
+throughput-ratio delta `3.308`, p95 latency-ratio delta `-0.795`, and p95
+stream TPOT-ratio delta `-0.791`. This is the strongest longer-context artifact
+so far.
 
 ## Reproduce
 
@@ -230,6 +230,9 @@ results/prefix-cache-study-ultra-long-qwen05b-smoke-r2/intervals.md
 results/modal-vllm-prefix-cache-ultra-long-qwen05b-n16-merged-r5-summary/prefix-cache-isolated-stability-summary.md
 results/prefix-cache-study-ultra-long-qwen05b-merged-r5/key-results.md
 results/prefix-cache-study-ultra-long-qwen05b-merged-r5/intervals.md
+results/modal-vllm-prefix-cache-ultra-long-qwen05b-n16-merged-r8-summary/prefix-cache-isolated-stability-summary.md
+results/prefix-cache-study-ultra-long-qwen05b-merged-r8/key-results.md
+results/prefix-cache-study-ultra-long-qwen05b-merged-r8/intervals.md
 ```
 
 ## Next Step

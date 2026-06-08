@@ -1,0 +1,13 @@
+# Prefix-Cache Study Key Results
+
+Source: `results/modal-vllm-prefix-cache-ultra-long-qwen05b-n16-merged-r8-summary/prefix-cache-isolated-stability-summary.json`
+
+| Metric | Value | 90% bootstrap interval | Interpretation |
+| --- | ---: | --- | --- |
+| Control direct counter hit rate | 0.822% | n/a | Matched unique-prefix baseline stays low after the no-repeat prompt audit. |
+| Shared direct counter hit rate | 92.282% | n/a | Shared-prefix workload triggers measured-window KV reuse. |
+| Shared-minus-control direct counter delta | 91.460 pp | 91.377 pp to 91.547 pp | Stable positive reuse effect; interval is far above zero. |
+| p95 first-event/TTFT ratio delta | -0.964 | -1.163 to -0.836 | Stable favorable first-token effect; negative latency ratio is better. |
+| Throughput-ratio delta | 3.308 | 1.851 to 5.324 | Stable favorable throughput effect; positive ratio is better. |
+| p95 latency-ratio delta | -0.795 | -0.947 to -0.652 | Stable favorable end-to-end latency effect; negative latency ratio is better. |
+| p95 stream TPOT-ratio delta | -0.791 | -0.857 to -0.709 | Stable favorable decode TPOT effect; negative latency ratio is better. |

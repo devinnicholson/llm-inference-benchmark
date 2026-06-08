@@ -25,7 +25,7 @@ Latest model-shape follow-up:
 [`results/prefix-cache-study-extra-long-qwen05b-merged-r8/key-results.md`](results/prefix-cache-study-extra-long-qwen05b-merged-r8/key-results.md)
 
 Latest longer-context follow-up:
-[`results/prefix-cache-study-ultra-long-qwen05b-merged-r5/key-results.md`](results/prefix-cache-study-ultra-long-qwen05b-merged-r5/key-results.md)
+[`results/prefix-cache-study-ultra-long-qwen05b-merged-r8/key-results.md`](results/prefix-cache-study-ultra-long-qwen05b-merged-r8/key-results.md)
 
 ## Course Track
 
