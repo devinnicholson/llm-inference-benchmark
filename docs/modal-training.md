@@ -6669,3 +6669,89 @@ results/prefix-cache-study-mega-long-qwen15b-l4-merged-r8/intervals.md
 Use the Qwen 1.5B L4 r8 result as the larger-model control point for either a
 backend comparison or a larger batch-pressure run with the same prompt/control
 pair.
+
+# Training 069: Qwen 1.5B Mega-Long L4 n32 Smoke
+
+Training 069 starts a batch-pressure axis by keeping the Qwen 1.5B L4
+mega-long prompt/control pair fixed and raising `request-counts` from `16` to
+`32`. The goal is to test whether the r8 n16 result survives a shape closer to
+the available concurrency limit.
+
+## Goal
+
+Check whether the larger-model L4 artifact remains favorable when the request
+count is doubled, and record any engine-capacity change caused by the larger
+batched-token shape.
+
+## Run
+
+```bash
+modal run modal_app.py --mode vllm-prefix-cache-isolated-neutral-warmup \
+  --modal-gpu L4 \
+  --hf-model Qwen/Qwen2.5-1.5B-Instruct \
+  --prompt-profiles shared_prefix_mega_long_no_repeat_variant,matched_unique_prefix_mega_long_no_repeat_variant \
+  --output-tokens 8 \
+  --request-counts 32 \
+  --repeats 2 \
+  --scenario-seed 2301 \
+  --phase-order cold_first \
+  --kv-cache-metrics-sample 1.0 \
+  --warmup-prompt-profile neutral_mega_long \
+  --prefix-cache-shared-profile shared_prefix_mega_long_no_repeat_variant \
+  --prefix-cache-control-profile matched_unique_prefix_mega_long_no_repeat_variant \
+  --output-dir results/modal-vllm-prefix-cache-mega-long-qwen15b-l4-n32-smoke-r2
+
+modal run modal_app.py --mode vllm-prefix-cache-isolated-stability-summary \
+  --prefix-cache-isolated-metrics-dir results/modal-vllm-prefix-cache-mega-long-qwen15b-l4-n32-smoke-r2 \
+  --prefix-cache-shared-profile shared_prefix_mega_long_no_repeat_variant \
+  --prefix-cache-control-profile matched_unique_prefix_mega_long_no_repeat_variant \
+  --output-dir results/modal-vllm-prefix-cache-mega-long-qwen15b-l4-n32-smoke-r2-summary
+
+python3 scripts/build_prefix_cache_study_table.py \
+  --summary-json results/modal-vllm-prefix-cache-mega-long-qwen15b-l4-n32-smoke-r2-summary/prefix-cache-isolated-stability-summary.json \
+  --output-dir results/prefix-cache-study-mega-long-qwen15b-l4-n32-smoke-r2
+```
+
+## Capacity Observation
+
+The run is a useful systems artifact because vLLM changed the effective
+capacity profile for the n32 shape. The Modal console showed:
+
+```text
+max_num_batched_tokens=121280
+GPU KV cache size: 18,854 tokens
+Maximum concurrency for 3,790 tokens per request: 4.97x
+```
+
+The n16 Qwen 1.5B L4 runs reported `158,540` GPU KV-cache tokens and `41.83x`
+maximum concurrency for the same `max_model_len=3790`. The n32 run still
+completed, but it should be treated as a batch-pressure smoke until promoted to
+more repeats.
+
+## Result
+
+The smoke artifact has `4` scenario-level cold/cache paired runs, or `2`
+shared/control comparisons, for `n=32`.
+
+- control direct counter hit rate: `0.446%`
+- shared direct counter hit rate: `96.218%`
+- shared-minus-control direct counter delta: `95.772 pp`, interval
+  `95.677 pp` to `95.868 pp`
+- p95 first-event/TTFT ratio delta: `-0.957`, interval `-0.974` to `-0.940`
+- throughput-ratio delta: `9.717`, interval `9.619` to `9.815`
+- p95 latency-ratio delta: `-0.928`, interval `-0.946` to `-0.910`
+- p95 stream TPOT-ratio delta: `-0.675`, interval `-0.677` to `-0.672`
+
+Generated artifacts:
+
+```text
+results/modal-vllm-prefix-cache-mega-long-qwen15b-l4-n32-smoke-r2/prefix-cache-isolated-metrics.json
+results/modal-vllm-prefix-cache-mega-long-qwen15b-l4-n32-smoke-r2-summary/prefix-cache-isolated-stability-summary.md
+results/prefix-cache-study-mega-long-qwen15b-l4-n32-smoke-r2/key-results.md
+results/prefix-cache-study-mega-long-qwen15b-l4-n32-smoke-r2/intervals.md
+```
+
+## Next Step
+
+Promote this n32 batch-pressure smoke to r5 before using it as a control point
+for backend comparison.

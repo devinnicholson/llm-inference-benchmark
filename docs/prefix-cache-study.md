@@ -248,6 +248,24 @@ latency-ratio delta `-0.892`, and p95 stream TPOT-ratio delta `-0.947`. This is
 now the best larger-model L4 artifact and is repeat-count-matched against the
 Qwen 0.5B L4 r8 control point.
 
+Training 069 starts a Qwen 1.5B L4 batch-pressure axis by raising the request
+count from `16` to `32` while keeping the same mega-long prompt/control pair:
+
+```text
+results/prefix-cache-study-mega-long-qwen15b-l4-n32-smoke-r2/key-results.md
+results/prefix-cache-study-mega-long-qwen15b-l4-n32-smoke-r2/intervals.md
+```
+
+This is a smoke, not a replacement for the repeat-count-matched n16 r8 result.
+The Modal console showed vLLM increasing `max_num_batched_tokens` to `121280`
+and reporting only `18,854` GPU KV-cache tokens, or `4.97x` maximum
+concurrency for `max_model_len=3790`. That is much lower than the n16 Qwen
+1.5B L4 runs, which reported `158,540` GPU KV-cache tokens and `41.83x`
+maximum concurrency. Despite this pressure, the n32 r2 smoke completed and
+reported a `95.772 pp` direct counter delta, p95 first-event/TTFT ratio delta
+`-0.957`, throughput-ratio delta `9.717`, p95 latency-ratio delta `-0.928`,
+and p95 stream TPOT-ratio delta `-0.675`.
+
 ## Reproduce
 
 Run the no-repeat n=16 fixed-shape stability pass:
@@ -374,11 +392,14 @@ results/modal-vllm-prefix-cache-mega-long-qwen15b-l4-n16-merged-r8/prefix-cache-
 results/modal-vllm-prefix-cache-mega-long-qwen15b-l4-n16-merged-r8-summary/prefix-cache-isolated-stability-summary.md
 results/prefix-cache-study-mega-long-qwen15b-l4-merged-r8/key-results.md
 results/prefix-cache-study-mega-long-qwen15b-l4-merged-r8/intervals.md
+results/modal-vllm-prefix-cache-mega-long-qwen15b-l4-n32-smoke-r2/prefix-cache-isolated-metrics.json
+results/modal-vllm-prefix-cache-mega-long-qwen15b-l4-n32-smoke-r2-summary/prefix-cache-isolated-stability-summary.md
+results/prefix-cache-study-mega-long-qwen15b-l4-n32-smoke-r2/key-results.md
+results/prefix-cache-study-mega-long-qwen15b-l4-n32-smoke-r2/intervals.md
 ```
 
 ## Next Step
 
-Use the Qwen 1.5B L4 r8 artifact as the larger-model control point for a
-backend comparison or larger batch-pressure run with the same prompt/control
-pair. The next useful artifact should separate "larger model" from backend
-behavior.
+Promote the Qwen 1.5B L4 n32 batch-pressure smoke to r5, then decide whether
+to continue the batch-pressure axis or switch to a backend comparison using the
+n16 and n32 control points.
