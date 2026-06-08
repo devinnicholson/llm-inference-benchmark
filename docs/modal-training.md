@@ -4019,3 +4019,107 @@ workload-stability interval rather than a deterministic prompt replay. After
 that, the timing path should move to larger request counts or a larger model so
 prefill savings are large enough to separate from vLLM startup and scheduler
 noise.
+
+# Training 039: Variant Prompt Families
+
+Training 039 adds seed-selected prompt families for the isolated prefix-cache
+harness.
+
+## Goal
+
+Make the repeated stability artifact less like deterministic prompt replay.
+The new profiles preserve the shared-prefix versus matched-control comparison,
+but vary the domain packet by seed:
+
+- `shared_prefix_long_variant` keeps a long identical leading packet within a
+  scenario
+- `matched_unique_prefix_variant` keeps similar length and topic, but gives each
+  request a distinct leading prefix
+- isolated repeats pass different scenario seeds, so repeats rotate through
+  different workload families
+
+The intent is to keep Training 038's clean direct-counter measurement while
+letting the eventual confidence interval reflect workload-family variation.
+
+## Command
+
+Run the variant smoke:
+
+```bash
+modal run modal_app.py --mode vllm-prefix-cache-isolated-neutral-warmup \
+  --prompt-profiles shared_prefix_long_variant,matched_unique_prefix_variant \
+  --output-tokens 8 \
+  --request-counts 4 \
+  --repeats 2 \
+  --scenario-seed 577 \
+  --phase-order cold_first \
+  --kv-cache-metrics-sample 1.0 \
+  --prefix-cache-shared-profile shared_prefix_long_variant \
+  --prefix-cache-control-profile matched_unique_prefix_variant \
+  --output-dir results/modal-vllm-prefix-cache-variant-smoke
+```
+
+Generate the variant smoke summary:
+
+```bash
+modal run modal_app.py --mode vllm-prefix-cache-isolated-stability-summary \
+  --prefix-cache-isolated-metrics-dir results/modal-vllm-prefix-cache-variant-smoke \
+  --prefix-cache-shared-profile shared_prefix_long_variant \
+  --prefix-cache-control-profile matched_unique_prefix_variant \
+  --output-dir results/modal-vllm-prefix-cache-variant-smoke-summary
+```
+
+## Artifacts
+
+```text
+results/modal-vllm-prefix-cache-variant-smoke/prefix-cache-isolated-metrics.json
+results/modal-vllm-prefix-cache-variant-smoke/prefix-cache-isolated-metrics-summary.csv
+results/modal-vllm-prefix-cache-variant-smoke/prefix-cache-isolated-metrics-runs.csv
+results/modal-vllm-prefix-cache-variant-smoke/prefix-cache-isolated-profile-control.csv
+results/modal-vllm-prefix-cache-variant-smoke-summary/prefix-cache-isolated-stability-summary.json
+results/modal-vllm-prefix-cache-variant-smoke-summary/prefix-cache-isolated-stability-summary.csv
+results/modal-vllm-prefix-cache-variant-smoke-summary/prefix-cache-isolated-stability-profile-control.csv
+results/modal-vllm-prefix-cache-variant-smoke-summary/prefix-cache-isolated-stability-summary.md
+```
+
+## Result
+
+The smoke run produced two scenarios, four paired runs, and four isolated remote
+calls.
+
+| Metric | Value |
+| --- | ---: |
+| Mean shared-minus-control cumulative logged cache hit rate | 25.600 pp |
+| Mean shared-minus-control direct counter hit rate | 63.121 pp |
+| Direct counter hit-rate 90% bootstrap interval | 63.048 pp to 63.194 pp |
+| Throughput-ratio delta 90% bootstrap interval | -0.167 to -0.091 |
+| p95 latency-ratio delta 90% bootstrap interval | 0.097 to 0.252 |
+| Max direct counter hit-rate population stdev | 0.079 |
+
+Scenario direct counters:
+
+| Profile | Requests | Runs | Logged Hit Mean | Direct Counter Hit Mean | Direct Queries | Direct Hits |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| `matched_unique_prefix_variant` | 4 | 2 | 3.500% | 4.807% | 1331.500 | 64.000 |
+| `shared_prefix_long_variant` | 4 | 2 | 29.100% | 67.928% | 1295.500 | 880.000 |
+
+Shared-prefix versus matched control:
+
+| Requests | Paired Obs | Direct Counter Delta | Throughput Delta | Throughput 90% CI | p95 Latency Delta | p95 Latency 90% CI |
+| ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| 4 | 2 | 63.121 pp | -0.129 | -0.167 to -0.091 | 0.174 | 0.097 to 0.252 |
+
+## Interpretation
+
+The smoke validates the prompt-family machinery: the shared variant still
+produces a large measured-window cache-counter delta, while the matched unique
+variant stays low. The timing result is negative in this small smoke, so it
+should not be used as an optimization claim.
+
+## Next Step
+
+Run the full variant stability grid across request counts 2, 4, and 8 with
+three repeats, then compare its direct-counter interval against Training 038.
+If the cache-counter interval stays positive under varied families, the next
+research step is to increase model size or request count until timing separates
+from startup, scheduler, and small-model decode noise.

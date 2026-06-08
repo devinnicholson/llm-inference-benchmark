@@ -142,6 +142,68 @@ class ModalAppTests(unittest.TestCase):
         )
         self.assertIn("90% bootstrap interval", payload["markdown"])
 
+    def test_isolated_stability_summary_accepts_custom_profile_pair(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            metrics_dir = Path(directory)
+            (metrics_dir / "prefix-cache-isolated-metrics.json").write_text(
+                json.dumps(
+                    {
+                        "mode": "vllm-prefix-cache-isolated-neutral-warmup",
+                        "warmup_runs": 1,
+                        "warmup_prompt_profile": "neutral_long",
+                        "repeats": 2,
+                        "phase_order": "cold_first",
+                        "scenario_count": 2,
+                        "paired_run_count": 4,
+                        "remote_call_count": 4,
+                    }
+                ),
+                encoding="utf-8",
+            )
+            modal_app._write_records_csv(
+                metrics_dir / "prefix-cache-isolated-metrics-runs.csv",
+                _stability_run_rows(
+                    shared_profile="shared_prefix_long_variant",
+                    control_profile="matched_unique_prefix_variant",
+                ),
+            )
+
+            payload = modal_app._summarize_vllm_prefix_cache_isolated_stability(
+                metrics_dir,
+                shared_profile="shared_prefix_long_variant",
+                control_profile="matched_unique_prefix_variant",
+            )
+
+        self.assertEqual(payload["profile_control_row_count"], 1)
+        self.assertEqual(payload["shared_profile"], "shared_prefix_long_variant")
+        self.assertEqual(payload["control_profile"], "matched_unique_prefix_variant")
+
+    def test_variant_prompt_profiles_change_family_by_seed(self) -> None:
+        first_family = modal_app._select_sweep_prompts(
+            2,
+            "shared_prefix_long_variant",
+            variant_index=0,
+        )
+        second_family = modal_app._select_sweep_prompts(
+            2,
+            "shared_prefix_long_variant",
+            variant_index=1,
+        )
+        first_prefix = first_family[0].split("\n\nTask", 1)[0]
+        second_prompt_prefix = first_family[1].split("\n\nTask", 1)[0]
+        self.assertEqual(first_prefix, second_prompt_prefix)
+        self.assertNotEqual(first_family[0], second_family[0])
+
+        controls = modal_app._select_sweep_prompts(
+            2,
+            "matched_unique_prefix_variant",
+            variant_index=0,
+        )
+        self.assertNotEqual(
+            controls[0].split(" ", 1)[0],
+            controls[1].split(" ", 1)[0],
+        )
+
 
 def _window_source_payload() -> dict:
     return {
@@ -210,13 +272,16 @@ def _window_source_payload() -> dict:
     }
 
 
-def _stability_run_rows() -> list[dict]:
+def _stability_run_rows(
+    shared_profile: str = "shared_prefix_long",
+    control_profile: str = "matched_unique_prefix",
+) -> list[dict]:
     rows = []
     values = [
-        ("shared_prefix_long", 0, 50.0, 1.4, 0.8),
-        ("matched_unique_prefix", 0, 5.0, 1.0, 1.0),
-        ("shared_prefix_long", 1, 70.0, 1.6, 0.7),
-        ("matched_unique_prefix", 1, 10.0, 1.1, 0.95),
+        (shared_profile, 0, 50.0, 1.4, 0.8),
+        (control_profile, 0, 5.0, 1.0, 1.0),
+        (shared_profile, 1, 70.0, 1.6, 0.7),
+        (control_profile, 1, 10.0, 1.1, 0.95),
     ]
     for profile, repeat_index, counter_hit, throughput_ratio, latency_ratio in values:
         rows.append(

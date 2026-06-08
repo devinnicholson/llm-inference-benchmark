@@ -103,7 +103,9 @@ VALID_VLLM_PROMPT_PROFILES = {
     "mixed",
     "shared_prefix",
     "shared_prefix_long",
+    "shared_prefix_long_variant",
     "matched_unique_prefix",
+    "matched_unique_prefix_variant",
     "neutral_long",
 }
 HF_CACHE_PATH = "/cache"
@@ -434,7 +436,11 @@ def run_vllm_prefix_cache_paired_remote(
             for max_new_tokens in output_token_values:
                 for request_count in request_count_values:
                     prompt_records = []
-                    prompts = _select_sweep_prompts(request_count, prompt_profile)
+                    prompts = _select_sweep_prompts(
+                        request_count,
+                        prompt_profile,
+                        variant_index=scenario_seed,
+                    )
                     for index, prompt in enumerate(prompts):
                         formatted_prompt, prompt_format = _format_prompt_for_generation(
                             tokenizer,
@@ -3999,8 +4005,23 @@ def main(
     prefix_cache_phase_order_compare_dir: str = DEFAULT_VLLM_PREFIX_CACHE_PHASE_ORDER_COMPARE_OUTPUT,
     prefix_cache_profile_control_dirs: str = DEFAULT_VLLM_PREFIX_CACHE_PROFILE_CONTROL_DIRS,
     prefix_cache_isolated_metrics_dir: str = DEFAULT_VLLM_PREFIX_CACHE_ISOLATED_METRICS_OUTPUT,
+    prefix_cache_shared_profile: str = "shared_prefix_long",
+    prefix_cache_control_profile: str = "matched_unique_prefix",
     output_dir: str = "",
 ) -> None:
+    def normalized_prefix_cache_control_profiles() -> tuple[str, str]:
+        shared_profile = prefix_cache_shared_profile.strip().lower().replace("-", "_")
+        control_profile = prefix_cache_control_profile.strip().lower().replace("-", "_")
+        _validate_vllm_prompt_profiles(
+            [shared_profile],
+            label="prefix_cache_shared_profile",
+        )
+        _validate_vllm_prompt_profiles(
+            [control_profile],
+            label="prefix_cache_control_profile",
+        )
+        return shared_profile, control_profile
+
     if mode == "gpu-probe":
         payload = run_gpu_probe_remote.remote()
         output_path = Path(output_dir or DEFAULT_GPU_PROBE_OUTPUT)
@@ -4427,8 +4448,11 @@ def main(
         return
 
     if mode == "vllm-prefix-cache-isolated-window-summary":
+        shared_profile, control_profile = normalized_prefix_cache_control_profiles()
         payload = _summarize_vllm_prefix_cache_isolated_window(
             isolated_metrics_dir=Path(prefix_cache_isolated_metrics_dir),
+            shared_profile=shared_profile,
+            control_profile=control_profile,
         )
         output_path = Path(output_dir or DEFAULT_VLLM_PREFIX_CACHE_ISOLATED_WINDOW_OUTPUT)
         output_path.mkdir(parents=True, exist_ok=True)
@@ -4454,8 +4478,11 @@ def main(
         return
 
     if mode == "vllm-prefix-cache-isolated-stability-summary":
+        shared_profile, control_profile = normalized_prefix_cache_control_profiles()
         payload = _summarize_vllm_prefix_cache_isolated_stability(
             isolated_metrics_dir=Path(prefix_cache_isolated_metrics_dir),
+            shared_profile=shared_profile,
+            control_profile=control_profile,
         )
         output_path = Path(output_dir or DEFAULT_VLLM_PREFIX_CACHE_ISOLATED_STABILITY_OUTPUT)
         output_path.mkdir(parents=True, exist_ok=True)
@@ -4497,6 +4524,7 @@ def main(
         "vllm-prefix-cache-isolated-warm-window",
         "vllm-prefix-cache-isolated-neutral-warmup",
     }:
+        shared_profile, control_profile = normalized_prefix_cache_control_profiles()
         request_count_values = _split_positive_int_csv(request_counts, "request_counts")
         prompt_profile_values = [
             profile.lower().replace("-", "_")
@@ -4688,7 +4716,9 @@ def main(
         paired_scenarios = _aggregate_vllm_prefix_cache_paired_scenarios(paired_runs)
         summary_rows = _vllm_prefix_cache_paired_summary_rows(paired_scenarios)
         profile_control_rows = _vllm_prefix_cache_isolated_profile_control_rows(
-            paired_scenarios
+            paired_scenarios,
+            shared_profile=shared_profile,
+            control_profile=control_profile,
         )
         payload = {
             "schema_version": 1,
@@ -4720,8 +4750,8 @@ def main(
             "paired_runs": paired_runs,
             "paired_scenarios": paired_scenarios,
             "profile_control": {
-                "shared_profile": "shared_prefix_long",
-                "control_profile": "matched_unique_prefix",
+                "shared_profile": shared_profile,
+                "control_profile": control_profile,
                 "row_count": len(profile_control_rows),
                 "summary": _vllm_prefix_cache_isolated_profile_control_summary(
                     profile_control_rows
@@ -5050,7 +5080,11 @@ def _select_concurrent_prompts(prompt_count: int) -> list[str]:
     return prompts
 
 
-def _select_sweep_prompts(prompt_count: int, prompt_profile: str) -> list[str]:
+def _select_sweep_prompts(
+    prompt_count: int,
+    prompt_profile: str,
+    variant_index: int = 0,
+) -> list[str]:
     prompt_profile = prompt_profile.lower().replace("-", "_")
     short_prompts = _select_concurrent_prompts(prompt_count)
     if prompt_profile == "short":
@@ -5070,8 +5104,15 @@ def _select_sweep_prompts(prompt_count: int, prompt_profile: str) -> list[str]:
         return _select_shared_prefix_prompts(prompt_count)
     if prompt_profile == "shared_prefix_long":
         return _select_shared_prefix_prompts(prompt_count, long_context=True)
+    if prompt_profile == "shared_prefix_long_variant":
+        return _select_shared_prefix_variant_prompts(prompt_count, variant_index)
     if prompt_profile == "matched_unique_prefix":
         return _select_matched_unique_prefix_prompts(prompt_count)
+    if prompt_profile == "matched_unique_prefix_variant":
+        return _select_matched_unique_prefix_variant_prompts(
+            prompt_count,
+            variant_index,
+        )
     if prompt_profile == "neutral_long":
         return _select_neutral_long_prompts(prompt_count)
     valid_profiles = ", ".join(sorted(VALID_VLLM_PROMPT_PROFILES))
@@ -5133,6 +5174,153 @@ def _select_matched_unique_prefix_prompts(prompt_count: int) -> list[str]:
         unique_context = _matched_unique_prefix_context(index)
         prompts.append(f"{unique_context}\n\n{suffix}")
     return prompts
+
+
+def _select_shared_prefix_variant_prompts(
+    prompt_count: int,
+    variant_index: int,
+) -> list[str]:
+    family = _prefix_cache_variant_family(variant_index)
+    common_prefix = (
+        f"{family['title']} shared incident packet. Every request in this batch "
+        f"begins with the same {family['system']} runbook, rollout timeline, "
+        "model-serving envelope, and measurement checklist. The platform is "
+        "testing whether vLLM can reuse exact leading prompt blocks when the "
+        "request-specific task appears only after a long stable context. The "
+        f"shared operational facts are: {family['facts']} The service uses "
+        "deterministic decoding, a fixed output budget, a single warm model, "
+        "and one memory-constrained GPU. The evaluator should treat this shared "
+        "packet as the identical reusable prefix for all requests in the batch.\n\n"
+        f"{family['detail']}\n\n"
+        "Cache decision rule. Exact prefix reuse should reduce repeated prefill "
+        "work only after complete cache blocks have been populated. The metric "
+        "of record is the measured-window prefix-cache query and hit counter; "
+        "latency and throughput are secondary because this small model can be "
+        "dominated by scheduler and kernel noise. A good result separates "
+        "large exact-prefix reuse from generic warm-engine effects."
+    )
+    suffixes = _variant_task_suffixes(family)
+    prompts = []
+    for index in range(prompt_count):
+        suffix = suffixes[index % len(suffixes)]
+        prompts.append(f"{common_prefix}\n\n{suffix}")
+    return prompts
+
+
+def _select_matched_unique_prefix_variant_prompts(
+    prompt_count: int,
+    variant_index: int,
+) -> list[str]:
+    family = _prefix_cache_variant_family(variant_index)
+    suffixes = _variant_task_suffixes(family)
+    labels = [
+        "Atlas-01",
+        "Beacon-02",
+        "Cinder-03",
+        "Drift-04",
+        "Ember-05",
+        "Flux-06",
+        "Graph-07",
+        "Helix-08",
+    ]
+    prompts = []
+    for index in range(prompt_count):
+        label = labels[index % len(labels)]
+        suffix = suffixes[index % len(suffixes)]
+        unique_context = (
+            f"{label} {family['title']} control packet. This request starts "
+            "with a distinct tenant marker, dashboard route, owner alias, "
+            "timeline summary, and mitigation note before it reaches the common "
+            f"{family['system']} vocabulary. It intentionally avoids the long "
+            "identical leading block used by the shared-prefix workload while "
+            "keeping the same serving shape, output budget, benchmark topic, "
+            "and deterministic decode settings.\n\n"
+            f"Control background. {family['facts']} The request still discusses "
+            "prefill, decode, cache blocks, GPU memory pressure, and p95 "
+            "latency, but each prompt has a different first paragraph and a "
+            "different incident identifier. That makes the beginning of every "
+            "request diverge before a reusable prefix block can form.\n\n"
+            f"{family['detail']}\n\n"
+            "Control decision rule. If this unique-prefix control improves by "
+            "the same amount as the shared-prefix profile, the benchmark is "
+            "probably measuring warm allocation state or generic shape effects. "
+            "If the control stays low while the shared profile reports high "
+            "direct counter reuse, the result supports an exact-prefix KV-cache "
+            "claim."
+        )
+        prompts.append(f"{unique_context}\n\n{suffix}")
+    return prompts
+
+
+def _prefix_cache_variant_family(variant_index: int) -> dict[str, str]:
+    families = [
+        {
+            "title": "Payments Relay",
+            "system": "payment authorization gateway",
+            "facts": (
+                "issuer retries are spiking, idempotency keys must be preserved, "
+                "the fraud-score service is healthy, and queue delay is highest "
+                "during prefill-heavy bursts."
+            ),
+            "detail": (
+                "The packet tracks card-network routing, regional failover, "
+                "tenant-specific retry budgets, rate-limit headers, settlement "
+                "windows, and a rollout guard that prevents unsafe provider "
+                "switches. Operators compare prompt prefill pressure, decode "
+                "throughput, queue admission order, and prefix-cache reuse before "
+                "changing the serving policy."
+            ),
+            "object": "payment batch",
+        },
+        {
+            "title": "Search Indexer",
+            "system": "search indexing pipeline",
+            "facts": (
+                "freshness lag is rising, replica compaction is delayed, shard "
+                "ownership is stable, and query serving must remain online while "
+                "background indexing catches up."
+            ),
+            "detail": (
+                "The packet covers crawler checkpoints, segment merge pressure, "
+                "document normalization, hot-shard routing, cache invalidation, "
+                "and a staged rollback plan. Operators compare prompt prefill "
+                "pressure, decode throughput, queue admission order, and "
+                "prefix-cache reuse before changing the serving policy."
+            ),
+            "object": "indexing batch",
+        },
+        {
+            "title": "Telemetry Warehouse",
+            "system": "telemetry warehouse ingestion service",
+            "facts": (
+                "schema drift warnings are elevated, late partitions are being "
+                "replayed, checksum mismatches are isolated to one region, and "
+                "dashboard freshness must stay within the incident objective."
+            ),
+            "detail": (
+                "The packet tracks stream offsets, warehouse compaction, table "
+                "ownership, retry windows, quality gates, and dashboard publish "
+                "order. Operators compare prompt prefill pressure, decode "
+                "throughput, queue admission order, and prefix-cache reuse before "
+                "changing the serving policy."
+            ),
+            "object": "telemetry batch",
+        },
+    ]
+    return families[variant_index % len(families)]
+
+
+def _variant_task_suffixes(family: dict[str, str]) -> list[str]:
+    return [
+        f"Task A: explain how prefix caching changes prefill cost for this {family['object']}.",
+        "Task B: identify which direct counter should move if exact KV reuse is effective.",
+        "Task C: describe one failure mode if cache blocks fragment under this workload.",
+        "Task D: compare the expected effect at two, four, and eight concurrent requests.",
+        "Task E: explain why decode can dominate after repeated prefill work is avoided.",
+        "Task F: name one timing metric that should not be overclaimed from this run.",
+        "Task G: summarize how a matched unique-prefix control protects the conclusion.",
+        "Task H: recommend the next benchmark variation to validate this cache signal.",
+    ]
 
 
 def _select_neutral_long_prompts(prompt_count: int) -> list[str]:
