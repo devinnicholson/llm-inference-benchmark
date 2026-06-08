@@ -5692,6 +5692,88 @@ results/prefix-cache-study-extra-long-qwen05b-merged-r5/intervals.md
 
 ## Next Step
 
-Add one more Qwen r3 chunk to reach r8, matching the SmolLM2 extra-long repeat
-count. If r8 holds, the repo will have both a small-model primary result and a
-stronger model-shape follow-up using the same prompt/control design.
+This r5 follow-up is superseded by the repeat-count-matched r8 artifact in
+Training 058.
+
+# Training 058: Qwen 0.5B Merged r8 Follow-Up
+
+Training 058 adds a second Qwen2.5-0.5B three-repeat chunk at scenario seed
+`1201`, then merges the original r2 smoke plus both r3 chunks into an
+eight-repeat model-shape artifact.
+
+## Goal
+
+Match the SmolLM2 extra-long repeat count while preserving the same Qwen model,
+extra-long prompt/control pair, neutral warmup, and cold-first phase order. This
+turns the Qwen path from "promising model-shape follow-up" into a
+repeat-count-matched comparison point.
+
+## Reproduce
+
+Run the second r3 chunk:
+
+```bash
+modal run modal_app.py --mode vllm-prefix-cache-isolated-neutral-warmup \
+  --hf-model Qwen/Qwen2.5-0.5B-Instruct \
+  --prompt-profiles shared_prefix_extra_long_no_repeat_variant,matched_unique_prefix_extra_long_no_repeat_variant \
+  --output-tokens 8 \
+  --request-counts 16 \
+  --repeats 3 \
+  --scenario-seed 1201 \
+  --phase-order cold_first \
+  --kv-cache-metrics-sample 1.0 \
+  --warmup-prompt-profile neutral_extra_long \
+  --prefix-cache-shared-profile shared_prefix_extra_long_no_repeat_variant \
+  --prefix-cache-control-profile matched_unique_prefix_extra_long_no_repeat_variant \
+  --output-dir results/modal-vllm-prefix-cache-extra-long-qwen05b-n16-chunk-r3-seed1201
+```
+
+Merge and summarize:
+
+```bash
+modal run modal_app.py --mode vllm-prefix-cache-isolated-merge \
+  --prefix-cache-isolated-merge-dirs results/modal-vllm-prefix-cache-extra-long-qwen05b-n16-smoke-r2,results/modal-vllm-prefix-cache-extra-long-qwen05b-n16-chunk-r3-seed1001,results/modal-vllm-prefix-cache-extra-long-qwen05b-n16-chunk-r3-seed1201 \
+  --prefix-cache-shared-profile shared_prefix_extra_long_no_repeat_variant \
+  --prefix-cache-control-profile matched_unique_prefix_extra_long_no_repeat_variant \
+  --output-dir results/modal-vllm-prefix-cache-extra-long-qwen05b-n16-merged-r8
+
+modal run modal_app.py --mode vllm-prefix-cache-isolated-stability-summary \
+  --prefix-cache-isolated-metrics-dir results/modal-vllm-prefix-cache-extra-long-qwen05b-n16-merged-r8 \
+  --prefix-cache-shared-profile shared_prefix_extra_long_no_repeat_variant \
+  --prefix-cache-control-profile matched_unique_prefix_extra_long_no_repeat_variant \
+  --output-dir results/modal-vllm-prefix-cache-extra-long-qwen05b-n16-merged-r8-summary
+
+python3 scripts/build_prefix_cache_study_table.py \
+  --summary-json results/modal-vllm-prefix-cache-extra-long-qwen05b-n16-merged-r8-summary/prefix-cache-isolated-stability-summary.json \
+  --output-dir results/prefix-cache-study-extra-long-qwen05b-merged-r8
+```
+
+## Result
+
+The merged artifact has `8` paired shared/control observations for `n=16`.
+
+- control direct counter hit rate: `1.416%`
+- shared direct counter hit rate: `91.573%`
+- shared-minus-control direct counter delta: `90.157 pp`, interval
+  `89.965 pp` to `90.348 pp`
+- p95 first-event/TTFT ratio delta: `-0.757`, interval `-0.805` to `-0.705`
+- throughput-ratio delta: `1.541`, interval `1.199` to `1.892`
+- p95 latency-ratio delta: `-0.597`, interval `-0.776` to `-0.440`
+- p95 stream TPOT-ratio delta: `-0.695`, interval `-0.739` to `-0.638`
+
+Generated artifacts:
+
+```text
+results/modal-vllm-prefix-cache-extra-long-qwen05b-n16-chunk-r3-seed1201/prefix-cache-isolated-metrics.json
+results/modal-vllm-prefix-cache-extra-long-qwen05b-n16-merged-r8/prefix-cache-isolated-metrics.json
+results/modal-vllm-prefix-cache-extra-long-qwen05b-n16-merged-r8-summary/prefix-cache-isolated-stability-summary.md
+results/prefix-cache-study-extra-long-qwen05b-merged-r8/key-results.md
+results/prefix-cache-study-extra-long-qwen05b-merged-r8/intervals.md
+```
+
+## Next Step
+
+The next research iteration should move beyond more repeats of the same T4
+setup. The strongest options are a larger model on a larger GPU, longer
+contexts, or a serving-backend comparison that tests whether the same prompt
+control design transfers outside vLLM.

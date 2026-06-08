@@ -9,10 +9,10 @@ scheduler experiments, KV-cache pressure studies, and eventually backend
 comparisons against real inference engines.
 
 Current report: [`docs/prefix-cache-study.md`](docs/prefix-cache-study.md)
-summarizes the no-repeat vLLM prefix-cache result. The strongest current claim
-is stable measured-window KV-cache reuse plus a p95 first-event/TTFT improvement
-for the shared-prefix workload; throughput and decode TPOT are documented as
-non-claims.
+summarizes the no-repeat vLLM prefix-cache result and the extra-long
+follow-ups. The primary no-repeat claim is stable measured-window KV-cache reuse
+plus a p95 first-event/TTFT improvement; the extra-long SmolLM2 and Qwen r8
+follow-ups now show broader favorable timing when prefill work is larger.
 
 Generated result artifacts:
 [`results/prefix-cache-study/key-results.md`](results/prefix-cache-study/key-results.md)
@@ -22,7 +22,7 @@ Latest extra-long follow-up:
 [`results/prefix-cache-study-extra-long-merged-r8/key-results.md`](results/prefix-cache-study-extra-long-merged-r8/key-results.md)
 
 Latest model-shape follow-up:
-[`results/prefix-cache-study-extra-long-qwen05b-merged-r5/key-results.md`](results/prefix-cache-study-extra-long-qwen05b-merged-r5/key-results.md)
+[`results/prefix-cache-study-extra-long-qwen05b-merged-r8/key-results.md`](results/prefix-cache-study-extra-long-qwen05b-merged-r8/key-results.md)
 
 ## Course Track
 
