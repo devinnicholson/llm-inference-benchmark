@@ -39,6 +39,13 @@ The preferred artifact is the TTFT-aware summary:
 results/modal-vllm-prefix-cache-no-repeat-n16-stability-r8-summary-ttft/prefix-cache-isolated-stability-summary.md
 ```
 
+The GitHub-facing key result table is generated from that summary:
+
+```text
+results/prefix-cache-study/key-results.md
+results/prefix-cache-study/key-results.csv
+```
+
 | Metric | Result |
 | --- | ---: |
 | Control direct counter hit rate | 4.716% |
@@ -102,6 +109,12 @@ modal run modal_app.py --mode vllm-prefix-cache-isolated-stability-summary \
   --output-dir results/modal-vllm-prefix-cache-no-repeat-n16-stability-r8-summary-ttft
 ```
 
+Build the GitHub-facing result table:
+
+```bash
+python3 scripts/build_prefix_cache_study_table.py
+```
+
 ## Artifact Map
 
 Raw fixed-shape run:
@@ -120,6 +133,13 @@ results/modal-vllm-prefix-cache-no-repeat-n16-stability-r8-summary-ttft/prefix-c
 results/modal-vllm-prefix-cache-no-repeat-n16-stability-r8-summary-ttft/prefix-cache-isolated-stability-summary.csv
 results/modal-vllm-prefix-cache-no-repeat-n16-stability-r8-summary-ttft/prefix-cache-isolated-stability-profile-control.csv
 results/modal-vllm-prefix-cache-no-repeat-n16-stability-r8-summary-ttft/prefix-cache-isolated-stability-summary.md
+```
+
+Generated report table:
+
+```text
+results/prefix-cache-study/key-results.md
+results/prefix-cache-study/key-results.csv
 ```
 
 Supporting prompt audit:

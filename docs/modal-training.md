@@ -5085,3 +5085,52 @@ The report centers the strongest current claim:
 Training 049 should either add one more report-quality visualization/table from
 the existing CSVs or move to a new GPU experiment that increases prefill cost,
 such as longer shared prefixes or a larger model.
+
+# Training 049: Generated Prefix-Cache Result Table
+
+Training 049 adds a small reproducibility helper for the current KV-cache report:
+
+```text
+scripts/build_prefix_cache_study_table.py
+```
+
+## Goal
+
+Stop hand-copying the headline prefix-cache numbers into report prose. The new
+script reads the TTFT-aware stability summary JSON and emits a compact
+GitHub-facing table with the direct cache counter effect, first-event/TTFT
+effect, and explicit non-claims for throughput, end-to-end p95 latency, and
+stream TPOT.
+
+## Result
+
+The generated artifacts are:
+
+```text
+results/prefix-cache-study/key-results.md
+results/prefix-cache-study/key-results.csv
+```
+
+The table preserves the current central result:
+
+- control direct counter hit rate: `4.716%`
+- shared direct counter hit rate: `83.138%`
+- shared-minus-control direct counter delta: `78.422 pp`, with a 90%
+  bootstrap interval from `78.269 pp` to `78.602 pp`
+- p95 first-event/TTFT ratio delta: `-0.284`, with a 90% bootstrap interval
+  from `-0.497` to `-0.073`
+- throughput, end-to-end p95 latency, and stream TPOT intervals still cross
+  zero
+
+## Reproduce
+
+```bash
+python3 scripts/build_prefix_cache_study_table.py
+```
+
+## Next Step
+
+Training 050 should add one visual artifact from the generated table, likely a
+small checked-in plot or ASCII-friendly interval chart. After that, move back to
+GPU experiments that increase prefill cost with longer prefixes or a larger
+model.
