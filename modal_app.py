@@ -347,11 +347,18 @@ def run_vllm_prefix_cache_paired_remote(
     scenario_seed: int = DEFAULT_VLLM_SWEEP_SEED,
     warmup_runs: int = 1,
     phase_order: str = "cold_first",
+    collect_cache_metrics: bool = False,
+    kv_cache_metrics_sample: float = 1.0,
 ) -> dict[str, Any]:
     import asyncio
+    import contextlib
     import gc
+    import inspect
+    import io
+    import logging
     import platform
     import random
+    import re
     import time
 
     import torch
@@ -371,6 +378,8 @@ def run_vllm_prefix_cache_paired_remote(
         raise ValueError("repeats must be positive")
     if warmup_runs < 0:
         raise ValueError("warmup_runs must be non-negative")
+    if kv_cache_metrics_sample <= 0:
+        raise ValueError("kv_cache_metrics_sample must be positive")
     phase_order = phase_order.lower().replace("-", "_")
     if phase_order not in {"cold_first", "cache_first"}:
         raise ValueError("phase_order must be cold_first or cache_first")
@@ -447,12 +456,113 @@ def run_vllm_prefix_cache_paired_remote(
         for run_order, (repeat_index, spec) in enumerate(scenario_plan)
     ]
 
+    async def call_engine_log_stats(engine: Any, label: str) -> dict[str, Any]:
+        stdout_buffer = io.StringIO()
+        stderr_buffer = io.StringIO()
+        captured_logs: list[str] = []
+
+        class CaptureHandler(logging.Handler):
+            def emit(self, record: logging.LogRecord) -> None:
+                captured_logs.append(self.format(record))
+
+        handler = CaptureHandler()
+        handler.setLevel(logging.INFO)
+        handler.setFormatter(logging.Formatter("%(levelname)s %(name)s: %(message)s"))
+        capture_loggers = [
+            logging.getLogger(),
+            logging.getLogger("vllm"),
+            logging.getLogger("vllm.v1.metrics.loggers"),
+        ]
+        started = time.perf_counter()
+        try:
+            for logger in capture_loggers:
+                logger.addHandler(handler)
+            with contextlib.redirect_stdout(stdout_buffer), contextlib.redirect_stderr(
+                stderr_buffer
+            ):
+                result = engine.do_log_stats()
+                if inspect.isawaitable(result):
+                    result = await result
+            return {
+                "label": label,
+                "ok": True,
+                "elapsed_ms": (time.perf_counter() - started) * 1000,
+                "return_type": type(result).__name__,
+                "return_repr": repr(result)[:1000],
+                "stdout": stdout_buffer.getvalue()[-4000:],
+                "stderr": stderr_buffer.getvalue()[-4000:],
+                "captured_logs": captured_logs[-20:],
+            }
+        except Exception as error:  # pragma: no cover - remote metrics probe
+            return {
+                "label": label,
+                "ok": False,
+                "elapsed_ms": (time.perf_counter() - started) * 1000,
+                "return_type": type(error).__name__,
+                "return_repr": str(error)[:1000],
+                "stdout": stdout_buffer.getvalue()[-4000:],
+                "stderr": stderr_buffer.getvalue()[-4000:],
+                "captured_logs": captured_logs[-20:],
+            }
+        finally:
+            for logger in capture_loggers:
+                logger.removeHandler(handler)
+
+    def parse_engine_log_metrics(log_stats: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        rows = []
+        seen_lines = set()
+        patterns = {
+            "avg_prompt_throughput_tokens_per_s": r"Avg prompt throughput: ([0-9.]+) tokens/s",
+            "avg_generation_throughput_tokens_per_s": (
+                r"Avg generation throughput: ([0-9.]+) tokens/s"
+            ),
+            "gpu_kv_cache_usage_pct": r"GPU KV cache usage: ([0-9.]+)%",
+            "prefix_cache_hit_rate_pct": r"Prefix cache hit rate: ([0-9.]+)%",
+        }
+        for call in log_stats:
+            for line in call.get("captured_logs", []):
+                if line in seen_lines:
+                    continue
+                seen_lines.add(line)
+                row: dict[str, Any] = {
+                    "label": call["label"],
+                    "line": line,
+                }
+                matched = False
+                for field, pattern in patterns.items():
+                    match = re.search(pattern, line)
+                    if match:
+                        row[field] = float(match.group(1))
+                        matched = True
+                if matched:
+                    rows.append(row)
+        return rows
+
+    def latest_cache_metric_value(
+        metrics: list[dict[str, Any]],
+        field: str,
+    ) -> float | None:
+        for row in reversed(metrics):
+            value = row.get(field)
+            if value is not None:
+                return float(value)
+        return None
+
     async def run_engine_phase(
         *,
         enable_prefix_caching: bool,
         phase_label: str,
     ) -> dict[str, Any]:
         started = time.perf_counter()
+        metrics_args = (
+            {
+                "kv_cache_metrics": True,
+                "kv_cache_metrics_sample": kv_cache_metrics_sample,
+                "disable_log_stats": False,
+            }
+            if collect_cache_metrics
+            else {}
+        )
         engine_args = AsyncEngineArgs(
             model=hf_model,
             dtype="half",
@@ -463,6 +573,7 @@ def run_vllm_prefix_cache_paired_remote(
             enable_prefix_caching=enable_prefix_caching,
             enforce_eager=True,
             trust_remote_code=False,
+            **metrics_args,
         )
         engine = AsyncLLM.from_engine_args(engine_args)
         engine_load_ms = (time.perf_counter() - started) * 1000
@@ -552,6 +663,14 @@ def run_vllm_prefix_cache_paired_remote(
             )
             batch_wall_ms = (time.perf_counter() - batch_started) * 1000
             summary = _summarize_stream_requests(request_results, batch_wall_ms)
+            cache_log_stats = None
+            cache_metrics: list[dict[str, Any]] = []
+            if collect_cache_metrics:
+                cache_log_stats = await call_engine_log_stats(
+                    engine,
+                    f"{phase_label}_{run_id}_{spec['scenario_id']}",
+                )
+                cache_metrics = parse_engine_log_metrics([cache_log_stats])
             return {
                 "run_id": run_id,
                 "repeat_index": repeat_index,
@@ -569,6 +688,24 @@ def run_vllm_prefix_cache_paired_remote(
                     request["total_sequence_tokens"] for request in request_results
                 ),
                 **summary,
+                "cache_metrics_log_stats": cache_log_stats,
+                "cache_metrics": cache_metrics,
+                "prefix_cache_hit_rate_pct": latest_cache_metric_value(
+                    cache_metrics,
+                    "prefix_cache_hit_rate_pct",
+                ),
+                "gpu_kv_cache_usage_pct": latest_cache_metric_value(
+                    cache_metrics,
+                    "gpu_kv_cache_usage_pct",
+                ),
+                "avg_prompt_throughput_tokens_per_s": latest_cache_metric_value(
+                    cache_metrics,
+                    "avg_prompt_throughput_tokens_per_s",
+                ),
+                "avg_generation_throughput_tokens_per_s": latest_cache_metric_value(
+                    cache_metrics,
+                    "avg_generation_throughput_tokens_per_s",
+                ),
                 "requests": request_results,
             }
 
@@ -604,6 +741,14 @@ def run_vllm_prefix_cache_paired_remote(
 
         try:
             warmup_result = await run_warmups()
+            warmup_cache_log_stats = None
+            warmup_cache_metrics: list[dict[str, Any]] = []
+            if collect_cache_metrics:
+                warmup_cache_log_stats = await call_engine_log_stats(
+                    engine,
+                    f"{phase_label}_after_warmup",
+                )
+                warmup_cache_metrics = parse_engine_log_metrics([warmup_cache_log_stats])
             scenario_runs = []
             for run_order, (repeat_index, spec) in enumerate(scenario_plan):
                 scenario_runs.append(
@@ -621,6 +766,8 @@ def run_vllm_prefix_cache_paired_remote(
             "enable_prefix_caching": enable_prefix_caching,
             "engine_load_ms": engine_load_ms,
             "warmup": warmup_result,
+            "warmup_cache_metrics_log_stats": warmup_cache_log_stats,
+            "warmup_cache_metrics": warmup_cache_metrics,
             "scenario_runs": scenario_runs,
         }
 
@@ -676,6 +823,8 @@ def run_vllm_prefix_cache_paired_remote(
         "scenario_seed": int(scenario_seed),
         "warmup_runs": int(warmup_runs),
         "phase_order": phase_order,
+        "collect_cache_metrics": bool(collect_cache_metrics),
+        "kv_cache_metrics_sample": float(kv_cache_metrics_sample),
         "scenario_count": len(paired_scenarios),
         "paired_run_count": len(paired_runs),
         "max_model_len": max_model_len,
@@ -3604,6 +3753,8 @@ def main(
     phase_order: str = "async_first",
     scenario_seed: int = DEFAULT_VLLM_SWEEP_SEED,
     prefix_caching: str = "off",
+    cache_metrics: str = "off",
+    kv_cache_metrics_sample: float = 1.0,
     cold_sweep_dir: str = DEFAULT_VLLM_SWEEP_OUTPUT,
     prefix_sweep_dir: str = DEFAULT_VLLM_PREFIX_CACHE_SWEEP_OUTPUT,
     async_sweep_dir: str = DEFAULT_VLLM_SWEEP_OUTPUT,
@@ -4039,6 +4190,7 @@ def main(
         return
 
     if mode == "vllm-prefix-cache-paired":
+        collect_cache_metrics = _parse_bool_choice(cache_metrics, "cache_metrics")
         payload = run_vllm_prefix_cache_paired_remote.remote(
             hf_model=hf_model,
             request_counts=request_counts,
@@ -4048,6 +4200,8 @@ def main(
             scenario_seed=scenario_seed,
             warmup_runs=warmup_runs,
             phase_order=phase_order,
+            collect_cache_metrics=collect_cache_metrics,
+            kv_cache_metrics_sample=kv_cache_metrics_sample,
         )
         phase_order_slug = payload["phase_order"].lower().replace("_", "-")
         default_output = (
@@ -4070,6 +4224,7 @@ def main(
         print(f"repeats: {payload['repeats']}")
         print(f"warmup_runs: {payload['warmup_runs']}")
         print(f"phase_order: {payload['phase_order']}")
+        print(f"collect_cache_metrics: {payload['collect_cache_metrics']}")
         print(
             "mean_cache_to_cold_throughput_ratio: "
             f"{payload['mean_cache_to_cold_throughput_ratio']:.3f}"
@@ -5506,6 +5661,10 @@ def _make_vllm_prefix_cache_paired_rows(
         cache_tpot = cache_run.get("p95_stream_tpot_ms")
         cold_batch_wall = cold_run.get("batch_wall_ms")
         cache_batch_wall = cache_run.get("batch_wall_ms")
+        cold_prefix_hit_rate = cold_run.get("prefix_cache_hit_rate_pct")
+        cache_prefix_hit_rate = cache_run.get("prefix_cache_hit_rate_pct")
+        cold_gpu_kv_usage = cold_run.get("gpu_kv_cache_usage_pct")
+        cache_gpu_kv_usage = cache_run.get("gpu_kv_cache_usage_pct")
         paired_rows.append(
             {
                 "pair_id": f"{scenario_id}_rep{repeat_index:02d}",
@@ -5573,6 +5732,18 @@ def _make_vllm_prefix_cache_paired_rows(
                     cache_batch_wall,
                     cold_batch_wall,
                 ),
+                "cold_prefix_cache_hit_rate_pct": cold_prefix_hit_rate,
+                "cache_prefix_cache_hit_rate_pct": cache_prefix_hit_rate,
+                "cache_to_cold_prefix_cache_hit_rate_pct_delta": _delta(
+                    cache_prefix_hit_rate,
+                    cold_prefix_hit_rate,
+                ),
+                "cold_gpu_kv_cache_usage_pct": cold_gpu_kv_usage,
+                "cache_gpu_kv_cache_usage_pct": cache_gpu_kv_usage,
+                "cache_to_cold_gpu_kv_cache_usage_pct_delta": _delta(
+                    cache_gpu_kv_usage,
+                    cold_gpu_kv_usage,
+                ),
             }
         )
     return paired_rows
@@ -5615,6 +5786,12 @@ def _aggregate_vllm_prefix_cache_paired_scenarios(
             "cache_p95_latency_ms",
             "cold_p95_stream_tpot_ms",
             "cache_p95_stream_tpot_ms",
+            "cold_prefix_cache_hit_rate_pct",
+            "cache_prefix_cache_hit_rate_pct",
+            "cache_to_cold_prefix_cache_hit_rate_pct_delta",
+            "cold_gpu_kv_cache_usage_pct",
+            "cache_gpu_kv_cache_usage_pct",
+            "cache_to_cold_gpu_kv_cache_usage_pct_delta",
         ):
             scenario.update(_metric_distribution(pairs, field))
         scenarios.append(scenario)
@@ -5649,6 +5826,12 @@ def _vllm_prefix_cache_paired_summary_rows(
         "cache_p95_latency_ms_median",
         "cold_p95_stream_tpot_ms_median",
         "cache_p95_stream_tpot_ms_median",
+        "cold_prefix_cache_hit_rate_pct_median",
+        "cache_prefix_cache_hit_rate_pct_median",
+        "cache_to_cold_prefix_cache_hit_rate_pct_delta_median",
+        "cold_gpu_kv_cache_usage_pct_median",
+        "cache_gpu_kv_cache_usage_pct_median",
+        "cache_to_cold_gpu_kv_cache_usage_pct_delta_median",
     )
     return [
         {field: scenario.get(field) for field in row_fields}

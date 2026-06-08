@@ -342,6 +342,22 @@ modal run modal_app.py --mode vllm-prefix-cache-profile-multitrial \
   --output-dir results/modal-vllm-prefix-cache-long-control-multitrial
 ```
 
+Run a small metrics-enabled paired prefix-cache smoke:
+
+```bash
+modal run modal_app.py --mode vllm-prefix-cache-paired \
+  --prompt-profiles shared_prefix_long,matched_unique_prefix \
+  --output-tokens 8 \
+  --request-counts 4 \
+  --repeats 1 \
+  --warmup-runs 1 \
+  --scenario-seed 570 \
+  --phase-order cold_first \
+  --cache-metrics on \
+  --kv-cache-metrics-sample 1.0 \
+  --output-dir results/modal-vllm-prefix-cache-metrics-paired-smoke
+```
+
 Modal training is documented in
 [`docs/modal-training.md`](docs/modal-training.md).
 

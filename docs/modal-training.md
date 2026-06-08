@@ -2743,3 +2743,96 @@ harness. Each phase should optionally enable `kv_cache_metrics`, call
 `do_log_stats()` after warmup and after each scenario or scenario group, parse
 prefix-cache hit rate, and attach those metrics to paired rows. Then rerun the
 long shared-prefix versus matched unique-prefix control with metrics enabled.
+
+# Training 028: Paired Prefix-Cache Metrics Smoke
+
+Training 028 wires optional vLLM cache-metrics capture into
+`vllm-prefix-cache-paired`.
+
+## Goal
+
+Attach direct cache-observability fields to paired benchmark rows. The new
+flags are:
+
+- `--cache-metrics on`
+- `--kv-cache-metrics-sample 1.0`
+
+When enabled, each engine phase calls `do_log_stats()` after warmup and after
+each scenario, captures vLLM log-stat lines, parses prefix-cache hit rate and
+KV-cache usage, and writes the metrics into JSON plus summary/run CSVs.
+
+## Command
+
+```bash
+modal run modal_app.py --mode vllm-prefix-cache-paired \
+  --prompt-profiles shared_prefix_long,matched_unique_prefix \
+  --output-tokens 8 \
+  --request-counts 4 \
+  --repeats 1 \
+  --warmup-runs 1 \
+  --scenario-seed 570 \
+  --phase-order cold_first \
+  --cache-metrics on \
+  --kv-cache-metrics-sample 1.0 \
+  --output-dir results/modal-vllm-prefix-cache-metrics-paired-smoke
+```
+
+## Artifacts
+
+```text
+results/modal-vllm-prefix-cache-metrics-paired-smoke/paired-prefix-cache.json
+results/modal-vllm-prefix-cache-metrics-paired-smoke/paired-prefix-cache-summary.csv
+results/modal-vllm-prefix-cache-metrics-paired-smoke/paired-prefix-cache-runs.csv
+```
+
+## Result
+
+This was a tiny smoke, not a full benchmark: two scenarios, one repeat, request
+count `4`, output tokens `8`, and `cold_first` phase order.
+
+Mean paired-run ratios:
+
+| Metric | Value |
+| --- | ---: |
+| Throughput ratio | 1.377 |
+| p95 latency ratio | 0.752 |
+
+Scenario rows:
+
+| Profile | Cache hit rate off | Cache hit rate on | Throughput ratio | p95 latency ratio |
+| --- | ---: | ---: | ---: | ---: |
+| `matched_unique_prefix` | 0.0% | 58.0% | 1.631 | 0.613 |
+| `shared_prefix_long` | 0.0% | 68.1% | 1.122 | 0.892 |
+
+The summary CSV now includes:
+
+- `cold_prefix_cache_hit_rate_pct_median`
+- `cache_prefix_cache_hit_rate_pct_median`
+- `cache_to_cold_prefix_cache_hit_rate_pct_delta_median`
+- `cold_gpu_kv_cache_usage_pct_median`
+- `cache_gpu_kv_cache_usage_pct_median`
+- `cache_to_cold_gpu_kv_cache_usage_pct_delta_median`
+
+## Interpretation
+
+This is the first paired artifact where timing and direct cache metrics live in
+the same rows. It confirms the capture path works inside the paired harness:
+cache-disabled rows report `0.0%` prefix-cache hit rate, while cache-enabled
+rows report nonzero hit rates.
+
+The hit-rate ordering is sensible for the smoke: `shared_prefix_long` reports a
+higher cache hit rate than `matched_unique_prefix`. The timing ordering is not
+as simple, because the matched-unique row had a larger throughput and latency
+speedup despite a lower hit rate. That is acceptable for this milestone. The
+goal was instrumentation, not a final cache-performance claim.
+
+The important change is that future prefix-cache experiments can now reject or
+support timing claims using direct cache evidence per scenario.
+
+## Next Step
+
+Training 029 should run the metrics-enabled long-control experiment under both
+phase orders with at least the compact grid from Training 028 first, then expand
+back to repeats and request counts if the metric fields remain stable. The
+phase-order and profile-control comparison artifacts should also carry cache hit
+rate deltas forward, not only timing ratios.
