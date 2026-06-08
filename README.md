@@ -34,8 +34,8 @@ Latest L4-scale context follow-up:
 Latest L4 model-size follow-up:
 [`results/prefix-cache-study-mega-long-qwen15b-l4-merged-r8/key-results.md`](results/prefix-cache-study-mega-long-qwen15b-l4-merged-r8/key-results.md)
 
-Latest L4 batch-pressure smoke:
-[`results/prefix-cache-study-mega-long-qwen15b-l4-n32-smoke-r2/key-results.md`](results/prefix-cache-study-mega-long-qwen15b-l4-n32-smoke-r2/key-results.md)
+Latest L4 batch-pressure follow-up:
+[`results/prefix-cache-study-mega-long-qwen15b-l4-n32-merged-r5/key-results.md`](results/prefix-cache-study-mega-long-qwen15b-l4-n32-merged-r5/key-results.md)
 
 ## Course Track
 

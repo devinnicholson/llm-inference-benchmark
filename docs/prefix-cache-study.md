@@ -266,6 +266,20 @@ reported a `95.772 pp` direct counter delta, p95 first-event/TTFT ratio delta
 `-0.957`, throughput-ratio delta `9.717`, p95 latency-ratio delta `-0.928`,
 and p95 stream TPOT-ratio delta `-0.675`.
 
+Training 070 promotes the Qwen 1.5B L4 n32 batch-pressure axis to r5:
+
+```text
+results/prefix-cache-study-mega-long-qwen15b-l4-n32-merged-r5/key-results.md
+results/prefix-cache-study-mega-long-qwen15b-l4-n32-merged-r5/intervals.md
+```
+
+The merged r5 artifact has `10` scenario-level cold/cache paired runs, which
+produce `5` shared/control comparisons. It keeps the capacity-pressure result
+stable with a `95.792 pp` direct counter delta and favorable timing intervals:
+p95 first-event/TTFT ratio delta `-0.941`, throughput-ratio delta `9.711`, p95
+latency-ratio delta `-0.922`, and p95 stream TPOT-ratio delta `-0.735`. This
+is now the best n32 batch-pressure artifact.
+
 ## Reproduce
 
 Run the no-repeat n=16 fixed-shape stability pass:
@@ -396,10 +410,14 @@ results/modal-vllm-prefix-cache-mega-long-qwen15b-l4-n32-smoke-r2/prefix-cache-i
 results/modal-vllm-prefix-cache-mega-long-qwen15b-l4-n32-smoke-r2-summary/prefix-cache-isolated-stability-summary.md
 results/prefix-cache-study-mega-long-qwen15b-l4-n32-smoke-r2/key-results.md
 results/prefix-cache-study-mega-long-qwen15b-l4-n32-smoke-r2/intervals.md
+results/modal-vllm-prefix-cache-mega-long-qwen15b-l4-n32-chunk-r3-seed2401/prefix-cache-isolated-metrics.json
+results/modal-vllm-prefix-cache-mega-long-qwen15b-l4-n32-merged-r5/prefix-cache-isolated-metrics.json
+results/modal-vllm-prefix-cache-mega-long-qwen15b-l4-n32-merged-r5-summary/prefix-cache-isolated-stability-summary.md
+results/prefix-cache-study-mega-long-qwen15b-l4-n32-merged-r5/key-results.md
+results/prefix-cache-study-mega-long-qwen15b-l4-n32-merged-r5/intervals.md
 ```
 
 ## Next Step
 
-Promote the Qwen 1.5B L4 n32 batch-pressure smoke to r5, then decide whether
-to continue the batch-pressure axis or switch to a backend comparison using the
-n16 and n32 control points.
+Promote the Qwen 1.5B L4 n32 batch-pressure result to r8, or switch to a
+backend comparison using the n16 and n32 control points.

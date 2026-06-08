@@ -6755,3 +6755,87 @@ results/prefix-cache-study-mega-long-qwen15b-l4-n32-smoke-r2/intervals.md
 
 Promote this n32 batch-pressure smoke to r5 before using it as a control point
 for backend comparison.
+
+# Training 070: Qwen 1.5B Mega-Long L4 n32 Merged r5
+
+Training 070 adds a three-repeat Qwen 1.5B n32 L4 chunk and merges it with the
+Training 069 r2 smoke. This promotes the batch-pressure axis from a smoke to a
+five-repeat result.
+
+## Goal
+
+Check whether the n32 capacity-pressure signal remains stable after more
+repeats before deciding between an r8 promotion and backend comparison.
+
+## Chunk Run
+
+```bash
+modal run modal_app.py --mode vllm-prefix-cache-isolated-neutral-warmup \
+  --modal-gpu L4 \
+  --hf-model Qwen/Qwen2.5-1.5B-Instruct \
+  --prompt-profiles shared_prefix_mega_long_no_repeat_variant,matched_unique_prefix_mega_long_no_repeat_variant \
+  --output-tokens 8 \
+  --request-counts 32 \
+  --repeats 3 \
+  --scenario-seed 2401 \
+  --phase-order cold_first \
+  --kv-cache-metrics-sample 1.0 \
+  --warmup-prompt-profile neutral_mega_long \
+  --prefix-cache-shared-profile shared_prefix_mega_long_no_repeat_variant \
+  --prefix-cache-control-profile matched_unique_prefix_mega_long_no_repeat_variant \
+  --output-dir results/modal-vllm-prefix-cache-mega-long-qwen15b-l4-n32-chunk-r3-seed2401
+```
+
+The chunk produced `6` scenario-level cold/cache paired runs, or `3`
+shared/control comparisons. The Modal console again reported the n32 capacity
+shape as `18,854` GPU KV-cache tokens and `4.97x` maximum concurrency for
+`max_model_len=3790`.
+
+## Merge And Report
+
+```bash
+modal run modal_app.py --mode vllm-prefix-cache-isolated-merge \
+  --prefix-cache-isolated-merge-dirs results/modal-vllm-prefix-cache-mega-long-qwen15b-l4-n32-smoke-r2,results/modal-vllm-prefix-cache-mega-long-qwen15b-l4-n32-chunk-r3-seed2401 \
+  --prefix-cache-shared-profile shared_prefix_mega_long_no_repeat_variant \
+  --prefix-cache-control-profile matched_unique_prefix_mega_long_no_repeat_variant \
+  --output-dir results/modal-vllm-prefix-cache-mega-long-qwen15b-l4-n32-merged-r5
+
+modal run modal_app.py --mode vllm-prefix-cache-isolated-stability-summary \
+  --prefix-cache-isolated-metrics-dir results/modal-vllm-prefix-cache-mega-long-qwen15b-l4-n32-merged-r5 \
+  --prefix-cache-shared-profile shared_prefix_mega_long_no_repeat_variant \
+  --prefix-cache-control-profile matched_unique_prefix_mega_long_no_repeat_variant \
+  --output-dir results/modal-vllm-prefix-cache-mega-long-qwen15b-l4-n32-merged-r5-summary
+
+python3 scripts/build_prefix_cache_study_table.py \
+  --summary-json results/modal-vllm-prefix-cache-mega-long-qwen15b-l4-n32-merged-r5-summary/prefix-cache-isolated-stability-summary.json \
+  --output-dir results/prefix-cache-study-mega-long-qwen15b-l4-n32-merged-r5
+```
+
+## Result
+
+The merged artifact has `10` scenario-level cold/cache paired runs, or `5`
+shared/control comparisons, for `n=32`.
+
+- control direct counter hit rate: `0.446%`
+- shared direct counter hit rate: `96.238%`
+- shared-minus-control direct counter delta: `95.792 pp`, interval
+  `95.715 pp` to `95.869 pp`
+- p95 first-event/TTFT ratio delta: `-0.941`, interval `-0.962` to `-0.915`
+- throughput-ratio delta: `9.711`, interval `8.764` to `10.618`
+- p95 latency-ratio delta: `-0.922`, interval `-0.937` to `-0.904`
+- p95 stream TPOT-ratio delta: `-0.735`, interval `-0.786` to `-0.686`
+
+Generated artifacts:
+
+```text
+results/modal-vllm-prefix-cache-mega-long-qwen15b-l4-n32-chunk-r3-seed2401/prefix-cache-isolated-metrics.json
+results/modal-vllm-prefix-cache-mega-long-qwen15b-l4-n32-merged-r5/prefix-cache-isolated-metrics.json
+results/modal-vllm-prefix-cache-mega-long-qwen15b-l4-n32-merged-r5-summary/prefix-cache-isolated-stability-summary.md
+results/prefix-cache-study-mega-long-qwen15b-l4-n32-merged-r5/key-results.md
+results/prefix-cache-study-mega-long-qwen15b-l4-n32-merged-r5/intervals.md
+```
+
+## Next Step
+
+Promote this n32 batch-pressure artifact to r8, or use the n16 and n32 L4
+artifacts as control points for backend comparison.
