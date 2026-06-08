@@ -278,7 +278,25 @@ produce `5` shared/control comparisons. It keeps the capacity-pressure result
 stable with a `95.792 pp` direct counter delta and favorable timing intervals:
 p95 first-event/TTFT ratio delta `-0.941`, throughput-ratio delta `9.711`, p95
 latency-ratio delta `-0.922`, and p95 stream TPOT-ratio delta `-0.735`. This
-is now the best n32 batch-pressure artifact.
+is a stable intermediate n32 batch-pressure artifact.
+
+Training 071 promotes the Qwen 1.5B L4 n32 batch-pressure axis to r8:
+
+```text
+results/prefix-cache-study-mega-long-qwen15b-l4-n32-merged-r8/key-results.md
+results/prefix-cache-study-mega-long-qwen15b-l4-n32-merged-r8/intervals.md
+```
+
+The merged r8 artifact has `16` scenario-level cold/cache paired runs, which
+produce `8` shared/control comparisons. The new seed-2501 chunk repeated the
+same Modal console capacity profile as the earlier n32 runs: `18,854` GPU
+KV-cache tokens and `4.97x` maximum concurrency for `max_model_len=3790`.
+The r8 result keeps the direct-cache mechanism stable with a `95.797 pp`
+direct counter delta and favorable timing intervals: p95 first-event/TTFT
+ratio delta `-0.942`, throughput-ratio delta `9.863`, p95 latency-ratio delta
+`-0.911`, and p95 stream TPOT-ratio delta `-0.683`. This is now the best n32
+batch-pressure artifact and is repeat-count-matched against the n16 Qwen 1.5B
+L4 model-size artifact.
 
 ## Reproduce
 
@@ -415,9 +433,15 @@ results/modal-vllm-prefix-cache-mega-long-qwen15b-l4-n32-merged-r5/prefix-cache-
 results/modal-vllm-prefix-cache-mega-long-qwen15b-l4-n32-merged-r5-summary/prefix-cache-isolated-stability-summary.md
 results/prefix-cache-study-mega-long-qwen15b-l4-n32-merged-r5/key-results.md
 results/prefix-cache-study-mega-long-qwen15b-l4-n32-merged-r5/intervals.md
+results/modal-vllm-prefix-cache-mega-long-qwen15b-l4-n32-chunk-r3-seed2501/prefix-cache-isolated-metrics.json
+results/modal-vllm-prefix-cache-mega-long-qwen15b-l4-n32-merged-r8/prefix-cache-isolated-metrics.json
+results/modal-vllm-prefix-cache-mega-long-qwen15b-l4-n32-merged-r8-summary/prefix-cache-isolated-stability-summary.md
+results/prefix-cache-study-mega-long-qwen15b-l4-n32-merged-r8/key-results.md
+results/prefix-cache-study-mega-long-qwen15b-l4-n32-merged-r8/intervals.md
 ```
 
 ## Next Step
 
-Promote the Qwen 1.5B L4 n32 batch-pressure result to r8, or switch to a
-backend comparison using the n16 and n32 control points.
+Use the repeat-count-matched n16 and n32 Qwen 1.5B L4 artifacts as control
+points for a backend comparison, or add a scheduler/capacity diagnostic that
+explains why vLLM's n32 shape reports much lower KV-cache capacity.
