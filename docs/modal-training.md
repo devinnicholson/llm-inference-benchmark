@@ -5054,3 +5054,34 @@ counter reuse, TTFT improvement, and non-claims for throughput/TPOT. After that,
 the next GPU experiment should stress a more production-relevant setting, such
 as a larger model or longer shared prefixes, where prefill dominates more of the
 request cost.
+
+# Training 048: Prefix-Cache Study Report
+
+Training 048 packages the current KV-cache evidence into a report-style artifact:
+
+```text
+docs/prefix-cache-study.md
+```
+
+## Goal
+
+Create a concise GitHub-facing study page that can be read without replaying the
+entire Modal training log. The report states the benchmark question,
+methodology, primary result table, interpretation, non-claims, reproducibility
+commands, and artifact map.
+
+## Result
+
+The report centers the strongest current claim:
+
+- no-repeat shared-prefix prompts produce stable measured-window KV-cache reuse;
+- the matched unique-prefix control stays low;
+- p95 first-event/TTFT improves for the shared-prefix workload;
+- throughput, end-to-end p95 latency, and stream TPOT are not claimed as stable
+  wins under the current small-model T4 setup.
+
+## Next Step
+
+Training 049 should either add one more report-quality visualization/table from
+the existing CSVs or move to a new GPU experiment that increases prefill cost,
+such as longer shared prefixes or a larger model.

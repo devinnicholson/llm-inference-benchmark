@@ -8,6 +8,12 @@ clear workload definitions, request lifecycle traces, benchmark methodology,
 scheduler experiments, KV-cache pressure studies, and eventually backend
 comparisons against real inference engines.
 
+Current report: [`docs/prefix-cache-study.md`](docs/prefix-cache-study.md)
+summarizes the no-repeat vLLM prefix-cache result. The strongest current claim
+is stable measured-window KV-cache reuse plus a p95 first-event/TTFT improvement
+for the shared-prefix workload; throughput and decode TPOT are documented as
+non-claims.
+
 ## Course Track
 
 This repo starts with the 568 path:
