@@ -39,11 +39,13 @@ The preferred artifact is the TTFT-aware summary:
 results/modal-vllm-prefix-cache-no-repeat-n16-stability-r8-summary-ttft/prefix-cache-isolated-stability-summary.md
 ```
 
-The GitHub-facing key result table is generated from that summary:
+The GitHub-facing key result table and interval chart are generated from that
+summary:
 
 ```text
 results/prefix-cache-study/key-results.md
 results/prefix-cache-study/key-results.csv
+results/prefix-cache-study/intervals.md
 ```
 
 | Metric | Result |
@@ -109,7 +111,7 @@ modal run modal_app.py --mode vllm-prefix-cache-isolated-stability-summary \
   --output-dir results/modal-vllm-prefix-cache-no-repeat-n16-stability-r8-summary-ttft
 ```
 
-Build the GitHub-facing result table:
+Build the GitHub-facing result table and interval chart:
 
 ```bash
 python3 scripts/build_prefix_cache_study_table.py
@@ -135,11 +137,12 @@ results/modal-vllm-prefix-cache-no-repeat-n16-stability-r8-summary-ttft/prefix-c
 results/modal-vllm-prefix-cache-no-repeat-n16-stability-r8-summary-ttft/prefix-cache-isolated-stability-summary.md
 ```
 
-Generated report table:
+Generated report artifacts:
 
 ```text
 results/prefix-cache-study/key-results.md
 results/prefix-cache-study/key-results.csv
+results/prefix-cache-study/intervals.md
 ```
 
 Supporting prompt audit:

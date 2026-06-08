@@ -10,7 +10,11 @@ SCRIPTS = ROOT / "scripts"
 if str(SCRIPTS) not in sys.path:
     sys.path.insert(0, str(SCRIPTS))
 
-from build_prefix_cache_study_table import build_rows
+from build_prefix_cache_study_table import (
+    build_intervals,
+    build_rows,
+    render_interval_chart,
+)
 
 
 SUMMARY_JSON = (
@@ -48,6 +52,19 @@ class PrefixCacheStudyTableTests(unittest.TestCase):
             "no stable throughput claim",
             by_metric["Throughput-ratio delta"]["interpretation"],
         )
+
+    def test_builds_interval_chart_from_key_effects(self) -> None:
+        payload = json.loads(SUMMARY_JSON.read_text())
+
+        intervals = build_intervals(payload)
+        chart = render_interval_chart(intervals, SUMMARY_JSON)
+
+        self.assertEqual(len(intervals), 5)
+        self.assertIn("Direct counter delta", chart)
+        self.assertIn("78.269 pp to 78.602 pp", chart)
+        self.assertIn("p95 first-event/TTFT ratio delta", chart)
+        self.assertIn("-0.497 to -0.073", chart)
+        self.assertIn("crosses zero; no stable throughput claim", chart)
 
     def test_rejects_ambiguous_profile_control_rows(self) -> None:
         payload = json.loads(SUMMARY_JSON.read_text())

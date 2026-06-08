@@ -14,8 +14,9 @@ is stable measured-window KV-cache reuse plus a p95 first-event/TTFT improvement
 for the shared-prefix workload; throughput and decode TPOT are documented as
 non-claims.
 
-Generated result table:
+Generated result artifacts:
 [`results/prefix-cache-study/key-results.md`](results/prefix-cache-study/key-results.md)
+and [`results/prefix-cache-study/intervals.md`](results/prefix-cache-study/intervals.md)
 
 ## Course Track
 

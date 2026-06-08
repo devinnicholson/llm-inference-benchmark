@@ -4,6 +4,7 @@ from __future__ import annotations
 import argparse
 import csv
 import json
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
@@ -16,6 +17,18 @@ DEFAULT_SUMMARY_JSON = (
 DEFAULT_OUTPUT_DIR = ROOT / "results/prefix-cache-study"
 
 Row = dict[str, str]
+
+
+@dataclass(frozen=True)
+class EffectInterval:
+    metric: str
+    value: float
+    low: float
+    high: float
+    unit: str
+    axis_low: float
+    axis_high: float
+    interpretation: str
 
 
 def _relative_display_path(path: Path) -> str:
@@ -102,6 +115,19 @@ def _row(metric: str, value: str, interval: str, interpretation: str) -> Row:
     }
 
 
+def _effect(
+    payload: dict[str, Any],
+    mean_key: str,
+    low_key: str,
+    high_key: str,
+) -> tuple[float, float, float]:
+    return (
+        _require_float(payload, mean_key),
+        _require_float(payload, low_key),
+        _require_float(payload, high_key),
+    )
+
+
 def build_rows(payload: dict[str, Any]) -> list[Row]:
     _require_mapping(payload, "summary")
     control_profile = _require_string(payload, "control_profile")
@@ -110,61 +136,34 @@ def build_rows(payload: dict[str, Any]) -> list[Row]:
     shared = _scenario_by_profile(payload, shared_profile)
     profile_control = _single_profile_control_row(payload)
 
-    direct_delta = _require_float(
-        profile_control, "shared_minus_control_cache_counter_hit_rate_pct_mean"
-    )
-    direct_low = _require_float(
-        profile_control, "shared_minus_control_cache_counter_hit_rate_pct_bootstrap_mean_p05"
-    )
-    direct_high = _require_float(
-        profile_control, "shared_minus_control_cache_counter_hit_rate_pct_bootstrap_mean_p95"
-    )
-
-    first_event_delta = _require_float(
-        profile_control, "shared_minus_control_cache_to_cold_p95_first_event_ratio_mean"
-    )
-    first_event_low = _require_float(
+    direct_delta, direct_low, direct_high = _effect(
         profile_control,
+        "shared_minus_control_cache_counter_hit_rate_pct_mean",
+        "shared_minus_control_cache_counter_hit_rate_pct_bootstrap_mean_p05",
+        "shared_minus_control_cache_counter_hit_rate_pct_bootstrap_mean_p95",
+    )
+    first_event_delta, first_event_low, first_event_high = _effect(
+        profile_control,
+        "shared_minus_control_cache_to_cold_p95_first_event_ratio_mean",
         "shared_minus_control_cache_to_cold_p95_first_event_ratio_bootstrap_mean_p05",
-    )
-    first_event_high = _require_float(
-        profile_control,
         "shared_minus_control_cache_to_cold_p95_first_event_ratio_bootstrap_mean_p95",
     )
-
-    throughput_delta = _require_float(
-        profile_control, "shared_minus_control_cache_to_cold_throughput_ratio_mean"
-    )
-    throughput_low = _require_float(
+    throughput_delta, throughput_low, throughput_high = _effect(
         profile_control,
+        "shared_minus_control_cache_to_cold_throughput_ratio_mean",
         "shared_minus_control_cache_to_cold_throughput_ratio_bootstrap_mean_p05",
-    )
-    throughput_high = _require_float(
-        profile_control,
         "shared_minus_control_cache_to_cold_throughput_ratio_bootstrap_mean_p95",
     )
-
-    latency_delta = _require_float(
-        profile_control, "shared_minus_control_cache_to_cold_p95_latency_ratio_mean"
-    )
-    latency_low = _require_float(
+    latency_delta, latency_low, latency_high = _effect(
         profile_control,
+        "shared_minus_control_cache_to_cold_p95_latency_ratio_mean",
         "shared_minus_control_cache_to_cold_p95_latency_ratio_bootstrap_mean_p05",
-    )
-    latency_high = _require_float(
-        profile_control,
         "shared_minus_control_cache_to_cold_p95_latency_ratio_bootstrap_mean_p95",
     )
-
-    stream_tpot_delta = _require_float(
-        profile_control, "shared_minus_control_cache_to_cold_p95_stream_tpot_ratio_mean"
-    )
-    stream_tpot_low = _require_float(
+    stream_tpot_delta, stream_tpot_low, stream_tpot_high = _effect(
         profile_control,
+        "shared_minus_control_cache_to_cold_p95_stream_tpot_ratio_mean",
         "shared_minus_control_cache_to_cold_p95_stream_tpot_ratio_bootstrap_mean_p05",
-    )
-    stream_tpot_high = _require_float(
-        profile_control,
         "shared_minus_control_cache_to_cold_p95_stream_tpot_ratio_bootstrap_mean_p95",
     )
 
@@ -214,6 +213,166 @@ def build_rows(payload: dict[str, Any]) -> list[Row]:
     ]
 
 
+def build_intervals(payload: dict[str, Any]) -> list[EffectInterval]:
+    profile_control = _single_profile_control_row(payload)
+    direct_delta, direct_low, direct_high = _effect(
+        profile_control,
+        "shared_minus_control_cache_counter_hit_rate_pct_mean",
+        "shared_minus_control_cache_counter_hit_rate_pct_bootstrap_mean_p05",
+        "shared_minus_control_cache_counter_hit_rate_pct_bootstrap_mean_p95",
+    )
+    first_event_delta, first_event_low, first_event_high = _effect(
+        profile_control,
+        "shared_minus_control_cache_to_cold_p95_first_event_ratio_mean",
+        "shared_minus_control_cache_to_cold_p95_first_event_ratio_bootstrap_mean_p05",
+        "shared_minus_control_cache_to_cold_p95_first_event_ratio_bootstrap_mean_p95",
+    )
+    throughput_delta, throughput_low, throughput_high = _effect(
+        profile_control,
+        "shared_minus_control_cache_to_cold_throughput_ratio_mean",
+        "shared_minus_control_cache_to_cold_throughput_ratio_bootstrap_mean_p05",
+        "shared_minus_control_cache_to_cold_throughput_ratio_bootstrap_mean_p95",
+    )
+    latency_delta, latency_low, latency_high = _effect(
+        profile_control,
+        "shared_minus_control_cache_to_cold_p95_latency_ratio_mean",
+        "shared_minus_control_cache_to_cold_p95_latency_ratio_bootstrap_mean_p05",
+        "shared_minus_control_cache_to_cold_p95_latency_ratio_bootstrap_mean_p95",
+    )
+    stream_tpot_delta, stream_tpot_low, stream_tpot_high = _effect(
+        profile_control,
+        "shared_minus_control_cache_to_cold_p95_stream_tpot_ratio_mean",
+        "shared_minus_control_cache_to_cold_p95_stream_tpot_ratio_bootstrap_mean_p05",
+        "shared_minus_control_cache_to_cold_p95_stream_tpot_ratio_bootstrap_mean_p95",
+    )
+
+    return [
+        EffectInterval(
+            metric="Direct counter delta",
+            value=direct_delta,
+            low=direct_low,
+            high=direct_high,
+            unit="pp",
+            axis_low=0.0,
+            axis_high=85.0,
+            interpretation="stable positive reuse",
+        ),
+        EffectInterval(
+            metric="p95 first-event/TTFT ratio delta",
+            value=first_event_delta,
+            low=first_event_low,
+            high=first_event_high,
+            unit="ratio",
+            axis_low=-0.6,
+            axis_high=0.3,
+            interpretation="stable favorable latency effect",
+        ),
+        EffectInterval(
+            metric="Throughput-ratio delta",
+            value=throughput_delta,
+            low=throughput_low,
+            high=throughput_high,
+            unit="ratio",
+            axis_low=-0.6,
+            axis_high=0.3,
+            interpretation="crosses zero; no stable throughput claim",
+        ),
+        EffectInterval(
+            metric="p95 latency-ratio delta",
+            value=latency_delta,
+            low=latency_low,
+            high=latency_high,
+            unit="ratio",
+            axis_low=-0.6,
+            axis_high=0.3,
+            interpretation="crosses zero; no stable end-to-end latency claim",
+        ),
+        EffectInterval(
+            metric="p95 stream TPOT-ratio delta",
+            value=stream_tpot_delta,
+            low=stream_tpot_low,
+            high=stream_tpot_high,
+            unit="ratio",
+            axis_low=-0.6,
+            axis_high=0.3,
+            interpretation="crosses zero; no stable decode TPOT claim",
+        ),
+    ]
+
+
+def _format_interval_value(value: float, unit: str) -> str:
+    if unit == "pp":
+        return f"{value:.3f} pp"
+    return f"{value:.3f}"
+
+
+def _interval_bar(interval: EffectInterval, width: int = 48) -> str:
+    def position(value: float) -> int:
+        span = interval.axis_high - interval.axis_low
+        scaled = (value - interval.axis_low) / span
+        return max(0, min(width - 1, round(scaled * (width - 1))))
+
+    low_pos = position(interval.low)
+    high_pos = position(interval.high)
+    value_pos = position(interval.value)
+    zero_pos = position(0.0)
+
+    chars = ["-"] * width
+    for index in range(min(low_pos, high_pos), max(low_pos, high_pos) + 1):
+        chars[index] = "="
+    if interval.axis_low <= 0.0 <= interval.axis_high:
+        chars[zero_pos] = "|"
+    chars[value_pos] = "*"
+    return "[" + "".join(chars) + "]"
+
+
+def _render_interval_row(interval: EffectInterval) -> str:
+    interval_text = (
+        f"{_format_interval_value(interval.low, interval.unit)} to "
+        f"{_format_interval_value(interval.high, interval.unit)}"
+    )
+    value_text = _format_interval_value(interval.value, interval.unit)
+    return (
+        f"{interval.metric:<34} {_interval_bar(interval)} "
+        f"{value_text:>10}  {interval_text:<24}  {interval.interpretation}"
+    )
+
+
+def render_interval_chart(intervals: list[EffectInterval], source_json: Path) -> str:
+    counter_intervals = [interval for interval in intervals if interval.unit == "pp"]
+    ratio_intervals = [interval for interval in intervals if interval.unit == "ratio"]
+    lines = [
+        "# Prefix-Cache Study Interval Chart",
+        "",
+        f"Source: `{_relative_display_path(source_json)}`",
+        "",
+        "`*` marks the mean effect, `=` marks the 90% bootstrap interval, and `|` marks zero.",
+        "",
+        "## Direct Cache Counter Delta",
+        "",
+        "Positive percentage points mean the shared-prefix profile reused more KV cache.",
+        "",
+        "```text",
+        "scale: 0.000 pp to 85.000 pp",
+    ]
+    lines.extend(_render_interval_row(interval) for interval in counter_intervals)
+    lines.extend(
+        [
+            "```",
+            "",
+            "## Cache-To-Cold Ratio Deltas",
+            "",
+            "For latency-style ratios, negative is favorable. Intervals crossing zero are non-claims.",
+            "",
+            "```text",
+            "scale: -0.600 to 0.300",
+        ]
+    )
+    lines.extend(_render_interval_row(interval) for interval in ratio_intervals)
+    lines.extend(["```", ""])
+    return "\n".join(lines)
+
+
 def write_csv(path: Path, rows: list[Row]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("w", newline="") as file:
@@ -246,6 +405,15 @@ def write_markdown(path: Path, rows: list[Row], source_json: Path) -> None:
     path.write_text("\n".join(lines))
 
 
+def write_interval_chart(
+    path: Path,
+    intervals: list[EffectInterval],
+    source_json: Path,
+) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(render_interval_chart(intervals, source_json))
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(
         description="Build the GitHub-facing key result table for the prefix-cache study."
@@ -268,15 +436,19 @@ def main() -> int:
     if not isinstance(payload, dict):
         raise ValueError("expected summary JSON root to be an object")
     rows = build_rows(payload)
+    intervals = build_intervals(payload)
 
     csv_path = args.output_dir / "key-results.csv"
     markdown_path = args.output_dir / "key-results.md"
+    intervals_path = args.output_dir / "intervals.md"
     write_csv(csv_path, rows)
     write_markdown(markdown_path, rows, args.summary_json)
+    write_interval_chart(intervals_path, intervals, args.summary_json)
 
     print(f"rows: {len(rows)}")
     print(f"csv: {csv_path}")
     print(f"markdown: {markdown_path}")
+    print(f"intervals: {intervals_path}")
     return 0
 
 
