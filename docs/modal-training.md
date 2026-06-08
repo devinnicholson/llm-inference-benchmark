@@ -3078,3 +3078,104 @@ stable Prometheus counters, so the artifact can distinguish cumulative
 engine-level hit rate from per-scenario hit rate. After that, rerun the repeated
 profile-control grid with isolated metrics and compare whether the `shared`
 advantage still holds.
+
+# Training 031: Fresh-Engine Isolated Cache Metrics
+
+Training 031 adds `vllm-prefix-cache-isolated-metrics`, a local orchestration
+mode that reuses the existing remote paired harness but runs one scenario per
+fresh remote call.
+
+## Goal
+
+Separate direct cache-hit measurement from cross-scenario carryover. Training
+030 showed useful cache metrics, but the matched-unique control still reported
+large hit rates. Training 031 removes two sources of contamination:
+
+- each scenario/repeat gets a fresh cold engine and a fresh cache-enabled engine
+- warmup scenario runs are forced to `0`
+
+This makes the cache-hit fields more meaningful for the scenario itself. It is
+not designed as a final timing benchmark because no-warmup runs expose first
+shape and Triton JIT effects.
+
+## Command
+
+```bash
+modal run modal_app.py --mode vllm-prefix-cache-isolated-metrics \
+  --prompt-profiles shared_prefix_long,matched_unique_prefix \
+  --output-tokens 8 \
+  --request-counts 2,4 \
+  --repeats 1 \
+  --scenario-seed 572 \
+  --phase-order cold_first \
+  --kv-cache-metrics-sample 1.0 \
+  --output-dir results/modal-vllm-prefix-cache-isolated-metrics
+```
+
+The mode writes one consolidated artifact after four remote paired calls:
+
+```text
+results/modal-vllm-prefix-cache-isolated-metrics/prefix-cache-isolated-metrics.json
+results/modal-vllm-prefix-cache-isolated-metrics/prefix-cache-isolated-metrics-summary.csv
+results/modal-vllm-prefix-cache-isolated-metrics/prefix-cache-isolated-metrics-runs.csv
+results/modal-vllm-prefix-cache-isolated-metrics/prefix-cache-isolated-profile-control.csv
+```
+
+## Result
+
+The run produced four scenarios, four paired runs, and four fresh remote calls.
+
+Top-level means:
+
+| Metric | Value |
+| --- | ---: |
+| Mean cache-to-cold throughput ratio | 2.461 |
+| Mean cache-to-cold p95 latency ratio | 0.683 |
+| Mean shared-minus-control cache-hit delta | 58.65 pp |
+
+Scenario cache-hit rates:
+
+| Profile | Request count | Cold hit rate | Cache hit rate | Cache-to-cold hit-rate delta |
+| --- | ---: | ---: | ---: | ---: |
+| `matched_unique_prefix` | 2 | 0.0% | 1.3% | 1.3 pp |
+| `matched_unique_prefix` | 4 | 0.0% | 2.0% | 2.0 pp |
+| `shared_prefix_long` | 2 | 0.0% | 48.2% | 48.2 pp |
+| `shared_prefix_long` | 4 | 0.0% | 72.4% | 72.4 pp |
+
+Shared-prefix minus matched-control deltas:
+
+| Request count | Cache-hit delta | Throughput-ratio delta | p95 latency-ratio delta |
+| ---: | ---: | ---: | ---: |
+| 2 | 46.9 pp | 5.180 | -0.807 |
+| 4 | 70.4 pp | -0.525 | 0.325 |
+| Mean | 58.65 pp | 2.328 | -0.241 |
+
+## Interpretation
+
+This is the cleanest cache-observability result so far. With scenario isolation,
+the matched-unique control drops to near-zero cache hit rate, while the shared
+prefix profile reports large hit rates. That supports the core methodological
+claim: the harness can distinguish true reusable-prefix behavior from the
+baseline prompt scaffold and prior-scenario carryover.
+
+The result also explains why Training 030 needed caution. Its control-profile
+hit rates were much higher because metrics were captured inside a longer-lived
+engine sequence. Training 031 shows that a fresh-engine metric run produces a
+much sharper shared-vs-control separation.
+
+The timing numbers are useful telemetry, but not yet a fair speedup claim. The
+no-warmup isolated run intentionally exposes first-shape/JIT latency. In this
+artifact, the n=2 shared-prefix row has a very large throughput ratio partly
+because the cold side absorbed a large first-run cost. Future timing claims
+should use a separate warmup/discard design.
+
+GPU KV-cache usage still reports `0.0%` because `do_log_stats()` is called after
+the batch drains. For this phase of the project, prefix-cache hit rate is the
+useful direct metric.
+
+## Next Step
+
+Training 032 should repeat the isolated metric run with request counts `2,4,8`
+and `repeats=2`, then separate metric stability from timing stability. If we
+want timing evidence, add a dedicated warmup/discard path that logs stats after
+warmup and then measures a fresh scenario window without mixing profiles.

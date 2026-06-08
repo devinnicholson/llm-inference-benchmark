@@ -68,6 +68,9 @@ DEFAULT_VLLM_PREFIX_CACHE_PROFILE_CONTROL_DIRS = (
 DEFAULT_VLLM_PREFIX_CACHE_PROFILE_MULTITRIAL_OUTPUT = (
     "results/modal-vllm-prefix-cache-long-control-multitrial"
 )
+DEFAULT_VLLM_PREFIX_CACHE_ISOLATED_METRICS_OUTPUT = (
+    "results/modal-vllm-prefix-cache-isolated-metrics"
+)
 DEFAULT_VLLM_SWEEP_REQUEST_COUNTS = "1,2,4,8"
 DEFAULT_VLLM_SWEEP_PROMPT_PROFILES = "short,long"
 DEFAULT_VLLM_SWEEP_OUTPUT_TOKENS = "16,32"
@@ -4189,6 +4192,192 @@ def main(
         print(f"runs_csv: {run_csv_path}")
         return
 
+    if mode == "vllm-prefix-cache-isolated-metrics":
+        request_count_values = _split_positive_int_csv(request_counts, "request_counts")
+        prompt_profile_values = [
+            profile.lower().replace("-", "_")
+            for profile in _split_csv(prompt_profiles)
+        ]
+        output_token_values = _split_positive_int_csv(output_tokens, "output_tokens")
+        if repeats <= 0:
+            raise ValueError("repeats must be positive")
+        _validate_vllm_prompt_profiles(prompt_profile_values)
+        isolated_phase_order = phase_order.lower().replace("-", "_")
+        if isolated_phase_order not in {"cold_first", "cache_first"}:
+            isolated_phase_order = "cold_first"
+
+        paired_runs = []
+        remote_call_summaries = []
+        call_index = 0
+        for repeat_index in range(repeats):
+            for prompt_profile_value in prompt_profile_values:
+                for max_tokens in output_token_values:
+                    for request_count_value in request_count_values:
+                        single_payload = run_vllm_prefix_cache_paired_remote.remote(
+                            hf_model=hf_model,
+                            request_counts=str(request_count_value),
+                            prompt_profiles=prompt_profile_value,
+                            output_tokens=str(max_tokens),
+                            repeats=1,
+                            scenario_seed=scenario_seed + repeat_index,
+                            warmup_runs=0,
+                            phase_order=isolated_phase_order,
+                            collect_cache_metrics=True,
+                            kv_cache_metrics_sample=kv_cache_metrics_sample,
+                        )
+                        if single_payload["paired_run_count"] != 1:
+                            raise ValueError(
+                                "Expected one paired run from isolated metrics call"
+                            )
+                        row = dict(single_payload["paired_runs"][0])
+                        row["repeat_index"] = repeat_index
+                        row["pair_id"] = (
+                            f"{row['scenario_id']}_isolated_rep{repeat_index:02d}"
+                        )
+                        row["isolation_call_index"] = call_index
+                        row["isolation_phase_order"] = single_payload["phase_order"]
+                        row["isolation_warmup_runs"] = 0
+                        paired_runs.append(row)
+
+                        cold_run = single_payload["cold_scenario_runs"][0]
+                        cache_run = single_payload["cache_scenario_runs"][0]
+                        remote_call_summaries.append(
+                            {
+                                "isolation_call_index": call_index,
+                                "repeat_index": repeat_index,
+                                "scenario_id": row["scenario_id"],
+                                "prompt_profile": row["prompt_profile"],
+                                "request_count": row["request_count"],
+                                "max_new_tokens": row["max_new_tokens"],
+                                "phase_order": single_payload["phase_order"],
+                                "cold_engine_load_ms": single_payload[
+                                    "cold_engine_load_ms"
+                                ],
+                                "cache_engine_load_ms": single_payload[
+                                    "cache_engine_load_ms"
+                                ],
+                                "cold_prefix_cache_hit_rate_pct": row[
+                                    "cold_prefix_cache_hit_rate_pct"
+                                ],
+                                "cache_prefix_cache_hit_rate_pct": row[
+                                    "cache_prefix_cache_hit_rate_pct"
+                                ],
+                                "cache_to_cold_prefix_cache_hit_rate_pct_delta": row[
+                                    "cache_to_cold_prefix_cache_hit_rate_pct_delta"
+                                ],
+                                "cache_to_cold_output_tokens_per_second_ratio": row[
+                                    "cache_to_cold_output_tokens_per_second_ratio"
+                                ],
+                                "cache_to_cold_p95_latency_ms_ratio": row[
+                                    "cache_to_cold_p95_latency_ms_ratio"
+                                ],
+                                "cold_cache_metrics": cold_run.get("cache_metrics"),
+                                "cache_cache_metrics": cache_run.get("cache_metrics"),
+                                "cold_cache_metrics_log_stats": cold_run.get(
+                                    "cache_metrics_log_stats"
+                                ),
+                                "cache_cache_metrics_log_stats": cache_run.get(
+                                    "cache_metrics_log_stats"
+                                ),
+                            }
+                        )
+                        call_index += 1
+
+        paired_scenarios = _aggregate_vllm_prefix_cache_paired_scenarios(paired_runs)
+        summary_rows = _vllm_prefix_cache_paired_summary_rows(paired_scenarios)
+        profile_control_rows = _vllm_prefix_cache_isolated_profile_control_rows(
+            paired_scenarios
+        )
+        payload = {
+            "schema_version": 1,
+            "execution": "modal",
+            "mode": "vllm-prefix-cache-isolated-metrics",
+            "backend": "vllm-paired-prefix-cache",
+            "model_id": hf_model,
+            "request_counts": request_count_values,
+            "prompt_profiles": prompt_profile_values,
+            "output_tokens": output_token_values,
+            "repeats": int(repeats),
+            "scenario_seed": int(scenario_seed),
+            "phase_order": isolated_phase_order,
+            "warmup_runs": 0,
+            "collect_cache_metrics": True,
+            "kv_cache_metrics_sample": float(kv_cache_metrics_sample),
+            "isolation_method": (
+                "Each scenario/repeat is executed by a separate remote paired "
+                "benchmark call with fresh cold/cache AsyncLLM engines and no "
+                "warmup scenario runs."
+            ),
+            "remote_call_count": len(remote_call_summaries),
+            "scenario_count": len(paired_scenarios),
+            "paired_run_count": len(paired_runs),
+            "summary": summary_rows,
+            "paired_runs": paired_runs,
+            "paired_scenarios": paired_scenarios,
+            "profile_control": {
+                "shared_profile": "shared_prefix_long",
+                "control_profile": "matched_unique_prefix",
+                "row_count": len(profile_control_rows),
+                "summary": _vllm_prefix_cache_isolated_profile_control_summary(
+                    profile_control_rows
+                ),
+                "rows": profile_control_rows,
+            },
+            "remote_call_summaries": remote_call_summaries,
+            "mean_cache_to_cold_throughput_ratio": _mean_present(
+                row["cache_to_cold_output_tokens_per_second_ratio"]
+                for row in paired_runs
+            ),
+            "mean_cache_to_cold_first_event_ratio": _mean_present(
+                row["cache_to_cold_p95_first_event_ms_ratio"] for row in paired_runs
+            ),
+            "mean_cache_to_cold_latency_ratio": _mean_present(
+                row["cache_to_cold_p95_latency_ms_ratio"] for row in paired_runs
+            ),
+            "mean_cache_to_cold_tpot_ratio": _mean_present(
+                row["cache_to_cold_p95_stream_tpot_ms_ratio"] for row in paired_runs
+            ),
+            "note": (
+                "This is a metric-isolation harness, not a throughput benchmark. "
+                "It spends extra engine-load time to avoid carrying cache metrics "
+                "across unrelated scenarios."
+            ),
+        }
+        output_path = Path(output_dir or DEFAULT_VLLM_PREFIX_CACHE_ISOLATED_METRICS_OUTPUT)
+        output_path.mkdir(parents=True, exist_ok=True)
+        json_path = output_path / "prefix-cache-isolated-metrics.json"
+        summary_csv_path = output_path / "prefix-cache-isolated-metrics-summary.csv"
+        runs_csv_path = output_path / "prefix-cache-isolated-metrics-runs.csv"
+        profile_csv_path = output_path / "prefix-cache-isolated-profile-control.csv"
+        json_path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+        _write_records_csv(summary_csv_path, payload["summary"])
+        _write_records_csv(runs_csv_path, payload["paired_runs"])
+        _write_records_csv(profile_csv_path, profile_control_rows)
+
+        print(f"scenarios: {payload['scenario_count']}")
+        print(f"paired_runs: {payload['paired_run_count']}")
+        print(f"remote_calls: {payload['remote_call_count']}")
+        print(f"phase_order: {payload['phase_order']}")
+        print(
+            "mean_cache_to_cold_throughput_ratio: "
+            f"{payload['mean_cache_to_cold_throughput_ratio']:.3f}"
+        )
+        print(
+            "mean_cache_to_cold_latency_ratio: "
+            f"{payload['mean_cache_to_cold_latency_ratio']:.3f}"
+        )
+        profile_summary = payload["profile_control"]["summary"]
+        if profile_summary:
+            print(
+                "mean_shared_minus_control_cache_hit_rate_delta: "
+                f"{profile_summary['mean_shared_minus_control_cache_prefix_cache_hit_rate_pct_median']:.3f}"
+            )
+        print(f"json: {json_path}")
+        print(f"summary_csv: {summary_csv_path}")
+        print(f"runs_csv: {runs_csv_path}")
+        print(f"profile_csv: {profile_csv_path}")
+        return
+
     if mode == "vllm-prefix-cache-paired":
         collect_cache_metrics = _parse_bool_choice(cache_metrics, "cache_metrics")
         payload = run_vllm_prefix_cache_paired_remote.remote(
@@ -4351,6 +4540,7 @@ def main(
             "'vllm-server-async-phase-order-compare', "
             "'vllm-server-async-multitrial-aggregate', "
             "'vllm-server-async-workload-compare', 'vllm-sweep', or "
+            "'vllm-prefix-cache-isolated-metrics', "
             "'vllm-prefix-cache-paired', 'vllm-prefix-cache-compare', or "
             "'vllm-prefix-cache-phase-order-compare', or "
             "'vllm-prefix-cache-profile-control', or "
@@ -5837,6 +6027,100 @@ def _vllm_prefix_cache_paired_summary_rows(
         {field: scenario.get(field) for field in row_fields}
         for scenario in paired_scenarios
     ]
+
+
+def _vllm_prefix_cache_isolated_profile_control_rows(
+    paired_scenarios: list[dict[str, Any]],
+    shared_profile: str = "shared_prefix_long",
+    control_profile: str = "matched_unique_prefix",
+) -> list[dict[str, Any]]:
+    by_profile_and_shape = {
+        (
+            scenario["prompt_profile"],
+            int(scenario["request_count"]),
+            int(scenario["max_new_tokens"]),
+        ): scenario
+        for scenario in paired_scenarios
+    }
+    shared_keys = {
+        (request_count, max_new_tokens)
+        for profile, request_count, max_new_tokens in by_profile_and_shape
+        if profile == shared_profile
+    }
+    control_keys = {
+        (request_count, max_new_tokens)
+        for profile, request_count, max_new_tokens in by_profile_and_shape
+        if profile == control_profile
+    }
+    comparison_keys = sorted(shared_keys & control_keys)
+    if not comparison_keys:
+        return []
+
+    metric_fields = (
+        "cache_to_cold_output_tokens_per_second_ratio_median",
+        "cache_to_cold_p95_first_event_ms_ratio_median",
+        "cache_to_cold_p95_latency_ms_ratio_median",
+        "cache_to_cold_p95_stream_tpot_ms_ratio_median",
+        "cache_to_cold_batch_wall_ms_ratio_median",
+        "cold_prefix_cache_hit_rate_pct_median",
+        "cache_prefix_cache_hit_rate_pct_median",
+        "cache_to_cold_prefix_cache_hit_rate_pct_delta_median",
+        "cold_gpu_kv_cache_usage_pct_median",
+        "cache_gpu_kv_cache_usage_pct_median",
+        "cache_to_cold_gpu_kv_cache_usage_pct_delta_median",
+    )
+    rows = []
+    for request_count, max_new_tokens in comparison_keys:
+        shared = by_profile_and_shape[(shared_profile, request_count, max_new_tokens)]
+        control = by_profile_and_shape[(control_profile, request_count, max_new_tokens)]
+        shared_prompt_tokens = shared.get("prompt_tokens_mean")
+        control_prompt_tokens = control.get("prompt_tokens_mean")
+        row: dict[str, Any] = {
+            "request_count": request_count,
+            "max_new_tokens": max_new_tokens,
+            "shared_profile": shared_profile,
+            "control_profile": control_profile,
+            "shared_scenario_id": shared["scenario_id"],
+            "control_scenario_id": control["scenario_id"],
+            "shared_prompt_tokens_mean": shared_prompt_tokens,
+            "control_prompt_tokens_mean": control_prompt_tokens,
+            "shared_to_control_prompt_tokens_mean_ratio": _ratio(
+                shared_prompt_tokens,
+                control_prompt_tokens,
+            ),
+        }
+        for field in metric_fields:
+            shared_value = shared.get(field)
+            control_value = control.get(field)
+            row[f"shared_{field}"] = shared_value
+            row[f"control_{field}"] = control_value
+            row[f"shared_minus_control_{field}"] = _delta(
+                shared_value,
+                control_value,
+            )
+        rows.append(row)
+    return rows
+
+
+def _vllm_prefix_cache_isolated_profile_control_summary(
+    profile_control_rows: list[dict[str, Any]],
+) -> dict[str, Any]:
+    if not profile_control_rows:
+        return {}
+    summary_fields = [
+        field
+        for field in profile_control_rows[0]
+        if field.startswith("shared_minus_control_")
+    ]
+    summary = {
+        f"mean_{field}": _mean_present(row[field] for row in profile_control_rows)
+        for field in summary_fields
+    }
+    summary["mean_shared_to_control_prompt_tokens_mean_ratio"] = _mean_present(
+        row["shared_to_control_prompt_tokens_mean_ratio"]
+        for row in profile_control_rows
+    )
+    return summary
 
 
 def _compare_vllm_prefix_cache_phase_orders(
