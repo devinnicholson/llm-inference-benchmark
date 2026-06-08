@@ -3498,3 +3498,139 @@ decode path without using the measured prompt bodies, or a two-engine design
 that warms kernels on neutral prompts and then starts a fresh cache state for
 the measured profile. The goal is to keep the stable Training 033 cache metric
 separation while improving timing fairness.
+
+# Training 035: Neutral-Warmup Isolated Cache Trial
+
+Training 035 adds `vllm-prefix-cache-isolated-neutral-warmup` and a
+`neutral_long` prompt profile.
+
+## Goal
+
+Keep the warmed-serving timing benefits from Training 034 without priming the
+measured shared/control prompt bodies. The key change is that warmup uses a
+separate long prompt profile:
+
+- measured profiles: `shared_prefix_long`, `matched_unique_prefix`
+- warmup profile: `neutral_long`
+- warmup runs per fresh engine: `1`
+- remote-call isolation: one measured scenario per fresh cold/cache engine
+
+The neutral profile starts each request with a different calibration marker and
+uses unrelated long audit text. It is meant to exercise long-prefill shape,
+batch size, and decode setup without creating the exact measured prefixes.
+
+## Command
+
+```bash
+modal run modal_app.py --mode vllm-prefix-cache-isolated-neutral-warmup \
+  --prompt-profiles shared_prefix_long,matched_unique_prefix \
+  --output-tokens 8 \
+  --request-counts 2,4,8 \
+  --repeats 1 \
+  --scenario-seed 575 \
+  --phase-order cold_first \
+  --kv-cache-metrics-sample 1.0 \
+  --output-dir results/modal-vllm-prefix-cache-isolated-neutral-warmup
+```
+
+Then generate the compact summary:
+
+```bash
+modal run modal_app.py --mode vllm-prefix-cache-isolated-stability-summary \
+  --prefix-cache-isolated-metrics-dir results/modal-vllm-prefix-cache-isolated-neutral-warmup \
+  --output-dir results/modal-vllm-prefix-cache-isolated-neutral-warmup-summary
+```
+
+## Artifacts
+
+```text
+results/modal-vllm-prefix-cache-isolated-neutral-warmup/prefix-cache-isolated-metrics.json
+results/modal-vllm-prefix-cache-isolated-neutral-warmup/prefix-cache-isolated-metrics-summary.csv
+results/modal-vllm-prefix-cache-isolated-neutral-warmup/prefix-cache-isolated-metrics-runs.csv
+results/modal-vllm-prefix-cache-isolated-neutral-warmup/prefix-cache-isolated-profile-control.csv
+results/modal-vllm-prefix-cache-isolated-neutral-warmup-summary/prefix-cache-isolated-stability-summary.json
+results/modal-vllm-prefix-cache-isolated-neutral-warmup-summary/prefix-cache-isolated-stability-summary.csv
+results/modal-vllm-prefix-cache-isolated-neutral-warmup-summary/prefix-cache-isolated-stability-profile-control.csv
+results/modal-vllm-prefix-cache-isolated-neutral-warmup-summary/prefix-cache-isolated-stability-summary.md
+```
+
+## Result
+
+The run produced six scenarios, six paired runs, and six isolated remote calls.
+
+Top-level run means:
+
+| Metric | Value |
+| --- | ---: |
+| Mean cache-to-cold throughput ratio | 1.820 |
+| Mean cache-to-cold p95 latency ratio | 0.698 |
+| Mean shared-minus-control cache-hit delta | 36.667 pp |
+
+Neutral-warmup cache-hit rates:
+
+| Profile | Requests | Cache hit mean |
+| --- | ---: | ---: |
+| `matched_unique_prefix` | 2 | 2.200% |
+| `matched_unique_prefix` | 4 | 2.600% |
+| `matched_unique_prefix` | 8 | 2.800% |
+| `shared_prefix_long` | 2 | 28.100% |
+| `shared_prefix_long` | 4 | 41.400% |
+| `shared_prefix_long` | 8 | 48.100% |
+
+Shared-prefix versus control:
+
+| Requests | Cache-hit delta | Throughput-ratio delta | p95 latency-ratio delta |
+| ---: | ---: | ---: | ---: |
+| 2 | 25.900 pp | 0.148 | -0.016 |
+| 4 | 38.800 pp | -0.740 | 0.435 |
+| 8 | 45.300 pp | 0.035 | -0.034 |
+| Mean | 36.667 pp | -0.186 | 0.129 |
+
+## Comparison
+
+Training 034 same-scenario warmup made the matched-control cache rates jump to
+about `50%` for every request count. Training 035 fixes that: the control is
+back near the no-warmup isolated baseline.
+
+| Request count | No-warmup control | Same-scenario warmup control | Neutral-warmup control |
+| ---: | ---: | ---: | ---: |
+| 2 | 1.300% | 50.300% | 2.200% |
+| 4 | 2.000% | 50.600% | 2.600% |
+| 8 | 2.400% | 50.900% | 2.800% |
+
+The shared-prefix rates are lower than the no-warmup isolated baseline:
+
+| Request count | No-warmup shared | Neutral-warmup shared |
+| ---: | ---: | ---: |
+| 2 | 48.200% | 28.100% |
+| 4 | 72.400% | 41.400% |
+| 8 | 84.600% | 48.100% |
+
+## Interpretation
+
+Neutral warmup is the better warmup design. It preserves the matched-control
+near-zero cache behavior while producing stronger aggregate cache-to-cold timing
+ratios than the no-warmup run.
+
+It also exposes a remaining metric problem: vLLM's logged prefix-cache hit rate
+is still cumulative over the warmup and measured scenario. Calling
+`do_log_stats()` after warmup does not give this harness a clean measured-only
+hit-rate counter. That is why the shared-prefix hit rates are diluted relative
+to the no-warmup isolated baseline even though the control stays clean.
+
+Modal stdout continued to report `_compute_slot_mapping_kernel` Triton JIT
+warnings during measured inference, so one neutral warmup is still not enough
+to fully remove first-shape effects.
+
+## Next Step
+
+Training 036 should compute or capture measured-window cache metrics directly.
+There are two promising paths:
+
+- derive an approximate measured-only hit rate from before/after logged rates
+  and known prompt-token counts
+- find a vLLM counter or metrics endpoint that exposes hit/miss counters, then
+  store a true counter delta around the measured scenario
+
+That would let the project combine Training 033's clean cache-reuse result with
+Training 035's neutral warmed-serving timing design.

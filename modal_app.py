@@ -75,6 +75,9 @@ DEFAULT_VLLM_PREFIX_CACHE_ISOLATED_METRICS_OUTPUT = (
 DEFAULT_VLLM_PREFIX_CACHE_ISOLATED_WARM_WINDOW_OUTPUT = (
     "results/modal-vllm-prefix-cache-isolated-warm-window"
 )
+DEFAULT_VLLM_PREFIX_CACHE_ISOLATED_NEUTRAL_WARMUP_OUTPUT = (
+    "results/modal-vllm-prefix-cache-isolated-neutral-warmup"
+)
 DEFAULT_VLLM_PREFIX_CACHE_ISOLATED_STABILITY_OUTPUT = (
     "results/modal-vllm-prefix-cache-isolated-stability-summary"
 )
@@ -98,6 +101,7 @@ VALID_VLLM_PROMPT_PROFILES = {
     "shared_prefix",
     "shared_prefix_long",
     "matched_unique_prefix",
+    "neutral_long",
 }
 HF_CACHE_PATH = "/cache"
 VLLM_CACHE_PATH = "/vllm-cache"
@@ -356,6 +360,7 @@ def run_vllm_prefix_cache_paired_remote(
     repeats: int = DEFAULT_VLLM_SWEEP_REPEATS,
     scenario_seed: int = DEFAULT_VLLM_SWEEP_SEED,
     warmup_runs: int = 1,
+    warmup_prompt_profile: str = "",
     phase_order: str = "cold_first",
     collect_cache_metrics: bool = False,
     kv_cache_metrics_sample: float = 1.0,
@@ -394,6 +399,12 @@ def run_vllm_prefix_cache_paired_remote(
     if phase_order not in {"cold_first", "cache_first"}:
         raise ValueError("phase_order must be cold_first or cache_first")
     _validate_vllm_prompt_profiles(prompt_profile_values)
+    warmup_prompt_profile_value = warmup_prompt_profile.strip().lower().replace("-", "_")
+    if warmup_prompt_profile_value:
+        _validate_vllm_prompt_profiles(
+            [warmup_prompt_profile_value],
+            label="warmup_prompt_profile",
+        )
 
     import vllm
 
@@ -409,47 +420,74 @@ def run_vllm_prefix_cache_paired_remote(
     tokenizer = AutoTokenizer.from_pretrained(hf_model)
     tokenizer_load_ms = (time.perf_counter() - started) * 1000
 
-    scenario_specs = []
     prompt_format_started = time.perf_counter()
-    for prompt_profile in prompt_profile_values:
-        for max_new_tokens in output_token_values:
-            for request_count in request_count_values:
-                prompt_records = []
-                prompts = _select_sweep_prompts(request_count, prompt_profile)
-                for index, prompt in enumerate(prompts):
-                    formatted_prompt, prompt_format = _format_prompt_for_generation(tokenizer, prompt)
-                    prompt_records.append(
+
+    def build_scenario_specs(
+        profiles: list[str],
+        scenario_id_prefix: str = "",
+    ) -> list[dict[str, Any]]:
+        specs = []
+        for prompt_profile in profiles:
+            for max_new_tokens in output_token_values:
+                for request_count in request_count_values:
+                    prompt_records = []
+                    prompts = _select_sweep_prompts(request_count, prompt_profile)
+                    for index, prompt in enumerate(prompts):
+                        formatted_prompt, prompt_format = _format_prompt_for_generation(
+                            tokenizer,
+                            prompt,
+                        )
+                        prompt_records.append(
+                            {
+                                "request_id": (
+                                    f"{prompt_profile}-out{max_new_tokens}-"
+                                    f"n{request_count}-{index:02d}"
+                                ),
+                                "prompt": prompt,
+                                "formatted_prompt": formatted_prompt,
+                                "prompt_format": prompt_format,
+                                "prompt_tokens": len(tokenizer.encode(formatted_prompt)),
+                            }
+                        )
+                    prompt_tokens = [
+                        record["prompt_tokens"] for record in prompt_records
+                    ]
+                    scenario_id = (
+                        f"{prompt_profile}_out{max_new_tokens}_n{request_count}"
+                    )
+                    if scenario_id_prefix:
+                        scenario_id = f"{scenario_id_prefix}_{scenario_id}"
+                    specs.append(
                         {
-                            "request_id": (
-                                f"{prompt_profile}-out{max_new_tokens}-n{request_count}-"
-                                f"{index:02d}"
-                            ),
-                            "prompt": prompt,
-                            "formatted_prompt": formatted_prompt,
-                            "prompt_format": prompt_format,
-                            "prompt_tokens": len(tokenizer.encode(formatted_prompt)),
+                            "scenario_id": scenario_id,
+                            "prompt_profile": prompt_profile,
+                            "request_count": request_count,
+                            "max_new_tokens": max_new_tokens,
+                            "prompt_format": prompt_records[0]["prompt_format"],
+                            "prompt_tokens_min": min(prompt_tokens),
+                            "prompt_tokens_max": max(prompt_tokens),
+                            "prompt_tokens_mean": sum(prompt_tokens) / len(prompt_tokens),
+                            "total_prompt_tokens": sum(prompt_tokens),
+                            "prompt_records": prompt_records,
                         }
                     )
-                prompt_tokens = [record["prompt_tokens"] for record in prompt_records]
-                scenario_specs.append(
-                    {
-                        "scenario_id": f"{prompt_profile}_out{max_new_tokens}_n{request_count}",
-                        "prompt_profile": prompt_profile,
-                        "request_count": request_count,
-                        "max_new_tokens": max_new_tokens,
-                        "prompt_format": prompt_records[0]["prompt_format"],
-                        "prompt_tokens_min": min(prompt_tokens),
-                        "prompt_tokens_max": max(prompt_tokens),
-                        "prompt_tokens_mean": sum(prompt_tokens) / len(prompt_tokens),
-                        "total_prompt_tokens": sum(prompt_tokens),
-                        "prompt_records": prompt_records,
-                    }
-                )
+        return specs
+
+    scenario_specs = build_scenario_specs(prompt_profile_values)
+    warmup_scenario_specs = (
+        build_scenario_specs(
+            [warmup_prompt_profile_value],
+            scenario_id_prefix="warmup",
+        )
+        if warmup_prompt_profile_value
+        else scenario_specs
+    )
     prompt_format_ms = (time.perf_counter() - prompt_format_started) * 1000
 
     max_request_count = max(request_count_values)
     max_output_tokens = max(output_token_values)
-    max_prompt_tokens = max(spec["prompt_tokens_max"] for spec in scenario_specs)
+    all_shape_specs = scenario_specs + warmup_scenario_specs
+    max_prompt_tokens = max(spec["prompt_tokens_max"] for spec in all_shape_specs)
     max_model_len = max(1024, max_prompt_tokens + max_output_tokens + 32)
     max_num_batched_tokens = max(2048, max_request_count * max_model_len)
     scenario_plan = []
@@ -724,7 +762,7 @@ def run_vllm_prefix_cache_paired_remote(
             warmup_summaries = []
             run_order = 0
             for warmup_index in range(warmup_runs):
-                for spec in scenario_specs:
+                for spec in warmup_scenario_specs:
                     result = await run_scenario(
                         spec,
                         repeat_index=-(warmup_index + 1),
@@ -832,6 +870,8 @@ def run_vllm_prefix_cache_paired_remote(
         "repeats": int(repeats),
         "scenario_seed": int(scenario_seed),
         "warmup_runs": int(warmup_runs),
+        "warmup_prompt_profile": warmup_prompt_profile_value or None,
+        "warmup_scenario_count": len(warmup_scenario_specs) if warmup_runs else 0,
         "phase_order": phase_order,
         "collect_cache_metrics": bool(collect_cache_metrics),
         "kv_cache_metrics_sample": float(kv_cache_metrics_sample),
@@ -3760,6 +3800,7 @@ def main(
     output_tokens: str = DEFAULT_VLLM_SWEEP_OUTPUT_TOKENS,
     repeats: int = DEFAULT_VLLM_SWEEP_REPEATS,
     warmup_runs: int = 1,
+    warmup_prompt_profile: str = "",
     phase_order: str = "async_first",
     scenario_seed: int = DEFAULT_VLLM_SWEEP_SEED,
     prefix_caching: str = "off",
@@ -4234,6 +4275,7 @@ def main(
     if mode in {
         "vllm-prefix-cache-isolated-metrics",
         "vllm-prefix-cache-isolated-warm-window",
+        "vllm-prefix-cache-isolated-neutral-warmup",
     }:
         request_count_values = _split_positive_int_csv(request_counts, "request_counts")
         prompt_profile_values = [
@@ -4248,7 +4290,20 @@ def main(
         if isolated_phase_order not in {"cold_first", "cache_first"}:
             isolated_phase_order = "cold_first"
         effective_warmup_runs = (
-            1 if mode == "vllm-prefix-cache-isolated-warm-window" else 0
+            1
+            if mode
+            in {
+                "vllm-prefix-cache-isolated-warm-window",
+                "vllm-prefix-cache-isolated-neutral-warmup",
+            }
+            else 0
+        )
+        effective_warmup_prompt_profile = (
+            warmup_prompt_profile.strip().lower().replace("-", "_")
+            if warmup_prompt_profile.strip()
+            else "neutral_long"
+            if mode == "vllm-prefix-cache-isolated-neutral-warmup"
+            else ""
         )
 
         paired_runs = []
@@ -4266,6 +4321,7 @@ def main(
                             repeats=1,
                             scenario_seed=scenario_seed + repeat_index,
                             warmup_runs=effective_warmup_runs,
+                            warmup_prompt_profile=effective_warmup_prompt_profile,
                             phase_order=isolated_phase_order,
                             collect_cache_metrics=True,
                             kv_cache_metrics_sample=kv_cache_metrics_sample,
@@ -4282,6 +4338,9 @@ def main(
                         row["isolation_call_index"] = call_index
                         row["isolation_phase_order"] = single_payload["phase_order"]
                         row["isolation_warmup_runs"] = effective_warmup_runs
+                        row["isolation_warmup_prompt_profile"] = (
+                            effective_warmup_prompt_profile or None
+                        )
                         paired_runs.append(row)
 
                         cold_run = single_payload["cold_scenario_runs"][0]
@@ -4295,6 +4354,12 @@ def main(
                                 "request_count": row["request_count"],
                                 "max_new_tokens": row["max_new_tokens"],
                                 "phase_order": single_payload["phase_order"],
+                                "warmup_prompt_profile": single_payload[
+                                    "warmup_prompt_profile"
+                                ],
+                                "warmup_scenario_count": single_payload[
+                                    "warmup_scenario_count"
+                                ],
                                 "cold_engine_load_ms": single_payload[
                                     "cold_engine_load_ms"
                                 ],
@@ -4349,13 +4414,15 @@ def main(
             "scenario_seed": int(scenario_seed),
             "phase_order": isolated_phase_order,
             "warmup_runs": effective_warmup_runs,
+            "warmup_prompt_profile": effective_warmup_prompt_profile or None,
             "collect_cache_metrics": True,
             "kv_cache_metrics_sample": float(kv_cache_metrics_sample),
             "isolation_method": (
                 "Each scenario/repeat is executed by a separate remote paired "
                 "benchmark call with fresh cold/cache AsyncLLM engines. The "
                 f"run uses {effective_warmup_runs} warmup scenario run(s) "
-                "inside each fresh engine before the measured scenario."
+                "inside each fresh engine before the measured scenario. "
+                f"Warmup prompt profile: {effective_warmup_prompt_profile or 'measured scenario'}."
             ),
             "remote_call_count": len(remote_call_summaries),
             "scenario_count": len(paired_scenarios),
@@ -4395,6 +4462,8 @@ def main(
         default_output = (
             DEFAULT_VLLM_PREFIX_CACHE_ISOLATED_WARM_WINDOW_OUTPUT
             if mode == "vllm-prefix-cache-isolated-warm-window"
+            else DEFAULT_VLLM_PREFIX_CACHE_ISOLATED_NEUTRAL_WARMUP_OUTPUT
+            if mode == "vllm-prefix-cache-isolated-neutral-warmup"
             else DEFAULT_VLLM_PREFIX_CACHE_ISOLATED_METRICS_OUTPUT
         )
         output_path = Path(output_dir or default_output)
@@ -4413,6 +4482,7 @@ def main(
         print(f"remote_calls: {payload['remote_call_count']}")
         print(f"phase_order: {payload['phase_order']}")
         print(f"warmup_runs: {payload['warmup_runs']}")
+        print(f"warmup_prompt_profile: {payload['warmup_prompt_profile']}")
         print(
             "mean_cache_to_cold_throughput_ratio: "
             f"{payload['mean_cache_to_cold_throughput_ratio']:.3f}"
@@ -4443,6 +4513,7 @@ def main(
             repeats=repeats,
             scenario_seed=scenario_seed,
             warmup_runs=warmup_runs,
+            warmup_prompt_profile=warmup_prompt_profile,
             phase_order=phase_order,
             collect_cache_metrics=collect_cache_metrics,
             kv_cache_metrics_sample=kv_cache_metrics_sample,
@@ -4467,6 +4538,7 @@ def main(
         print(f"paired_runs: {payload['paired_run_count']}")
         print(f"repeats: {payload['repeats']}")
         print(f"warmup_runs: {payload['warmup_runs']}")
+        print(f"warmup_prompt_profile: {payload['warmup_prompt_profile']}")
         print(f"phase_order: {payload['phase_order']}")
         print(f"collect_cache_metrics: {payload['collect_cache_metrics']}")
         print(
@@ -4596,6 +4668,7 @@ def main(
             "'vllm-server-async-multitrial-aggregate', "
             "'vllm-server-async-workload-compare', 'vllm-sweep', or "
             "'vllm-prefix-cache-isolated-stability-summary', "
+            "'vllm-prefix-cache-isolated-neutral-warmup', "
             "'vllm-prefix-cache-isolated-warm-window', "
             "'vllm-prefix-cache-isolated-metrics', "
             "'vllm-prefix-cache-paired', 'vllm-prefix-cache-compare', or "
@@ -4700,6 +4773,8 @@ def _select_sweep_prompts(prompt_count: int, prompt_profile: str) -> list[str]:
         return _select_shared_prefix_prompts(prompt_count, long_context=True)
     if prompt_profile == "matched_unique_prefix":
         return _select_matched_unique_prefix_prompts(prompt_count)
+    if prompt_profile == "neutral_long":
+        return _select_neutral_long_prompts(prompt_count)
     valid_profiles = ", ".join(sorted(VALID_VLLM_PROMPT_PROFILES))
     raise ValueError(f"prompt_profile must be one of: {valid_profiles}")
 
@@ -4757,6 +4832,25 @@ def _select_matched_unique_prefix_prompts(prompt_count: int) -> list[str]:
     for index in range(prompt_count):
         suffix = suffixes[index % len(suffixes)]
         unique_context = _matched_unique_prefix_context(index)
+        prompts.append(f"{unique_context}\n\n{suffix}")
+    return prompts
+
+
+def _select_neutral_long_prompts(prompt_count: int) -> list[str]:
+    suffixes = [
+        "Calibration task A: classify which queue should receive this packet.",
+        "Calibration task B: summarize the dominant constraint in one sentence.",
+        "Calibration task C: identify one field that would be useful to log.",
+        "Calibration task D: compare the packet with a steady-state request.",
+        "Calibration task E: explain how admission order affects the report.",
+        "Calibration task F: name one sanity check for the measurement window.",
+        "Calibration task G: describe the expected scheduler bookkeeping.",
+        "Calibration task H: recommend the next diagnostic counter to inspect.",
+    ]
+    prompts = []
+    for index in range(prompt_count):
+        suffix = suffixes[index % len(suffixes)]
+        unique_context = _neutral_long_context(index)
         prompts.append(f"{unique_context}\n\n{suffix}")
     return prompts
 
@@ -4847,6 +4941,56 @@ def _matched_unique_prefix_context(index: int) -> str:
         "as the shared-prefix profile, the result is probably not caused by "
         "large exact-prefix reuse. If this control is flat while shared-prefix "
         "improves, the benchmark has a stronger KV-cache signal."
+    )
+
+
+def _neutral_long_context(index: int) -> str:
+    labels = [
+        "Quartz-11",
+        "Lumen-22",
+        "Atlas-33",
+        "Nimbus-44",
+        "Vector-55",
+        "Solace-66",
+        "Orchid-77",
+        "Zenith-88",
+    ]
+    label = labels[index % len(labels)]
+    return (
+        f"{label} calibration packet. This warmup request is deliberately "
+        "unrelated to the measured incident profiles. It begins with a unique "
+        "marker, a separate routing note, a different document title, and an "
+        "independent checklist so it should not seed the measured prefix-cache "
+        "state beyond short tokenizer and chat-template scaffolding. The packet "
+        "is only meant to exercise a comparable long-prefill request shape.\n\n"
+        "Calibration background. The synthetic document describes a nightly "
+        "data-quality audit for a batch analytics service. The audit tracks "
+        "schema drift, missing partitions, retry budgets, timestamp skew, "
+        "checksum mismatches, and dashboard refresh order. The worker pool has "
+        "already loaded its dependencies, the input tables are fixed for the "
+        "trial, and every request asks for a deterministic short answer. The "
+        "content is verbose on purpose so the serving engine allocates and "
+        "schedules a long prompt before producing only a small number of output "
+        "tokens.\n\n"
+        "Shape notes. Each calibration request keeps a similar envelope: one "
+        "long context, one short task, one deterministic decode setting, and a "
+        "batch admitted at nearly the same time. The text avoids the measured "
+        "shared incident brief, tenant rollout language, prefix-cache decision "
+        "rule, and benchmark-specific control paragraphs. Its job is to touch "
+        "the same general prefill and decode machinery while avoiding the exact "
+        "leading token sequences that the measured cache experiment evaluates.\n\n"
+        "Audit details. The batch has eight possible records, each record uses "
+        "a separate source table, owner alias, retry window, freshness target, "
+        "and downstream report. The reviewer must decide whether the record is "
+        "ready for publication, should be quarantined for another validation "
+        "pass, or should be escalated because a threshold changed. The details "
+        "are intentionally repetitive in structure but different in leading "
+        "tokens, which keeps the warmup useful for request-shape coverage "
+        "without constructing a large common prefix for the measured workload.\n\n"
+        "Calibration rule. Treat this packet as a warmup-only document. The "
+        "answer should be concise, deterministic, and based only on the audit "
+        "fields in this packet. Do not assume it shares state, document text, "
+        "or reusable leading context with any later measured request."
     )
 
 
@@ -6326,12 +6470,14 @@ def _summarize_vllm_prefix_cache_isolated_stability(
     }
     source_mode = source_payload.get("mode")
     source_warmup_runs = source_payload.get("warmup_runs")
+    source_warmup_prompt_profile = source_payload.get("warmup_prompt_profile")
     source_repeats = source_payload.get("repeats")
     source_phase_order = source_payload.get("phase_order")
     markdown = _format_vllm_prefix_cache_isolated_stability_markdown(
         source_dir=isolated_metrics_dir,
         source_mode=source_mode,
         source_warmup_runs=source_warmup_runs,
+        source_warmup_prompt_profile=source_warmup_prompt_profile,
         source_repeats=source_repeats,
         source_phase_order=source_phase_order,
         scenario_rows=scenario_rows,
@@ -6349,6 +6495,7 @@ def _summarize_vllm_prefix_cache_isolated_stability(
         "source_remote_call_count": source_payload["remote_call_count"],
         "source_mode": source_mode,
         "source_warmup_runs": source_warmup_runs,
+        "source_warmup_prompt_profile": source_warmup_prompt_profile,
         "source_repeats": source_repeats,
         "source_phase_order": source_phase_order,
         "scenario_count": len(scenario_rows),
@@ -6366,6 +6513,7 @@ def _format_vllm_prefix_cache_isolated_stability_markdown(
     source_dir: Path,
     source_mode: Any,
     source_warmup_runs: Any,
+    source_warmup_prompt_profile: Any,
     source_repeats: Any,
     source_phase_order: Any,
     scenario_rows: list[dict[str, Any]],
@@ -6378,6 +6526,7 @@ def _format_vllm_prefix_cache_isolated_stability_markdown(
         f"Source: `{source_dir}`",
         f"Source mode: `{source_mode}`",
         f"Warmup runs: `{source_warmup_runs}`",
+        f"Warmup prompt profile: `{source_warmup_prompt_profile}`",
         f"Repeats: `{source_repeats}`",
         f"Phase order: `{source_phase_order}`",
         "",
