@@ -7582,6 +7582,7 @@ def _summarize_vllm_prefix_cache_isolated_stability(
             "cache_prefix_cache_counter_hit_rate_pct",
             "cache_to_cold_prefix_cache_counter_hit_rate_pct_delta",
             "cache_to_cold_output_tokens_per_second_ratio",
+            "cache_to_cold_p95_first_event_ms_ratio",
             "cache_to_cold_p95_latency_ms_ratio",
             "cache_to_cold_p95_stream_tpot_ms_ratio",
         ):
@@ -7619,8 +7620,12 @@ def _summarize_vllm_prefix_cache_isolated_stability(
         control_counter_hit = control["cache_prefix_cache_counter_hit_rate_pct_mean"]
         shared_throughput = shared["cache_to_cold_output_tokens_per_second_ratio_mean"]
         control_throughput = control["cache_to_cold_output_tokens_per_second_ratio_mean"]
+        shared_first_event = shared["cache_to_cold_p95_first_event_ms_ratio_mean"]
+        control_first_event = control["cache_to_cold_p95_first_event_ms_ratio_mean"]
         shared_latency = shared["cache_to_cold_p95_latency_ms_ratio_mean"]
         control_latency = control["cache_to_cold_p95_latency_ms_ratio_mean"]
+        shared_tpot = shared["cache_to_cold_p95_stream_tpot_ms_ratio_mean"]
+        control_tpot = control["cache_to_cold_p95_stream_tpot_ms_ratio_mean"]
         profile_control_row = {
             "request_count": request_count,
             "max_new_tokens": max_new_tokens,
@@ -7668,11 +7673,23 @@ def _summarize_vllm_prefix_cache_isolated_stability(
                 shared_throughput,
                 control_throughput,
             ),
+            "shared_cache_to_cold_p95_first_event_ratio_mean": shared_first_event,
+            "control_cache_to_cold_p95_first_event_ratio_mean": control_first_event,
+            "shared_minus_control_cache_to_cold_p95_first_event_ratio_mean": _delta(
+                shared_first_event,
+                control_first_event,
+            ),
             "shared_cache_to_cold_p95_latency_ratio_mean": shared_latency,
             "control_cache_to_cold_p95_latency_ratio_mean": control_latency,
             "shared_minus_control_cache_to_cold_p95_latency_ratio_mean": _delta(
                 shared_latency,
                 control_latency,
+            ),
+            "shared_cache_to_cold_p95_stream_tpot_ratio_mean": shared_tpot,
+            "control_cache_to_cold_p95_stream_tpot_ratio_mean": control_tpot,
+            "shared_minus_control_cache_to_cold_p95_stream_tpot_ratio_mean": _delta(
+                shared_tpot,
+                control_tpot,
             ),
         }
         for output_prefix, source_field in (
@@ -7689,8 +7706,16 @@ def _summarize_vllm_prefix_cache_isolated_stability(
                 "cache_to_cold_output_tokens_per_second_ratio",
             ),
             (
+                "shared_minus_control_cache_to_cold_p95_first_event_ratio",
+                "cache_to_cold_p95_first_event_ms_ratio",
+            ),
+            (
                 "shared_minus_control_cache_to_cold_p95_latency_ratio",
                 "cache_to_cold_p95_latency_ms_ratio",
+            ),
+            (
+                "shared_minus_control_cache_to_cold_p95_stream_tpot_ratio",
+                "cache_to_cold_p95_stream_tpot_ms_ratio",
             ),
         ):
             values = _paired_profile_delta_values(
@@ -7724,8 +7749,16 @@ def _summarize_vllm_prefix_cache_isolated_stability(
             row["shared_minus_control_cache_to_cold_throughput_ratio_mean"]
             for row in profile_control_rows
         ),
+        "mean_shared_minus_control_cache_to_cold_p95_first_event_ratio": _mean_present(
+            row["shared_minus_control_cache_to_cold_p95_first_event_ratio_mean"]
+            for row in profile_control_rows
+        ),
         "mean_shared_minus_control_cache_to_cold_p95_latency_ratio": _mean_present(
             row["shared_minus_control_cache_to_cold_p95_latency_ratio_mean"]
+            for row in profile_control_rows
+        ),
+        "mean_shared_minus_control_cache_to_cold_p95_stream_tpot_ratio": _mean_present(
+            row["shared_minus_control_cache_to_cold_p95_stream_tpot_ratio_mean"]
             for row in profile_control_rows
         ),
         "max_cache_hit_rate_population_stdev": max(cache_stdevs) if cache_stdevs else None,
@@ -7756,8 +7789,16 @@ def _summarize_vllm_prefix_cache_isolated_stability(
             "shared_minus_control_cache_to_cold_throughput_ratio",
         ),
         (
+            "mean_shared_minus_control_cache_to_cold_p95_first_event_ratio",
+            "shared_minus_control_cache_to_cold_p95_first_event_ratio",
+        ),
+        (
             "mean_shared_minus_control_cache_to_cold_p95_latency_ratio",
             "shared_minus_control_cache_to_cold_p95_latency_ratio",
+        ),
+        (
+            "mean_shared_minus_control_cache_to_cold_p95_stream_tpot_ratio",
+            "shared_minus_control_cache_to_cold_p95_stream_tpot_ratio",
         ),
     ):
         values = paired_delta_values_by_metric.get(metric_prefix, [])
@@ -7870,8 +7911,16 @@ def _format_vllm_prefix_cache_isolated_stability_markdown(
                     f"{fmt_ci(summary, 'mean_shared_minus_control_cache_to_cold_throughput_ratio')} |"
                 ),
                 (
+                    "| p95 first-event/TTFT ratio delta 90% bootstrap interval | "
+                    f"{fmt_ci(summary, 'mean_shared_minus_control_cache_to_cold_p95_first_event_ratio')} |"
+                ),
+                (
                     "| p95 latency-ratio delta 90% bootstrap interval | "
                     f"{fmt_ci(summary, 'mean_shared_minus_control_cache_to_cold_p95_latency_ratio')} |"
+                ),
+                (
+                    "| p95 stream TPOT ratio delta 90% bootstrap interval | "
+                    f"{fmt_ci(summary, 'mean_shared_minus_control_cache_to_cold_p95_stream_tpot_ratio')} |"
                 ),
                 (
                     "| Max direct counter hit-rate population stdev | "
@@ -7934,9 +7983,15 @@ def _format_vllm_prefix_cache_isolated_stability_markdown(
                     "| Requests | Paired Obs | Logged Shared Hit Mean | "
                     "Logged Control Hit Mean | Direct Counter Delta | "
                     "Direct Counter 90% CI | Throughput Delta | "
-                    "Throughput 90% CI | p95 Latency Delta | p95 Latency 90% CI |"
+                    "Throughput 90% CI | p95 First-Event Delta | "
+                    "p95 First-Event 90% CI | p95 Latency Delta | "
+                    "p95 Latency 90% CI | p95 Stream TPOT Delta | "
+                    "p95 Stream TPOT 90% CI |"
                 ),
-                "| ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |",
+                (
+                    "| ---: | ---: | ---: | ---: | ---: | ---: | ---: | "
+                    "---: | ---: | ---: | ---: | ---: | ---: | ---: |"
+                ),
             ]
         )
     else:
@@ -7964,8 +8019,12 @@ def _format_vllm_prefix_cache_isolated_stability_markdown(
                 f"{fmt_ci(row, 'shared_minus_control_cache_counter_hit_rate_pct', ' pp')} | "
                 f"{fmt(row['shared_minus_control_cache_to_cold_throughput_ratio_mean'])} | "
                 f"{fmt_ci(row, 'shared_minus_control_cache_to_cold_throughput_ratio')} | "
+                f"{fmt(row['shared_minus_control_cache_to_cold_p95_first_event_ratio_mean'])} | "
+                f"{fmt_ci(row, 'shared_minus_control_cache_to_cold_p95_first_event_ratio')} | "
                 f"{fmt(row['shared_minus_control_cache_to_cold_p95_latency_ratio_mean'])} | "
-                f"{fmt_ci(row, 'shared_minus_control_cache_to_cold_p95_latency_ratio')} |"
+                f"{fmt_ci(row, 'shared_minus_control_cache_to_cold_p95_latency_ratio')} | "
+                f"{fmt(row['shared_minus_control_cache_to_cold_p95_stream_tpot_ratio_mean'])} | "
+                f"{fmt_ci(row, 'shared_minus_control_cache_to_cold_p95_stream_tpot_ratio')} |"
             )
         else:
             lines.append(

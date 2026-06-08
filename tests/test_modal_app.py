@@ -140,7 +140,34 @@ class ModalAppTests(unittest.TestCase):
                 "mean_shared_minus_control_cache_counter_hit_rate_pct_bootstrap_mean_p05"
             ]
         )
+        self.assertEqual(
+            comparison[
+                "shared_minus_control_cache_to_cold_p95_first_event_ratio_paired_observation_count"
+            ],
+            2,
+        )
+        self.assertAlmostEqual(
+            comparison["shared_minus_control_cache_to_cold_p95_first_event_ratio_mean"],
+            -0.4,
+        )
+        self.assertEqual(
+            comparison[
+                "shared_minus_control_cache_to_cold_p95_stream_tpot_ratio_paired_observation_count"
+            ],
+            2,
+        )
+        self.assertAlmostEqual(
+            comparison["shared_minus_control_cache_to_cold_p95_stream_tpot_ratio_mean"],
+            -0.175,
+        )
+        self.assertIsNotNone(
+            payload["summary"][
+                "mean_shared_minus_control_cache_to_cold_p95_first_event_ratio_bootstrap_mean_p05"
+            ]
+        )
         self.assertIn("90% bootstrap interval", payload["markdown"])
+        self.assertIn("first-event/TTFT", payload["markdown"])
+        self.assertIn("Stream TPOT", payload["markdown"])
 
     def test_isolated_stability_summary_accepts_custom_profile_pair(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -430,12 +457,20 @@ def _stability_run_rows(
 ) -> list[dict]:
     rows = []
     values = [
-        (shared_profile, 0, 50.0, 1.4, 0.8),
-        (control_profile, 0, 5.0, 1.0, 1.0),
-        (shared_profile, 1, 70.0, 1.6, 0.7),
-        (control_profile, 1, 10.0, 1.1, 0.95),
+        (shared_profile, 0, 50.0, 1.4, 0.6, 0.8, 0.9),
+        (control_profile, 0, 5.0, 1.0, 1.0, 1.0, 1.1),
+        (shared_profile, 1, 70.0, 1.6, 0.55, 0.7, 0.85),
+        (control_profile, 1, 10.0, 1.1, 0.95, 0.95, 1.0),
     ]
-    for profile, repeat_index, counter_hit, throughput_ratio, latency_ratio in values:
+    for (
+        profile,
+        repeat_index,
+        counter_hit,
+        throughput_ratio,
+        first_event_ratio,
+        latency_ratio,
+        tpot_ratio,
+    ) in values:
         rows.append(
             {
                 "scenario_id": f"{profile}_out8_n2",
@@ -455,8 +490,9 @@ def _stability_run_rows(
                 "cache_prefix_cache_counter_hit_rate_pct": counter_hit,
                 "cache_to_cold_prefix_cache_counter_hit_rate_pct_delta": counter_hit,
                 "cache_to_cold_output_tokens_per_second_ratio": throughput_ratio,
+                "cache_to_cold_p95_first_event_ms_ratio": first_event_ratio,
                 "cache_to_cold_p95_latency_ms_ratio": latency_ratio,
-                "cache_to_cold_p95_stream_tpot_ms_ratio": latency_ratio,
+                "cache_to_cold_p95_stream_tpot_ms_ratio": tpot_ratio,
             }
         )
     return rows

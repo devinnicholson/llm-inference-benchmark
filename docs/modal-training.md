@@ -4972,3 +4972,85 @@ current profile-control summary only compares throughput and p95 latency. Add
 paired bootstrap intervals for first-event/TTFT and stream TPOT ratios, then
 rerun the summary on Training 046's existing artifact before launching another
 GPU run.
+
+# Training 047: TTFT-Aware Prefix-Cache Summary
+
+Training 047 upgrades the isolated prefix-cache stability summary so it reports
+paired bootstrap intervals for prefill-sensitive and decode-sensitive timing
+metrics.
+
+## Goal
+
+Training 046 proved the direct cache-counter effect but showed that aggregate
+throughput and p95 end-to-end latency did not provide a stable timing claim.
+That left a measurement gap: prefix caching should mostly affect prefill and
+time-to-first-token, while decode TPOT may not improve. Training 047 fills that
+gap without launching another GPU benchmark by adding these profile-control
+metrics to the stability summary:
+
+- `shared_minus_control_cache_to_cold_p95_first_event_ratio`
+- `shared_minus_control_cache_to_cold_p95_stream_tpot_ratio`
+
+## Command
+
+Regenerate the Training 046 summary with TTFT and TPOT intervals:
+
+```bash
+modal run modal_app.py --mode vllm-prefix-cache-isolated-stability-summary \
+  --prefix-cache-isolated-metrics-dir results/modal-vllm-prefix-cache-no-repeat-n16-stability-r8 \
+  --prefix-cache-shared-profile shared_prefix_long_no_repeat_variant \
+  --prefix-cache-control-profile matched_unique_prefix_no_repeat_variant \
+  --output-dir results/modal-vllm-prefix-cache-no-repeat-n16-stability-r8-summary-ttft
+```
+
+## Artifacts
+
+```text
+results/modal-vllm-prefix-cache-no-repeat-n16-stability-r8-summary-ttft/prefix-cache-isolated-stability-summary.json
+results/modal-vllm-prefix-cache-no-repeat-n16-stability-r8-summary-ttft/prefix-cache-isolated-stability-summary.csv
+results/modal-vllm-prefix-cache-no-repeat-n16-stability-r8-summary-ttft/prefix-cache-isolated-stability-profile-control.csv
+results/modal-vllm-prefix-cache-no-repeat-n16-stability-r8-summary-ttft/prefix-cache-isolated-stability-summary.md
+```
+
+## Result
+
+The enhanced summary keeps the Training 046 counter and throughput results but
+adds first-event/TTFT and stream TPOT intervals.
+
+| Metric | Value |
+| --- | ---: |
+| Direct counter hit-rate 90% bootstrap interval | 78.269 pp to 78.602 pp |
+| Throughput-ratio delta 90% bootstrap interval | -0.332 to 0.185 |
+| p95 first-event/TTFT ratio delta 90% bootstrap interval | -0.497 to -0.073 |
+| p95 latency-ratio delta 90% bootstrap interval | -0.180 to 0.023 |
+| p95 stream TPOT ratio delta 90% bootstrap interval | -0.113 to 0.044 |
+
+Shared-prefix versus matched control:
+
+| Requests | Paired Obs | Direct Counter Delta | Throughput Delta | p95 First-Event Delta | p95 Latency Delta | p95 Stream TPOT Delta |
+| ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| 16 | 8 | 78.422 pp | -0.036 | -0.284 | -0.074 | -0.036 |
+
+## Interpretation
+
+This is the right timing story for the current artifact. Prefix-cache reuse
+does not create a stable throughput win in this tiny-model setup, and decode
+TPOT remains noisy. But the p95 first-event/TTFT delta is clearly favorable:
+the 90% interval is `-0.497` to `-0.073`. That means the cache effect is showing
+up where the systems hypothesis predicts it should show up: prefill-sensitive
+first-token latency.
+
+The benchmark claim is now more precise:
+
+- The shared-prefix workload reliably triggers measured-window KV-cache reuse.
+- The matched unique-prefix control does not.
+- The reuse produces a stable first-event/TTFT improvement at n=16.
+- It does not yet produce a stable aggregate throughput or decode TPOT claim.
+
+## Next Step
+
+Training 048 should turn this into a report-quality result table and narrative:
+counter reuse, TTFT improvement, and non-claims for throughput/TPOT. After that,
+the next GPU experiment should stress a more production-relevant setting, such
+as a larger model or longer shared prefixes, where prefill dominates more of the
+request cost.

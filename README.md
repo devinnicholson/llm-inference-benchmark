@@ -717,6 +717,17 @@ modal run modal_app.py --mode vllm-prefix-cache-isolated-stability-summary \
   --output-dir results/modal-vllm-prefix-cache-no-repeat-n16-stability-r8-summary
 ```
 
+Regenerate the no-repeat n=16 stability summary with TTFT/first-event and stream
+TPOT profile-control intervals:
+
+```bash
+modal run modal_app.py --mode vllm-prefix-cache-isolated-stability-summary \
+  --prefix-cache-isolated-metrics-dir results/modal-vllm-prefix-cache-no-repeat-n16-stability-r8 \
+  --prefix-cache-shared-profile shared_prefix_long_no_repeat_variant \
+  --prefix-cache-control-profile matched_unique_prefix_no_repeat_variant \
+  --output-dir results/modal-vllm-prefix-cache-no-repeat-n16-stability-r8-summary-ttft
+```
+
 Modal training is documented in
 [`docs/modal-training.md`](docs/modal-training.md).
 
