@@ -4849,3 +4849,126 @@ is the request count where Training 044 already produced positive timing
 intervals and Training 045 produced the largest mean timing separation. A good
 next run is eight to ten no-repeat paired observations at n=16, followed by the
 same stability summary.
+
+# Training 046: No-Repeat n=16 Fixed-Shape Stability
+
+Training 046 repeats the duplicate-free n=16 experiment eight times at a fixed
+shape.
+
+## Goal
+
+Test whether Training 044's positive end-to-end timing result survives more
+paired observations when the request count and engine shape stay fixed. This run
+uses the same duplicate-free prompt profiles, output length, seed family,
+neutral warmup, and cold-first phase order as Training 044:
+
+- `shared_prefix_long_no_repeat_variant`
+- `matched_unique_prefix_no_repeat_variant`
+
+Unlike Training 045, this is not a request-count sweep. Every isolated call uses
+n=16, so `max_num_batched_tokens` and `max_num_seqs` stay fixed for the measured
+shape.
+
+## Command
+
+Run the n=16 fixed-shape stability pass:
+
+```bash
+modal run modal_app.py --mode vllm-prefix-cache-isolated-neutral-warmup \
+  --prompt-profiles shared_prefix_long_no_repeat_variant,matched_unique_prefix_no_repeat_variant \
+  --output-tokens 8 \
+  --request-counts 16 \
+  --repeats 8 \
+  --scenario-seed 577 \
+  --phase-order cold_first \
+  --kv-cache-metrics-sample 1.0 \
+  --prefix-cache-shared-profile shared_prefix_long_no_repeat_variant \
+  --prefix-cache-control-profile matched_unique_prefix_no_repeat_variant \
+  --output-dir results/modal-vllm-prefix-cache-no-repeat-n16-stability-r8
+```
+
+Generate the stability summary:
+
+```bash
+modal run modal_app.py --mode vllm-prefix-cache-isolated-stability-summary \
+  --prefix-cache-isolated-metrics-dir results/modal-vllm-prefix-cache-no-repeat-n16-stability-r8 \
+  --prefix-cache-shared-profile shared_prefix_long_no_repeat_variant \
+  --prefix-cache-control-profile matched_unique_prefix_no_repeat_variant \
+  --output-dir results/modal-vllm-prefix-cache-no-repeat-n16-stability-r8-summary
+```
+
+## Artifacts
+
+```text
+results/modal-vllm-prefix-cache-no-repeat-n16-stability-r8/prefix-cache-isolated-metrics.json
+results/modal-vllm-prefix-cache-no-repeat-n16-stability-r8/prefix-cache-isolated-metrics-summary.csv
+results/modal-vllm-prefix-cache-no-repeat-n16-stability-r8/prefix-cache-isolated-metrics-runs.csv
+results/modal-vllm-prefix-cache-no-repeat-n16-stability-r8/prefix-cache-isolated-profile-control.csv
+results/modal-vllm-prefix-cache-no-repeat-n16-stability-r8-summary/prefix-cache-isolated-stability-summary.json
+results/modal-vllm-prefix-cache-no-repeat-n16-stability-r8-summary/prefix-cache-isolated-stability-summary.csv
+results/modal-vllm-prefix-cache-no-repeat-n16-stability-r8-summary/prefix-cache-isolated-stability-profile-control.csv
+results/modal-vllm-prefix-cache-no-repeat-n16-stability-r8-summary/prefix-cache-isolated-stability-summary.md
+```
+
+## Result
+
+The raw run produced two scenarios, sixteen paired runs, and sixteen isolated
+remote calls.
+
+| Metric | Value |
+| --- | ---: |
+| Mean cache-to-cold throughput ratio | 1.191 |
+| Mean cache-to-cold latency ratio | 0.952 |
+| Mean shared-minus-control logged cache-hit delta | 32.400 pp |
+| Mean shared-minus-control direct counter delta | 78.395 pp |
+
+Counter-aware stability summary:
+
+| Metric | Value |
+| --- | ---: |
+| Mean shared-minus-control cumulative logged cache hit rate | 32.600 pp |
+| Mean shared-minus-control direct counter hit rate | 78.422 pp |
+| Direct counter hit-rate 90% bootstrap interval | 78.269 pp to 78.602 pp |
+| Throughput-ratio delta 90% bootstrap interval | -0.332 to 0.185 |
+| p95 latency-ratio delta 90% bootstrap interval | -0.180 to 0.023 |
+| Max direct counter hit-rate population stdev | 0.197 |
+
+Scenario direct counters:
+
+| Profile | Requests | Runs | Logged Hit Mean | Direct Counter Hit Mean | Direct Queries | Direct Hits |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| `matched_unique_prefix_no_repeat_variant` | 16 | 8 | 31.387% | 4.716% | 5430.375 | 256.000 |
+| `shared_prefix_long_no_repeat_variant` | 16 | 8 | 63.987% | 83.138% | 5287.375 | 4396.000 |
+
+Shared-prefix versus matched control:
+
+| Requests | Paired Obs | Direct Counter Delta | Direct Counter 90% CI | Throughput Delta | Throughput 90% CI | p95 Latency Delta | p95 Latency 90% CI |
+| ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| 16 | 8 | 78.422 pp | 78.269 pp to 78.602 pp | -0.036 | -0.332 to 0.185 | -0.074 | -0.180 to 0.023 |
+
+## Interpretation
+
+The measured-window prefix-cache counter claim is now very strong. Across eight
+paired observations, the matched unique-prefix control remains low at `4.716%`
+direct hit rate while the shared-prefix profile reaches `83.138%`. The direct
+shared-minus-control interval is tight: `78.269 pp` to `78.602 pp`.
+
+The end-to-end timing claim does not survive the larger fixed-shape pass. The
+throughput delta mean is slightly negative (`-0.036`) and its 90% interval
+crosses zero. The p95 latency delta still leans favorable (`-0.074`), but its
+90% interval also crosses zero. Training 044's three-repeat timing-positive
+result was therefore too small to treat as stable.
+
+This is still a useful research artifact. It cleanly separates "the cache is
+being reused" from "that reuse creates a reliable end-to-end speedup in this
+tiny-model Modal/vLLM/T4 setup." The former is proven by direct counters; the
+latter is not yet proven by throughput or p95 latency.
+
+## Next Step
+
+Training 047 should improve the stability summary instead of simply adding more
+repeats. Prefix caching should primarily affect prefill and TTFT, but the
+current profile-control summary only compares throughput and p95 latency. Add
+paired bootstrap intervals for first-event/TTFT and stream TPOT ratios, then
+rerun the summary on Training 046's existing artifact before launching another
+GPU run.

@@ -695,6 +695,28 @@ modal run modal_app.py --mode vllm-prefix-cache-isolated-stability-summary \
   --output-dir results/modal-vllm-prefix-cache-no-repeat-scaling-smoke-summary
 ```
 
+Run the no-repeat n=16 fixed-shape stability pass:
+
+```bash
+modal run modal_app.py --mode vllm-prefix-cache-isolated-neutral-warmup \
+  --prompt-profiles shared_prefix_long_no_repeat_variant,matched_unique_prefix_no_repeat_variant \
+  --output-tokens 8 \
+  --request-counts 16 \
+  --repeats 8 \
+  --scenario-seed 577 \
+  --phase-order cold_first \
+  --kv-cache-metrics-sample 1.0 \
+  --prefix-cache-shared-profile shared_prefix_long_no_repeat_variant \
+  --prefix-cache-control-profile matched_unique_prefix_no_repeat_variant \
+  --output-dir results/modal-vllm-prefix-cache-no-repeat-n16-stability-r8
+
+modal run modal_app.py --mode vllm-prefix-cache-isolated-stability-summary \
+  --prefix-cache-isolated-metrics-dir results/modal-vllm-prefix-cache-no-repeat-n16-stability-r8 \
+  --prefix-cache-shared-profile shared_prefix_long_no_repeat_variant \
+  --prefix-cache-control-profile matched_unique_prefix_no_repeat_variant \
+  --output-dir results/modal-vllm-prefix-cache-no-repeat-n16-stability-r8-summary
+```
+
 Modal training is documented in
 [`docs/modal-training.md`](docs/modal-training.md).
 
