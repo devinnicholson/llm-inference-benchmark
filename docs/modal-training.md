@@ -3890,3 +3890,132 @@ Training 038 should repeat the direct-counter neutral-warmup design across
 multiple seeds and repeats, then report confidence intervals for direct
 measured-window cache-hit deltas and timing deltas. The counter path is now good
 enough that the next question is stability, not observability.
+
+# Training 038: Direct Counter Stability Intervals
+
+Training 038 repeats the Training 037 direct-counter grid and upgrades the
+stability summary with paired-repeat bootstrap intervals.
+
+## Goal
+
+Move from a single direct-counter grid to a repeatable stability artifact.
+
+The summary now pairs shared-prefix and matched-control rows by request shape
+and repeat index. It reports distributions and 90% bootstrap intervals for:
+
+- direct measured-window prefix-cache hit-rate delta
+- cumulative logged hit-rate delta
+- shared-minus-control throughput-ratio delta
+- shared-minus-control p95 latency-ratio delta
+
+This keeps the cache-observability claim separate from the timing claim.
+
+## Command
+
+Run the repeated direct-counter neutral-warmup grid:
+
+```bash
+modal run modal_app.py --mode vllm-prefix-cache-isolated-neutral-warmup \
+  --prompt-profiles shared_prefix_long,matched_unique_prefix \
+  --output-tokens 8 \
+  --request-counts 2,4,8 \
+  --repeats 3 \
+  --scenario-seed 577 \
+  --phase-order cold_first \
+  --kv-cache-metrics-sample 1.0 \
+  --output-dir results/modal-vllm-prefix-cache-isolated-neutral-warmup-counter-stability
+```
+
+Generate the counter-aware stability summary:
+
+```bash
+modal run modal_app.py --mode vllm-prefix-cache-isolated-stability-summary \
+  --prefix-cache-isolated-metrics-dir results/modal-vllm-prefix-cache-isolated-neutral-warmup-counter-stability \
+  --output-dir results/modal-vllm-prefix-cache-isolated-counter-stability-summary
+```
+
+## Artifacts
+
+```text
+results/modal-vllm-prefix-cache-isolated-neutral-warmup-counter-stability/prefix-cache-isolated-metrics.json
+results/modal-vllm-prefix-cache-isolated-neutral-warmup-counter-stability/prefix-cache-isolated-metrics-summary.csv
+results/modal-vllm-prefix-cache-isolated-neutral-warmup-counter-stability/prefix-cache-isolated-metrics-runs.csv
+results/modal-vllm-prefix-cache-isolated-neutral-warmup-counter-stability/prefix-cache-isolated-profile-control.csv
+results/modal-vllm-prefix-cache-isolated-counter-stability-summary/prefix-cache-isolated-stability-summary.json
+results/modal-vllm-prefix-cache-isolated-counter-stability-summary/prefix-cache-isolated-stability-summary.csv
+results/modal-vllm-prefix-cache-isolated-counter-stability-summary/prefix-cache-isolated-stability-profile-control.csv
+results/modal-vllm-prefix-cache-isolated-counter-stability-summary/prefix-cache-isolated-stability-summary.md
+```
+
+## Result
+
+The raw run produced six scenarios, eighteen paired runs, and eighteen isolated
+remote calls. The top-level raw metrics were:
+
+| Metric | Value |
+| --- | ---: |
+| Mean cache-to-cold throughput ratio | 1.186 |
+| Mean cache-to-cold latency ratio | 0.909 |
+| Mean shared-minus-control logged cache-hit delta | 36.667 pp |
+| Mean shared-minus-control direct counter delta | 66.501 pp |
+
+Counter-aware stability summary:
+
+| Metric | Value |
+| --- | ---: |
+| Mean shared-minus-control cumulative logged cache hit rate | 36.667 pp |
+| Mean shared-minus-control direct counter hit rate | 66.501 pp |
+| Direct counter hit-rate 90% bootstrap interval | 58.660 pp to 74.342 pp |
+| Throughput-ratio delta 90% bootstrap interval | -0.160 to 0.576 |
+| p95 latency-ratio delta 90% bootstrap interval | -0.181 to 0.095 |
+| Max direct counter hit-rate population stdev | 0.000 |
+
+Scenario direct counters:
+
+| Profile | Requests | Runs | Logged Hit Mean | Direct Counter Hit Mean | Direct Queries | Direct Hits |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| `matched_unique_prefix` | 2 | 3 | 2.200% | 2.682% | 1193 | 32 |
+| `matched_unique_prefix` | 4 | 3 | 2.600% | 2.682% | 2386 | 64 |
+| `matched_unique_prefix` | 8 | 3 | 2.800% | 2.686% | 4765 | 128 |
+| `shared_prefix_long` | 2 | 3 | 28.100% | 49.612% | 1161 | 576 |
+| `shared_prefix_long` | 4 | 3 | 41.400% | 73.040% | 2322 | 1696 |
+| `shared_prefix_long` | 8 | 3 | 48.100% | 84.901% | 4636 | 3936 |
+
+Shared-prefix versus matched control:
+
+| Requests | Paired Obs | Direct Counter Delta | Throughput Delta | Throughput 90% CI | p95 Latency Delta | p95 Latency 90% CI |
+| ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| 2 | 3 | 46.930 pp | 0.660 | -0.019 to 1.339 | -0.215 | -0.451 to 0.021 |
+| 4 | 3 | 70.358 pp | -0.280 | -0.500 to -0.060 | 0.179 | 0.052 to 0.305 |
+| 8 | 3 | 82.215 pp | 0.085 | 0.048 to 0.121 | -0.078 | -0.114 to -0.042 |
+
+## Interpretation
+
+The direct-counter cache signal is reproducible in this harness:
+
+- direct shared-minus-control deltas remain `46.930 pp`, `70.358 pp`, and
+  `82.215 pp` for request counts 2, 4, and 8
+- the mean direct counter delta remains `66.501 pp`, matching Training 037
+- matched-control direct measured-window hit rates stay around `2.68%`
+
+The per-shape direct-counter intervals are degenerate because this synthetic
+prompt set is deterministic. The aggregate direct-counter interval mainly
+reflects the spread across request-count shapes, not instability across fresh
+Modal workers.
+
+The timing claim is still not ready. The throughput-ratio interval crosses zero
+(`-0.160` to `0.576`), and the p95 latency-ratio interval also crosses zero
+(`-0.181` to `0.095`). Per-shape timing remains mixed: request count 2 is
+positive for throughput, request count 4 is negative, and request count 8 is
+small but positive.
+
+## Next Step
+
+Training 039 should add workload variation instead of only repeating the same
+synthetic prompts. The next benchmark should generate multiple shared-prefix
+families and matched unique-prefix controls with the same token shapes, then
+rerun the direct-counter summary. That will turn the cache-hit interval into a
+workload-stability interval rather than a deterministic prompt replay. After
+that, the timing path should move to larger request counts or a larger model so
+prefill savings are large enough to separate from vLLM startup and scheduler
+noise.

@@ -530,6 +530,24 @@ modal run modal_app.py --mode vllm-prefix-cache-isolated-stability-summary \
   --output-dir results/modal-vllm-prefix-cache-isolated-counter-summary
 ```
 
+Run the repeated direct-counter stability trial and summary:
+
+```bash
+modal run modal_app.py --mode vllm-prefix-cache-isolated-neutral-warmup \
+  --prompt-profiles shared_prefix_long,matched_unique_prefix \
+  --output-tokens 8 \
+  --request-counts 2,4,8 \
+  --repeats 3 \
+  --scenario-seed 577 \
+  --phase-order cold_first \
+  --kv-cache-metrics-sample 1.0 \
+  --output-dir results/modal-vllm-prefix-cache-isolated-neutral-warmup-counter-stability
+
+modal run modal_app.py --mode vllm-prefix-cache-isolated-stability-summary \
+  --prefix-cache-isolated-metrics-dir results/modal-vllm-prefix-cache-isolated-neutral-warmup-counter-stability \
+  --output-dir results/modal-vllm-prefix-cache-isolated-counter-stability-summary
+```
+
 Modal training is documented in
 [`docs/modal-training.md`](docs/modal-training.md).
 

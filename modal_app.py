@@ -7052,6 +7052,75 @@ def _format_vllm_prefix_cache_isolated_window_markdown(
     return "\n".join(lines)
 
 
+def _value_distribution(values: list[float]) -> dict[str, float | int | None]:
+    if not values:
+        return {
+            "paired_observation_count": 0,
+            "mean": None,
+            "min": None,
+            "max": None,
+            "population_stdev": None,
+            "bootstrap_mean_p05": None,
+            "bootstrap_mean_p50": None,
+            "bootstrap_mean_p95": None,
+        }
+    interval = _bootstrap_mean_interval(values)
+    return {
+        "paired_observation_count": len(values),
+        "mean": sum(values) / len(values),
+        "min": min(values),
+        "max": max(values),
+        "population_stdev": statistics.pstdev(values) if len(values) > 1 else 0.0,
+        "bootstrap_mean_p05": interval["mean_p05"],
+        "bootstrap_mean_p50": interval["mean_p50"],
+        "bootstrap_mean_p95": interval["mean_p95"],
+    }
+
+
+def _add_distribution_fields(
+    row: dict[str, Any],
+    prefix: str,
+    values: list[float],
+) -> None:
+    distribution = _value_distribution(values)
+    for field, value in distribution.items():
+        row[f"{prefix}_{field}"] = value
+
+
+def _paired_profile_delta_values(
+    run_rows: list[dict[str, Any]],
+    shared_profile: str,
+    control_profile: str,
+    request_count: int,
+    max_new_tokens: int,
+    field: str,
+) -> list[float]:
+    shared_by_repeat: dict[int, dict[str, Any]] = {}
+    control_by_repeat: dict[int, dict[str, Any]] = {}
+    for row in run_rows:
+        if int(row["request_count"]) != request_count:
+            continue
+        if int(row["max_new_tokens"]) != max_new_tokens:
+            continue
+        if row["prompt_profile"] not in {shared_profile, control_profile}:
+            continue
+        repeat_index = int(row.get("repeat_index") or 0)
+        if row["prompt_profile"] == shared_profile:
+            shared_by_repeat[repeat_index] = row
+        else:
+            control_by_repeat[repeat_index] = row
+
+    values = []
+    for repeat_index in sorted(set(shared_by_repeat) & set(control_by_repeat)):
+        delta = _delta(
+            _float_field(shared_by_repeat[repeat_index], field),
+            _float_field(control_by_repeat[repeat_index], field),
+        )
+        if delta is not None:
+            values.append(delta)
+    return values
+
+
 def _summarize_vllm_prefix_cache_isolated_stability(
     isolated_metrics_dir: Path,
     shared_profile: str = "shared_prefix_long",
@@ -7144,6 +7213,7 @@ def _summarize_vllm_prefix_cache_isolated_stability(
         }
     )
     profile_control_rows = []
+    paired_delta_values_by_metric: dict[str, list[float]] = {}
     for request_count, max_new_tokens in comparison_keys:
         shared = by_profile_and_shape[(shared_profile, request_count, max_new_tokens)]
         control = by_profile_and_shape[(control_profile, request_count, max_new_tokens)]
@@ -7155,62 +7225,89 @@ def _summarize_vllm_prefix_cache_isolated_stability(
         control_throughput = control["cache_to_cold_output_tokens_per_second_ratio_mean"]
         shared_latency = shared["cache_to_cold_p95_latency_ms_ratio_mean"]
         control_latency = control["cache_to_cold_p95_latency_ms_ratio_mean"]
-        profile_control_rows.append(
-            {
-                "request_count": request_count,
-                "max_new_tokens": max_new_tokens,
-                "shared_profile": shared_profile,
-                "control_profile": control_profile,
-                "shared_cache_hit_rate_pct_mean": shared_hit,
-                "control_cache_hit_rate_pct_mean": control_hit,
-                "shared_minus_control_cache_hit_rate_pct": _delta(
-                    shared_hit,
-                    control_hit,
-                ),
-                "shared_cache_counter_queries_mean": shared[
-                    "cache_prefix_cache_counter_queries_mean"
-                ],
-                "control_cache_counter_queries_mean": control[
-                    "cache_prefix_cache_counter_queries_mean"
-                ],
-                "shared_cache_counter_hits_mean": shared[
-                    "cache_prefix_cache_counter_hits_mean"
-                ],
-                "control_cache_counter_hits_mean": control[
-                    "cache_prefix_cache_counter_hits_mean"
-                ],
-                "shared_cache_counter_hit_rate_pct_mean": shared_counter_hit,
-                "control_cache_counter_hit_rate_pct_mean": control_counter_hit,
-                "shared_minus_control_cache_counter_hit_rate_pct": _delta(
-                    shared_counter_hit,
-                    control_counter_hit,
-                ),
-                "shared_cache_counter_hit_rate_pct_population_stdev": shared[
-                    "cache_prefix_cache_counter_hit_rate_pct_population_stdev"
-                ],
-                "control_cache_counter_hit_rate_pct_population_stdev": control[
-                    "cache_prefix_cache_counter_hit_rate_pct_population_stdev"
-                ],
-                "shared_cache_hit_rate_pct_population_stdev": shared[
-                    "cache_prefix_cache_hit_rate_pct_population_stdev"
-                ],
-                "control_cache_hit_rate_pct_population_stdev": control[
-                    "cache_prefix_cache_hit_rate_pct_population_stdev"
-                ],
-                "shared_cache_to_cold_throughput_ratio_mean": shared_throughput,
-                "control_cache_to_cold_throughput_ratio_mean": control_throughput,
-                "shared_minus_control_cache_to_cold_throughput_ratio_mean": _delta(
-                    shared_throughput,
-                    control_throughput,
-                ),
-                "shared_cache_to_cold_p95_latency_ratio_mean": shared_latency,
-                "control_cache_to_cold_p95_latency_ratio_mean": control_latency,
-                "shared_minus_control_cache_to_cold_p95_latency_ratio_mean": _delta(
-                    shared_latency,
-                    control_latency,
-                ),
-            }
-        )
+        profile_control_row = {
+            "request_count": request_count,
+            "max_new_tokens": max_new_tokens,
+            "shared_profile": shared_profile,
+            "control_profile": control_profile,
+            "shared_cache_hit_rate_pct_mean": shared_hit,
+            "control_cache_hit_rate_pct_mean": control_hit,
+            "shared_minus_control_cache_hit_rate_pct": _delta(
+                shared_hit,
+                control_hit,
+            ),
+            "shared_cache_counter_queries_mean": shared[
+                "cache_prefix_cache_counter_queries_mean"
+            ],
+            "control_cache_counter_queries_mean": control[
+                "cache_prefix_cache_counter_queries_mean"
+            ],
+            "shared_cache_counter_hits_mean": shared[
+                "cache_prefix_cache_counter_hits_mean"
+            ],
+            "control_cache_counter_hits_mean": control[
+                "cache_prefix_cache_counter_hits_mean"
+            ],
+            "shared_cache_counter_hit_rate_pct_mean": shared_counter_hit,
+            "control_cache_counter_hit_rate_pct_mean": control_counter_hit,
+            "shared_minus_control_cache_counter_hit_rate_pct": _delta(
+                shared_counter_hit,
+                control_counter_hit,
+            ),
+            "shared_cache_counter_hit_rate_pct_population_stdev": shared[
+                "cache_prefix_cache_counter_hit_rate_pct_population_stdev"
+            ],
+            "control_cache_counter_hit_rate_pct_population_stdev": control[
+                "cache_prefix_cache_counter_hit_rate_pct_population_stdev"
+            ],
+            "shared_cache_hit_rate_pct_population_stdev": shared[
+                "cache_prefix_cache_hit_rate_pct_population_stdev"
+            ],
+            "control_cache_hit_rate_pct_population_stdev": control[
+                "cache_prefix_cache_hit_rate_pct_population_stdev"
+            ],
+            "shared_cache_to_cold_throughput_ratio_mean": shared_throughput,
+            "control_cache_to_cold_throughput_ratio_mean": control_throughput,
+            "shared_minus_control_cache_to_cold_throughput_ratio_mean": _delta(
+                shared_throughput,
+                control_throughput,
+            ),
+            "shared_cache_to_cold_p95_latency_ratio_mean": shared_latency,
+            "control_cache_to_cold_p95_latency_ratio_mean": control_latency,
+            "shared_minus_control_cache_to_cold_p95_latency_ratio_mean": _delta(
+                shared_latency,
+                control_latency,
+            ),
+        }
+        for output_prefix, source_field in (
+            (
+                "shared_minus_control_cache_hit_rate_pct",
+                "cache_prefix_cache_hit_rate_pct",
+            ),
+            (
+                "shared_minus_control_cache_counter_hit_rate_pct",
+                "cache_prefix_cache_counter_hit_rate_pct",
+            ),
+            (
+                "shared_minus_control_cache_to_cold_throughput_ratio",
+                "cache_to_cold_output_tokens_per_second_ratio",
+            ),
+            (
+                "shared_minus_control_cache_to_cold_p95_latency_ratio",
+                "cache_to_cold_p95_latency_ms_ratio",
+            ),
+        ):
+            values = _paired_profile_delta_values(
+                run_rows=run_rows,
+                shared_profile=shared_profile,
+                control_profile=control_profile,
+                request_count=request_count,
+                max_new_tokens=max_new_tokens,
+                field=source_field,
+            )
+            paired_delta_values_by_metric.setdefault(output_prefix, []).extend(values)
+            _add_distribution_fields(profile_control_row, output_prefix, values)
+        profile_control_rows.append(profile_control_row)
 
     cache_stdevs = [
         row["cache_prefix_cache_hit_rate_pct_population_stdev"]
@@ -7249,6 +7346,27 @@ def _summarize_vllm_prefix_cache_isolated_stability(
         summary["max_cache_counter_hit_rate_population_stdev"] = (
             max(counter_stdevs) if counter_stdevs else None
         )
+    for summary_prefix, metric_prefix in (
+        (
+            "mean_shared_minus_control_cache_hit_rate_pct",
+            "shared_minus_control_cache_hit_rate_pct",
+        ),
+        (
+            "mean_shared_minus_control_cache_counter_hit_rate_pct",
+            "shared_minus_control_cache_counter_hit_rate_pct",
+        ),
+        (
+            "mean_shared_minus_control_cache_to_cold_throughput_ratio",
+            "shared_minus_control_cache_to_cold_throughput_ratio",
+        ),
+        (
+            "mean_shared_minus_control_cache_to_cold_p95_latency_ratio",
+            "shared_minus_control_cache_to_cold_p95_latency_ratio",
+        ),
+    ):
+        values = paired_delta_values_by_metric.get(metric_prefix, [])
+        if values:
+            _add_distribution_fields(summary, summary_prefix, values)
     source_mode = source_payload.get("mode")
     source_warmup_runs = source_payload.get("warmup_runs")
     source_warmup_prompt_profile = source_payload.get("warmup_prompt_profile")
@@ -7306,6 +7424,13 @@ def _format_vllm_prefix_cache_isolated_stability_markdown(
             return "n/a"
         return f"{float(value):.3f}{suffix}"
 
+    def fmt_ci(row: dict[str, Any], prefix: str, suffix: str = "") -> str:
+        low = row.get(f"{prefix}_bootstrap_mean_p05")
+        high = row.get(f"{prefix}_bootstrap_mean_p95")
+        if low is None or high is None:
+            return "n/a"
+        return f"{fmt(low, suffix)} to {fmt(high, suffix)}"
+
     has_counter = any(
         row.get("cache_prefix_cache_counter_hit_rate_pct_mean") is not None
         for row in scenario_rows
@@ -7339,6 +7464,18 @@ def _format_vllm_prefix_cache_isolated_stability_markdown(
                 (
                     "| Mean shared-minus-control direct counter hit rate | "
                     f"{fmt(summary.get('mean_shared_minus_control_cache_counter_hit_rate_pct'), ' pp')} |"
+                ),
+                (
+                    "| Direct counter hit-rate 90% bootstrap interval | "
+                    f"{fmt_ci(summary, 'mean_shared_minus_control_cache_counter_hit_rate_pct', ' pp')} |"
+                ),
+                (
+                    "| Throughput-ratio delta 90% bootstrap interval | "
+                    f"{fmt_ci(summary, 'mean_shared_minus_control_cache_to_cold_throughput_ratio')} |"
+                ),
+                (
+                    "| p95 latency-ratio delta 90% bootstrap interval | "
+                    f"{fmt_ci(summary, 'mean_shared_minus_control_cache_to_cold_p95_latency_ratio')} |"
                 ),
                 (
                     "| Max direct counter hit-rate population stdev | "
@@ -7398,10 +7535,12 @@ def _format_vllm_prefix_cache_isolated_stability_markdown(
         lines.extend(
             [
                 (
-                    "| Requests | Logged Shared Hit Mean | Logged Control Hit Mean | "
-                    "Direct Counter Delta | Throughput Delta | p95 Latency Delta |"
+                    "| Requests | Paired Obs | Logged Shared Hit Mean | "
+                    "Logged Control Hit Mean | Direct Counter Delta | "
+                    "Direct Counter 90% CI | Throughput Delta | "
+                    "Throughput 90% CI | p95 Latency Delta | p95 Latency 90% CI |"
                 ),
-                "| ---: | ---: | ---: | ---: | ---: | ---: |",
+                "| ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |",
             ]
         )
     else:
@@ -7418,15 +7557,30 @@ def _format_vllm_prefix_cache_isolated_stability_markdown(
         logged_delta = row["shared_minus_control_cache_hit_rate_pct"]
         counter_delta = row.get("shared_minus_control_cache_counter_hit_rate_pct")
         delta = counter_delta if has_counter and counter_delta is not None else logged_delta
-        lines.append(
-            "| "
-            f"{row['request_count']} | "
-            f"{fmt(row['shared_cache_hit_rate_pct_mean'], '%')} | "
-            f"{fmt(row['control_cache_hit_rate_pct_mean'], '%')} | "
-            f"{fmt(delta, ' pp')} | "
-            f"{fmt(row['shared_minus_control_cache_to_cold_throughput_ratio_mean'])} | "
-            f"{fmt(row['shared_minus_control_cache_to_cold_p95_latency_ratio_mean'])} |"
-        )
+        if has_counter:
+            lines.append(
+                "| "
+                f"{row['request_count']} | "
+                f"{row.get('shared_minus_control_cache_counter_hit_rate_pct_paired_observation_count')} | "
+                f"{fmt(row['shared_cache_hit_rate_pct_mean'], '%')} | "
+                f"{fmt(row['control_cache_hit_rate_pct_mean'], '%')} | "
+                f"{fmt(delta, ' pp')} | "
+                f"{fmt_ci(row, 'shared_minus_control_cache_counter_hit_rate_pct', ' pp')} | "
+                f"{fmt(row['shared_minus_control_cache_to_cold_throughput_ratio_mean'])} | "
+                f"{fmt_ci(row, 'shared_minus_control_cache_to_cold_throughput_ratio')} | "
+                f"{fmt(row['shared_minus_control_cache_to_cold_p95_latency_ratio_mean'])} | "
+                f"{fmt_ci(row, 'shared_minus_control_cache_to_cold_p95_latency_ratio')} |"
+            )
+        else:
+            lines.append(
+                "| "
+                f"{row['request_count']} | "
+                f"{fmt(row['shared_cache_hit_rate_pct_mean'], '%')} | "
+                f"{fmt(row['control_cache_hit_rate_pct_mean'], '%')} | "
+                f"{fmt(delta, ' pp')} | "
+                f"{fmt(row['shared_minus_control_cache_to_cold_throughput_ratio_mean'])} | "
+                f"{fmt(row['shared_minus_control_cache_to_cold_p95_latency_ratio_mean'])} |"
+            )
     if has_counter:
         lines.extend(
             [
