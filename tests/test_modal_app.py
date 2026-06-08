@@ -61,6 +61,34 @@ class ModalAppTests(unittest.TestCase):
             100.0,
         )
 
+    def test_prefix_cache_counter_delta_reports_window_rate(self) -> None:
+        delta = modal_app._prefix_cache_counter_delta(
+            {
+                "total_requests": 3,
+                "total_queries": 100,
+                "total_hits": 10,
+            },
+            {
+                "total_requests": 7,
+                "total_queries": 300,
+                "total_hits": 160,
+            },
+        )
+
+        self.assertEqual(delta["requests"], 4)
+        self.assertEqual(delta["queries"], 200)
+        self.assertEqual(delta["hits"], 150)
+        self.assertEqual(delta["hit_rate_pct"], 75.0)
+
+    def test_prefix_cache_counter_hit_rate_handles_empty_baseline(self) -> None:
+        self.assertEqual(
+            modal_app._prefix_cache_counter_hit_rate_pct(hits=0, queries=0),
+            0.0,
+        )
+        self.assertIsNone(
+            modal_app._prefix_cache_counter_hit_rate_pct(hits=1, queries=0),
+        )
+
 
 def _window_source_payload() -> dict:
     return {

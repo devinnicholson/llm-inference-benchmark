@@ -507,6 +507,29 @@ modal run modal_app.py --mode vllm-prefix-cache-isolated-window-summary \
   --output-dir results/modal-vllm-prefix-cache-isolated-window-summary
 ```
 
+Run the direct-counter neutral-warmup trial. This records vLLM
+`CachingMetrics` query/hit deltas around each measured scenario:
+
+```bash
+modal run modal_app.py --mode vllm-prefix-cache-isolated-neutral-warmup \
+  --prompt-profiles shared_prefix_long,matched_unique_prefix \
+  --output-tokens 8 \
+  --request-counts 2,4,8 \
+  --repeats 1 \
+  --scenario-seed 577 \
+  --phase-order cold_first \
+  --kv-cache-metrics-sample 1.0 \
+  --output-dir results/modal-vllm-prefix-cache-isolated-neutral-warmup-counters
+```
+
+Generate the counter-aware summary:
+
+```bash
+modal run modal_app.py --mode vllm-prefix-cache-isolated-stability-summary \
+  --prefix-cache-isolated-metrics-dir results/modal-vllm-prefix-cache-isolated-neutral-warmup-counters \
+  --output-dir results/modal-vllm-prefix-cache-isolated-counter-summary
+```
+
 Modal training is documented in
 [`docs/modal-training.md`](docs/modal-training.md).
 

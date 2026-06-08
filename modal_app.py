@@ -599,6 +599,103 @@ def run_vllm_prefix_cache_paired_remote(
                 return float(value)
         return None
 
+    def snapshot_prefix_cache_counters(engine: Any, label: str) -> dict[str, Any]:
+        sources = []
+
+        def collect_metric_sources(target: Any, path: str) -> None:
+            stack = [(target, path)]
+            seen: set[int] = set()
+            while stack:
+                current, current_path = stack.pop()
+                if current is None or id(current) in seen:
+                    continue
+                seen.add(id(current))
+                metrics = getattr(current, "prefix_caching_metrics", None)
+                if metrics is not None:
+                    requests = getattr(metrics, "aggregated_requests", None)
+                    queries = getattr(metrics, "aggregated_query_total", None)
+                    hits = getattr(metrics, "aggregated_query_hit", None)
+                    sources.append(
+                        {
+                            "path": current_path,
+                            "logger_type": type(current).__name__,
+                            "requests": (
+                                int(requests) if requests is not None else None
+                            ),
+                            "queries": int(queries) if queries is not None else None,
+                            "hits": int(hits) if hits is not None else None,
+                            "hit_rate_pct": _prefix_cache_counter_hit_rate_pct(
+                                hits,
+                                queries,
+                            ),
+                            "empty": bool(getattr(metrics, "empty", False)),
+                        }
+                    )
+
+                per_engine_loggers = getattr(
+                    current,
+                    "per_engine_stat_loggers",
+                    None,
+                )
+                if isinstance(per_engine_loggers, dict):
+                    for engine_index, logger_value in per_engine_loggers.items():
+                        stack.append(
+                            (
+                                logger_value,
+                                f"{current_path}.per_engine[{engine_index}]",
+                            )
+                        )
+
+                child_loggers = getattr(current, "stat_loggers", None)
+                if isinstance(child_loggers, list):
+                    for child_index, logger_value in enumerate(child_loggers):
+                        stack.append(
+                            (
+                                logger_value,
+                                f"{current_path}.stat_loggers[{child_index}]",
+                            )
+                        )
+
+        try:
+            manager = getattr(engine, "logger_manager", None)
+            stat_loggers = list(getattr(manager, "stat_loggers", []) or [])
+            for logger_index, stat_logger in enumerate(stat_loggers):
+                collect_metric_sources(
+                    stat_logger,
+                    f"logger_manager.stat_loggers[{logger_index}]",
+                )
+            total_requests = sum(
+                row["requests"] or 0 for row in sources
+            )
+            total_queries = sum(row["queries"] or 0 for row in sources)
+            total_hits = sum(row["hits"] or 0 for row in sources)
+            return {
+                "label": label,
+                "ok": True,
+                "error": "",
+                "source_count": len(sources),
+                "sources": sources,
+                "total_requests": total_requests,
+                "total_queries": total_queries,
+                "total_hits": total_hits,
+                "hit_rate_pct": _prefix_cache_counter_hit_rate_pct(
+                    total_hits,
+                    total_queries,
+                ),
+            }
+        except Exception as error:  # pragma: no cover - remote object probe
+            return {
+                "label": label,
+                "ok": False,
+                "error": f"{type(error).__name__}: {error}",
+                "source_count": 0,
+                "sources": sources,
+                "total_requests": None,
+                "total_queries": None,
+                "total_hits": None,
+                "hit_rate_pct": None,
+            }
+
     async def run_engine_phase(
         *,
         enable_prefix_caching: bool,
@@ -700,6 +797,14 @@ def run_vllm_prefix_cache_paired_remote(
                 output_kind=RequestOutputKind.DELTA,
             )
             run_id = f"rep{repeat_index:02d}-run{run_order:03d}"
+            counter_before = (
+                snapshot_prefix_cache_counters(
+                    engine,
+                    f"{phase_label}_{run_id}_{spec['scenario_id']}_before",
+                )
+                if collect_cache_metrics
+                else None
+            )
             batch_started = time.perf_counter()
             request_results = await asyncio.gather(
                 *(
@@ -713,6 +818,18 @@ def run_vllm_prefix_cache_paired_remote(
                 )
             )
             batch_wall_ms = (time.perf_counter() - batch_started) * 1000
+            counter_after = (
+                snapshot_prefix_cache_counters(
+                    engine,
+                    f"{phase_label}_{run_id}_{spec['scenario_id']}_after",
+                )
+                if collect_cache_metrics
+                else None
+            )
+            counter_delta = _prefix_cache_counter_delta(
+                counter_before,
+                counter_after,
+            )
             summary = _summarize_stream_requests(request_results, batch_wall_ms)
             cache_log_stats = None
             cache_metrics: list[dict[str, Any]] = []
@@ -741,6 +858,13 @@ def run_vllm_prefix_cache_paired_remote(
                 **summary,
                 "cache_metrics_log_stats": cache_log_stats,
                 "cache_metrics": cache_metrics,
+                "prefix_cache_counter_before": counter_before,
+                "prefix_cache_counter_after": counter_after,
+                "prefix_cache_counter_delta": counter_delta,
+                "prefix_cache_counter_requests": counter_delta["requests"],
+                "prefix_cache_counter_queries": counter_delta["queries"],
+                "prefix_cache_counter_hits": counter_delta["hits"],
+                "prefix_cache_counter_hit_rate_pct": counter_delta["hit_rate_pct"],
                 "prefix_cache_hit_rate_pct": latest_cache_metric_value(
                     cache_metrics,
                     "prefix_cache_hit_rate_pct",
@@ -795,7 +919,23 @@ def run_vllm_prefix_cache_paired_remote(
             }
 
         try:
+            initial_prefix_cache_counter = (
+                snapshot_prefix_cache_counters(
+                    engine,
+                    f"{phase_label}_after_engine_load",
+                )
+                if collect_cache_metrics
+                else None
+            )
             warmup_result = await run_warmups()
+            warmup_prefix_cache_counter = (
+                snapshot_prefix_cache_counters(
+                    engine,
+                    f"{phase_label}_after_warmup",
+                )
+                if collect_cache_metrics
+                else None
+            )
             warmup_cache_log_stats = None
             warmup_cache_metrics: list[dict[str, Any]] = []
             if collect_cache_metrics:
@@ -821,6 +961,12 @@ def run_vllm_prefix_cache_paired_remote(
             "enable_prefix_caching": enable_prefix_caching,
             "engine_load_ms": engine_load_ms,
             "warmup": warmup_result,
+            "initial_prefix_cache_counter": initial_prefix_cache_counter,
+            "warmup_prefix_cache_counter": warmup_prefix_cache_counter,
+            "warmup_prefix_cache_counter_delta": _prefix_cache_counter_delta(
+                initial_prefix_cache_counter,
+                warmup_prefix_cache_counter,
+            ),
             "warmup_cache_metrics_log_stats": warmup_cache_log_stats,
             "warmup_cache_metrics": warmup_cache_metrics,
             "scenario_runs": scenario_runs,
@@ -896,6 +1042,24 @@ def run_vllm_prefix_cache_paired_remote(
         "cache_warmup": cache_result["warmup"],
         "cold_warmup_cache_metrics": cold_result["warmup_cache_metrics"],
         "cache_warmup_cache_metrics": cache_result["warmup_cache_metrics"],
+        "cold_initial_prefix_cache_counter": cold_result[
+            "initial_prefix_cache_counter"
+        ],
+        "cache_initial_prefix_cache_counter": cache_result[
+            "initial_prefix_cache_counter"
+        ],
+        "cold_warmup_prefix_cache_counter": cold_result[
+            "warmup_prefix_cache_counter"
+        ],
+        "cache_warmup_prefix_cache_counter": cache_result[
+            "warmup_prefix_cache_counter"
+        ],
+        "cold_warmup_prefix_cache_counter_delta": cold_result[
+            "warmup_prefix_cache_counter_delta"
+        ],
+        "cache_warmup_prefix_cache_counter_delta": cache_result[
+            "warmup_prefix_cache_counter_delta"
+        ],
         "cold_warmup_cache_metrics_log_stats": cold_result[
             "warmup_cache_metrics_log_stats"
         ],
@@ -3862,7 +4026,10 @@ def main(
         output_path = Path(output_dir or DEFAULT_INFERENCE_OUTPUT)
         output_path.mkdir(parents=True, exist_ok=True)
         json_path = output_path / "inference.json"
-        json_path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+        json_path.write_text(
+            json.dumps(payload, indent=2, sort_keys=True) + "\n",
+            encoding="utf-8",
+        )
 
         print(f"model: {payload['model_id']}")
         print(f"device: {payload['device_name']}")
@@ -4311,6 +4478,14 @@ def main(
             "max_cache_hit_rate_population_stdev: "
             f"{payload['summary']['max_cache_hit_rate_population_stdev']:.3f}"
         )
+        counter_summary = payload["summary"].get(
+            "mean_shared_minus_control_cache_counter_hit_rate_pct"
+        )
+        if counter_summary is not None:
+            print(
+                "mean_shared_minus_control_cache_counter_hit_rate_pct: "
+                f"{counter_summary:.3f}"
+            )
         print(f"json: {json_path}")
         print(f"csv: {csv_path}")
         print(f"profile_csv: {profile_csv_path}")
@@ -4420,6 +4595,27 @@ def main(
                                 "cache_to_cold_prefix_cache_hit_rate_pct_delta": row[
                                     "cache_to_cold_prefix_cache_hit_rate_pct_delta"
                                 ],
+                                "cold_prefix_cache_counter_queries": row[
+                                    "cold_prefix_cache_counter_queries"
+                                ],
+                                "cache_prefix_cache_counter_queries": row[
+                                    "cache_prefix_cache_counter_queries"
+                                ],
+                                "cold_prefix_cache_counter_hits": row[
+                                    "cold_prefix_cache_counter_hits"
+                                ],
+                                "cache_prefix_cache_counter_hits": row[
+                                    "cache_prefix_cache_counter_hits"
+                                ],
+                                "cold_prefix_cache_counter_hit_rate_pct": row[
+                                    "cold_prefix_cache_counter_hit_rate_pct"
+                                ],
+                                "cache_prefix_cache_counter_hit_rate_pct": row[
+                                    "cache_prefix_cache_counter_hit_rate_pct"
+                                ],
+                                "cache_to_cold_prefix_cache_counter_hit_rate_pct_delta": row[
+                                    "cache_to_cold_prefix_cache_counter_hit_rate_pct_delta"
+                                ],
                                 "cache_to_cold_output_tokens_per_second_ratio": row[
                                     "cache_to_cold_output_tokens_per_second_ratio"
                                 ],
@@ -4435,6 +4631,24 @@ def main(
                                 "cache_warmup_cache_metrics": single_payload[
                                     "cache_warmup_cache_metrics"
                                 ],
+                                "cold_initial_prefix_cache_counter": single_payload[
+                                    "cold_initial_prefix_cache_counter"
+                                ],
+                                "cache_initial_prefix_cache_counter": single_payload[
+                                    "cache_initial_prefix_cache_counter"
+                                ],
+                                "cold_warmup_prefix_cache_counter": single_payload[
+                                    "cold_warmup_prefix_cache_counter"
+                                ],
+                                "cache_warmup_prefix_cache_counter": single_payload[
+                                    "cache_warmup_prefix_cache_counter"
+                                ],
+                                "cold_warmup_prefix_cache_counter_delta": single_payload[
+                                    "cold_warmup_prefix_cache_counter_delta"
+                                ],
+                                "cache_warmup_prefix_cache_counter_delta": single_payload[
+                                    "cache_warmup_prefix_cache_counter_delta"
+                                ],
                                 "cold_warmup_cache_metrics_log_stats": single_payload[
                                     "cold_warmup_cache_metrics_log_stats"
                                 ],
@@ -4448,6 +4662,24 @@ def main(
                                 ),
                                 "cache_cache_metrics_log_stats": cache_run.get(
                                     "cache_metrics_log_stats"
+                                ),
+                                "cold_prefix_cache_counter_before": cold_run.get(
+                                    "prefix_cache_counter_before"
+                                ),
+                                "cold_prefix_cache_counter_after": cold_run.get(
+                                    "prefix_cache_counter_after"
+                                ),
+                                "cold_prefix_cache_counter_delta": cold_run.get(
+                                    "prefix_cache_counter_delta"
+                                ),
+                                "cache_prefix_cache_counter_before": cache_run.get(
+                                    "prefix_cache_counter_before"
+                                ),
+                                "cache_prefix_cache_counter_after": cache_run.get(
+                                    "prefix_cache_counter_after"
+                                ),
+                                "cache_prefix_cache_counter_delta": cache_run.get(
+                                    "prefix_cache_counter_delta"
                                 ),
                             }
                         )
@@ -4554,6 +4786,15 @@ def main(
                 "mean_shared_minus_control_cache_hit_rate_delta: "
                 f"{profile_summary['mean_shared_minus_control_cache_prefix_cache_hit_rate_pct_median']:.3f}"
             )
+            counter_key = (
+                "mean_shared_minus_control_"
+                "cache_prefix_cache_counter_hit_rate_pct_median"
+            )
+            if profile_summary.get(counter_key) is not None:
+                print(
+                    "mean_shared_minus_control_cache_counter_hit_rate_delta: "
+                    f"{profile_summary[counter_key]:.3f}"
+                )
         print(f"json: {json_path}")
         print(f"summary_csv: {summary_csv_path}")
         print(f"runs_csv: {runs_csv_path}")
@@ -6112,6 +6353,8 @@ def _make_vllm_prefix_cache_paired_rows(
         cache_batch_wall = cache_run.get("batch_wall_ms")
         cold_prefix_hit_rate = cold_run.get("prefix_cache_hit_rate_pct")
         cache_prefix_hit_rate = cache_run.get("prefix_cache_hit_rate_pct")
+        cold_counter_hit_rate = cold_run.get("prefix_cache_counter_hit_rate_pct")
+        cache_counter_hit_rate = cache_run.get("prefix_cache_counter_hit_rate_pct")
         cold_gpu_kv_usage = cold_run.get("gpu_kv_cache_usage_pct")
         cache_gpu_kv_usage = cache_run.get("gpu_kv_cache_usage_pct")
         paired_rows.append(
@@ -6187,6 +6430,30 @@ def _make_vllm_prefix_cache_paired_rows(
                     cache_prefix_hit_rate,
                     cold_prefix_hit_rate,
                 ),
+                "cold_prefix_cache_counter_requests": cold_run.get(
+                    "prefix_cache_counter_requests"
+                ),
+                "cache_prefix_cache_counter_requests": cache_run.get(
+                    "prefix_cache_counter_requests"
+                ),
+                "cold_prefix_cache_counter_queries": cold_run.get(
+                    "prefix_cache_counter_queries"
+                ),
+                "cache_prefix_cache_counter_queries": cache_run.get(
+                    "prefix_cache_counter_queries"
+                ),
+                "cold_prefix_cache_counter_hits": cold_run.get(
+                    "prefix_cache_counter_hits"
+                ),
+                "cache_prefix_cache_counter_hits": cache_run.get(
+                    "prefix_cache_counter_hits"
+                ),
+                "cold_prefix_cache_counter_hit_rate_pct": cold_counter_hit_rate,
+                "cache_prefix_cache_counter_hit_rate_pct": cache_counter_hit_rate,
+                "cache_to_cold_prefix_cache_counter_hit_rate_pct_delta": _delta(
+                    cache_counter_hit_rate,
+                    cold_counter_hit_rate,
+                ),
                 "cold_gpu_kv_cache_usage_pct": cold_gpu_kv_usage,
                 "cache_gpu_kv_cache_usage_pct": cache_gpu_kv_usage,
                 "cache_to_cold_gpu_kv_cache_usage_pct_delta": _delta(
@@ -6238,6 +6505,15 @@ def _aggregate_vllm_prefix_cache_paired_scenarios(
             "cold_prefix_cache_hit_rate_pct",
             "cache_prefix_cache_hit_rate_pct",
             "cache_to_cold_prefix_cache_hit_rate_pct_delta",
+            "cold_prefix_cache_counter_requests",
+            "cache_prefix_cache_counter_requests",
+            "cold_prefix_cache_counter_queries",
+            "cache_prefix_cache_counter_queries",
+            "cold_prefix_cache_counter_hits",
+            "cache_prefix_cache_counter_hits",
+            "cold_prefix_cache_counter_hit_rate_pct",
+            "cache_prefix_cache_counter_hit_rate_pct",
+            "cache_to_cold_prefix_cache_counter_hit_rate_pct_delta",
             "cold_gpu_kv_cache_usage_pct",
             "cache_gpu_kv_cache_usage_pct",
             "cache_to_cold_gpu_kv_cache_usage_pct_delta",
@@ -6278,6 +6554,13 @@ def _vllm_prefix_cache_paired_summary_rows(
         "cold_prefix_cache_hit_rate_pct_median",
         "cache_prefix_cache_hit_rate_pct_median",
         "cache_to_cold_prefix_cache_hit_rate_pct_delta_median",
+        "cold_prefix_cache_counter_queries_median",
+        "cache_prefix_cache_counter_queries_median",
+        "cold_prefix_cache_counter_hits_median",
+        "cache_prefix_cache_counter_hits_median",
+        "cold_prefix_cache_counter_hit_rate_pct_median",
+        "cache_prefix_cache_counter_hit_rate_pct_median",
+        "cache_to_cold_prefix_cache_counter_hit_rate_pct_delta_median",
         "cold_gpu_kv_cache_usage_pct_median",
         "cache_gpu_kv_cache_usage_pct_median",
         "cache_to_cold_gpu_kv_cache_usage_pct_delta_median",
@@ -6324,6 +6607,13 @@ def _vllm_prefix_cache_isolated_profile_control_rows(
         "cold_prefix_cache_hit_rate_pct_median",
         "cache_prefix_cache_hit_rate_pct_median",
         "cache_to_cold_prefix_cache_hit_rate_pct_delta_median",
+        "cold_prefix_cache_counter_queries_median",
+        "cache_prefix_cache_counter_queries_median",
+        "cold_prefix_cache_counter_hits_median",
+        "cache_prefix_cache_counter_hits_median",
+        "cold_prefix_cache_counter_hit_rate_pct_median",
+        "cache_prefix_cache_counter_hit_rate_pct_median",
+        "cache_to_cold_prefix_cache_counter_hit_rate_pct_delta_median",
         "cold_gpu_kv_cache_usage_pct_median",
         "cache_gpu_kv_cache_usage_pct_median",
         "cache_to_cold_gpu_kv_cache_usage_pct_delta_median",
@@ -6801,7 +7091,10 @@ def _summarize_vllm_prefix_cache_isolated_stability(
         grouped.setdefault(key, []).append(row)
 
     scenario_rows = []
-    for key, rows in sorted(grouped.items(), key=lambda item: (item[0][0], item[0][2], item[0][1])):
+    for key, rows in sorted(
+        grouped.items(),
+        key=lambda item: (item[0][0], item[0][2], item[0][1]),
+    ):
         prompt_profile, request_count, max_new_tokens = key
         first = rows[0]
         scenario: dict[str, Any] = {
@@ -6816,6 +7109,13 @@ def _summarize_vllm_prefix_cache_isolated_stability(
             "cold_prefix_cache_hit_rate_pct",
             "cache_prefix_cache_hit_rate_pct",
             "cache_to_cold_prefix_cache_hit_rate_pct_delta",
+            "cold_prefix_cache_counter_queries",
+            "cache_prefix_cache_counter_queries",
+            "cold_prefix_cache_counter_hits",
+            "cache_prefix_cache_counter_hits",
+            "cold_prefix_cache_counter_hit_rate_pct",
+            "cache_prefix_cache_counter_hit_rate_pct",
+            "cache_to_cold_prefix_cache_counter_hit_rate_pct_delta",
             "cache_to_cold_output_tokens_per_second_ratio",
             "cache_to_cold_p95_latency_ms_ratio",
             "cache_to_cold_p95_stream_tpot_ms_ratio",
@@ -6849,6 +7149,8 @@ def _summarize_vllm_prefix_cache_isolated_stability(
         control = by_profile_and_shape[(control_profile, request_count, max_new_tokens)]
         shared_hit = shared["cache_prefix_cache_hit_rate_pct_mean"]
         control_hit = control["cache_prefix_cache_hit_rate_pct_mean"]
+        shared_counter_hit = shared["cache_prefix_cache_counter_hit_rate_pct_mean"]
+        control_counter_hit = control["cache_prefix_cache_counter_hit_rate_pct_mean"]
         shared_throughput = shared["cache_to_cold_output_tokens_per_second_ratio_mean"]
         control_throughput = control["cache_to_cold_output_tokens_per_second_ratio_mean"]
         shared_latency = shared["cache_to_cold_p95_latency_ms_ratio_mean"]
@@ -6865,6 +7167,30 @@ def _summarize_vllm_prefix_cache_isolated_stability(
                     shared_hit,
                     control_hit,
                 ),
+                "shared_cache_counter_queries_mean": shared[
+                    "cache_prefix_cache_counter_queries_mean"
+                ],
+                "control_cache_counter_queries_mean": control[
+                    "cache_prefix_cache_counter_queries_mean"
+                ],
+                "shared_cache_counter_hits_mean": shared[
+                    "cache_prefix_cache_counter_hits_mean"
+                ],
+                "control_cache_counter_hits_mean": control[
+                    "cache_prefix_cache_counter_hits_mean"
+                ],
+                "shared_cache_counter_hit_rate_pct_mean": shared_counter_hit,
+                "control_cache_counter_hit_rate_pct_mean": control_counter_hit,
+                "shared_minus_control_cache_counter_hit_rate_pct": _delta(
+                    shared_counter_hit,
+                    control_counter_hit,
+                ),
+                "shared_cache_counter_hit_rate_pct_population_stdev": shared[
+                    "cache_prefix_cache_counter_hit_rate_pct_population_stdev"
+                ],
+                "control_cache_counter_hit_rate_pct_population_stdev": control[
+                    "cache_prefix_cache_counter_hit_rate_pct_population_stdev"
+                ],
                 "shared_cache_hit_rate_pct_population_stdev": shared[
                     "cache_prefix_cache_hit_rate_pct_population_stdev"
                 ],
@@ -6891,6 +7217,11 @@ def _summarize_vllm_prefix_cache_isolated_stability(
         for row in scenario_rows
         if row["cache_prefix_cache_hit_rate_pct_population_stdev"] is not None
     ]
+    counter_stdevs = [
+        row["cache_prefix_cache_counter_hit_rate_pct_population_stdev"]
+        for row in scenario_rows
+        if row["cache_prefix_cache_counter_hit_rate_pct_population_stdev"] is not None
+    ]
     summary = {
         "mean_shared_minus_control_cache_hit_rate_pct": _mean_present(
             row["shared_minus_control_cache_hit_rate_pct"]
@@ -6906,6 +7237,18 @@ def _summarize_vllm_prefix_cache_isolated_stability(
         ),
         "max_cache_hit_rate_population_stdev": max(cache_stdevs) if cache_stdevs else None,
     }
+    counter_deltas = [
+        row["shared_minus_control_cache_counter_hit_rate_pct"]
+        for row in profile_control_rows
+        if row["shared_minus_control_cache_counter_hit_rate_pct"] is not None
+    ]
+    if counter_deltas:
+        summary["mean_shared_minus_control_cache_counter_hit_rate_pct"] = (
+            sum(counter_deltas) / len(counter_deltas)
+        )
+        summary["max_cache_counter_hit_rate_population_stdev"] = (
+            max(counter_stdevs) if counter_stdevs else None
+        )
     source_mode = source_payload.get("mode")
     source_warmup_runs = source_payload.get("warmup_runs")
     source_warmup_prompt_profile = source_payload.get("warmup_prompt_profile")
@@ -6958,6 +7301,15 @@ def _format_vllm_prefix_cache_isolated_stability_markdown(
     profile_control_rows: list[dict[str, Any]],
     summary: dict[str, Any],
 ) -> str:
+    def fmt(value: Any, suffix: str = "") -> str:
+        if value is None:
+            return "n/a"
+        return f"{float(value):.3f}{suffix}"
+
+    has_counter = any(
+        row.get("cache_prefix_cache_counter_hit_rate_pct_mean") is not None
+        for row in scenario_rows
+    )
     lines = [
         "# Prefix-Cache Isolated Stability Summary",
         "",
@@ -6974,50 +7326,113 @@ def _format_vllm_prefix_cache_isolated_stability_markdown(
         "| --- | ---: |",
         (
             "| Mean shared-minus-control cache hit rate | "
-            f"{summary['mean_shared_minus_control_cache_hit_rate_pct']:.3f} pp |"
+            f"{fmt(summary['mean_shared_minus_control_cache_hit_rate_pct'], ' pp')} |"
         ),
         (
             "| Max cache-hit population stdev | "
-            f"{summary['max_cache_hit_rate_population_stdev']:.3f} |"
+            f"{fmt(summary['max_cache_hit_rate_population_stdev'])} |"
         ),
-        "",
-        "## Scenario Stability",
-        "",
-        "| Profile | Requests | Runs | Cache Hit Mean | Min | Max | Stdev |",
-        "| --- | ---: | ---: | ---: | ---: | ---: | ---: |",
     ]
-    for row in scenario_rows:
-        lines.append(
-            "| "
-            f"`{row['prompt_profile']}` | "
-            f"{row['request_count']} | "
-            f"{row['runs']} | "
-            f"{row['cache_prefix_cache_hit_rate_pct_mean']:.3f}% | "
-            f"{row['cache_prefix_cache_hit_rate_pct_min']:.3f}% | "
-            f"{row['cache_prefix_cache_hit_rate_pct_max']:.3f}% | "
-            f"{row['cache_prefix_cache_hit_rate_pct_population_stdev']:.3f} |"
+    if has_counter:
+        lines.extend(
+            [
+                (
+                    "| Mean shared-minus-control direct counter hit rate | "
+                    f"{fmt(summary.get('mean_shared_minus_control_cache_counter_hit_rate_pct'), ' pp')} |"
+                ),
+                (
+                    "| Max direct counter hit-rate population stdev | "
+                    f"{fmt(summary.get('max_cache_counter_hit_rate_population_stdev'))} |"
+                ),
+            ]
         )
     lines.extend(
         [
             "",
-            "## Shared Vs Control",
+            "## Scenario Stability",
             "",
-            (
-                "| Requests | Shared Hit Mean | Control Hit Mean | "
-                "Delta | Throughput Delta | p95 Latency Delta |"
-            ),
-            "| ---: | ---: | ---: | ---: | ---: | ---: |",
         ]
     )
+    if has_counter:
+        lines.extend(
+            [
+                (
+                    "| Profile | Requests | Runs | Logged Hit Mean | "
+                    "Direct Counter Hit Mean | Direct Queries | Direct Hits |"
+                ),
+                "| --- | ---: | ---: | ---: | ---: | ---: | ---: |",
+            ]
+        )
+    else:
+        lines.extend(
+            [
+                "| Profile | Requests | Runs | Cache Hit Mean | Min | Max | Stdev |",
+                "| --- | ---: | ---: | ---: | ---: | ---: | ---: |",
+            ]
+        )
+    for row in scenario_rows:
+        if has_counter:
+            lines.append(
+                "| "
+                f"`{row['prompt_profile']}` | "
+                f"{row['request_count']} | "
+                f"{row['runs']} | "
+                f"{fmt(row['cache_prefix_cache_hit_rate_pct_mean'], '%')} | "
+                f"{fmt(row['cache_prefix_cache_counter_hit_rate_pct_mean'], '%')} | "
+                f"{fmt(row['cache_prefix_cache_counter_queries_mean'])} | "
+                f"{fmt(row['cache_prefix_cache_counter_hits_mean'])} |"
+            )
+        else:
+            lines.append(
+                "| "
+                f"`{row['prompt_profile']}` | "
+                f"{row['request_count']} | "
+                f"{row['runs']} | "
+                f"{fmt(row['cache_prefix_cache_hit_rate_pct_mean'], '%')} | "
+                f"{fmt(row['cache_prefix_cache_hit_rate_pct_min'], '%')} | "
+                f"{fmt(row['cache_prefix_cache_hit_rate_pct_max'], '%')} | "
+                f"{fmt(row['cache_prefix_cache_hit_rate_pct_population_stdev'])} |"
+            )
+    lines.extend(["", "## Shared Vs Control", ""])
+    if has_counter:
+        lines.extend(
+            [
+                (
+                    "| Requests | Logged Shared Hit Mean | Logged Control Hit Mean | "
+                    "Direct Counter Delta | Throughput Delta | p95 Latency Delta |"
+                ),
+                "| ---: | ---: | ---: | ---: | ---: | ---: |",
+            ]
+        )
+    else:
+        lines.extend(
+            [
+                (
+                    "| Requests | Shared Hit Mean | Control Hit Mean | "
+                    "Delta | Throughput Delta | p95 Latency Delta |"
+                ),
+                "| ---: | ---: | ---: | ---: | ---: | ---: |",
+            ]
+        )
     for row in profile_control_rows:
+        logged_delta = row["shared_minus_control_cache_hit_rate_pct"]
+        counter_delta = row.get("shared_minus_control_cache_counter_hit_rate_pct")
+        delta = counter_delta if has_counter and counter_delta is not None else logged_delta
         lines.append(
             "| "
             f"{row['request_count']} | "
-            f"{row['shared_cache_hit_rate_pct_mean']:.3f}% | "
-            f"{row['control_cache_hit_rate_pct_mean']:.3f}% | "
-            f"{row['shared_minus_control_cache_hit_rate_pct']:.3f} pp | "
-            f"{row['shared_minus_control_cache_to_cold_throughput_ratio_mean']:.3f} | "
-            f"{row['shared_minus_control_cache_to_cold_p95_latency_ratio_mean']:.3f} |"
+            f"{fmt(row['shared_cache_hit_rate_pct_mean'], '%')} | "
+            f"{fmt(row['control_cache_hit_rate_pct_mean'], '%')} | "
+            f"{fmt(delta, ' pp')} | "
+            f"{fmt(row['shared_minus_control_cache_to_cold_throughput_ratio_mean'])} | "
+            f"{fmt(row['shared_minus_control_cache_to_cold_p95_latency_ratio_mean'])} |"
+        )
+    if has_counter:
+        lines.extend(
+            [
+                "",
+                "Delta uses direct measured-window counters when available; logged hit means remain cumulative over warmup plus measured scenario.",
+            ]
         )
     lines.append("")
     return "\n".join(lines)
@@ -7460,6 +7875,57 @@ def _float_field(row: dict[str, str], field: str) -> float | None:
     if value in {None, ""}:
         return None
     return float(value)
+
+
+def _prefix_cache_counter_hit_rate_pct(
+    hits: int | float | None,
+    queries: int | float | None,
+) -> float | None:
+    if hits is None or queries is None:
+        return None
+    hits_value = float(hits)
+    queries_value = float(queries)
+    if queries_value == 0:
+        return 0.0 if hits_value == 0 else None
+    return hits_value / queries_value * 100.0
+
+
+def _prefix_cache_counter_delta(
+    before: dict[str, Any] | None,
+    after: dict[str, Any] | None,
+) -> dict[str, int | float | None]:
+    if not before or not after:
+        return {
+            "requests": None,
+            "queries": None,
+            "hits": None,
+            "hit_rate_pct": None,
+        }
+    requests = _counter_delta_value(
+        before.get("total_requests"),
+        after.get("total_requests"),
+    )
+    queries = _counter_delta_value(
+        before.get("total_queries"),
+        after.get("total_queries"),
+    )
+    hits = _counter_delta_value(before.get("total_hits"), after.get("total_hits"))
+    return {
+        "requests": requests,
+        "queries": queries,
+        "hits": hits,
+        "hit_rate_pct": _prefix_cache_counter_hit_rate_pct(hits, queries),
+    }
+
+
+def _counter_delta_value(
+    before_value: int | float | None,
+    after_value: int | float | None,
+) -> int | None:
+    if before_value is None or after_value is None:
+        return None
+    delta = int(after_value) - int(before_value)
+    return delta if delta >= 0 else None
 
 
 def _delta(new_value: float | None, baseline_value: float | None) -> float | None:

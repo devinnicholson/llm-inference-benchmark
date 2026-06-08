@@ -3755,3 +3755,138 @@ deltas if vLLM exposes cache-hit/cache-query counters in-process or through an
 observability endpoint. If that counter is not available, the next best step is
 to make the window estimate repeatable across multiple seeds and repeats, then
 report confidence intervals for the estimated measured hit-rate delta.
+
+# Training 037: Direct Prefix-Cache Counter Deltas
+
+Training 037 replaces Training 036's token-weighted estimate with direct
+measured-window vLLM counter deltas.
+
+## Goal
+
+Capture true prefix-cache query and hit counts around each measured scenario
+while keeping Training 035's neutral warmup design.
+
+vLLM's public log line still reports a cumulative hit rate over warmup plus the
+measured scenario. The useful object is the per-engine `LoggingStatLogger`
+inside `StatLoggerManager`. Its `prefix_caching_metrics` object tracks
+`aggregated_query_total` and `aggregated_query_hit`, so the harness now snapshots
+those counters before and after each measured scenario and stores the delta.
+
+Implementation references:
+
+- vLLM `StatLoggerManager` and `LoggingStatLogger`: https://docs.vllm.ai/en/v0.13.0/api/vllm/v1/metrics/loggers/
+- vLLM `CachingMetrics`: https://docs.vllm.ai/en/v0.14.0/api/vllm/v1/metrics/stats/
+
+## Command
+
+The direct-counter path was first checked with a one-scenario smoke:
+
+```bash
+modal run modal_app.py --mode vllm-prefix-cache-isolated-neutral-warmup \
+  --prompt-profiles shared_prefix_long \
+  --output-tokens 8 \
+  --request-counts 4 \
+  --repeats 1 \
+  --scenario-seed 578 \
+  --phase-order cold_first \
+  --kv-cache-metrics-sample 1.0 \
+  --output-dir results/modal-vllm-prefix-cache-isolated-counter-smoke
+```
+
+Then the full comparable grid was rerun:
+
+```bash
+modal run modal_app.py --mode vllm-prefix-cache-isolated-neutral-warmup \
+  --prompt-profiles shared_prefix_long,matched_unique_prefix \
+  --output-tokens 8 \
+  --request-counts 2,4,8 \
+  --repeats 1 \
+  --scenario-seed 577 \
+  --phase-order cold_first \
+  --kv-cache-metrics-sample 1.0 \
+  --output-dir results/modal-vllm-prefix-cache-isolated-neutral-warmup-counters
+```
+
+Generate the compact counter-aware summary:
+
+```bash
+modal run modal_app.py --mode vllm-prefix-cache-isolated-stability-summary \
+  --prefix-cache-isolated-metrics-dir results/modal-vllm-prefix-cache-isolated-neutral-warmup-counters \
+  --output-dir results/modal-vllm-prefix-cache-isolated-counter-summary
+```
+
+## Artifacts
+
+```text
+results/modal-vllm-prefix-cache-isolated-counter-smoke/prefix-cache-isolated-metrics.json
+results/modal-vllm-prefix-cache-isolated-neutral-warmup-counters/prefix-cache-isolated-metrics.json
+results/modal-vllm-prefix-cache-isolated-neutral-warmup-counters/prefix-cache-isolated-metrics-summary.csv
+results/modal-vllm-prefix-cache-isolated-neutral-warmup-counters/prefix-cache-isolated-metrics-runs.csv
+results/modal-vllm-prefix-cache-isolated-neutral-warmup-counters/prefix-cache-isolated-profile-control.csv
+results/modal-vllm-prefix-cache-isolated-counter-summary/prefix-cache-isolated-stability-summary.json
+results/modal-vllm-prefix-cache-isolated-counter-summary/prefix-cache-isolated-stability-summary.csv
+results/modal-vllm-prefix-cache-isolated-counter-summary/prefix-cache-isolated-stability-profile-control.csv
+results/modal-vllm-prefix-cache-isolated-counter-summary/prefix-cache-isolated-stability-summary.md
+```
+
+## Result
+
+The run produced six scenarios, six paired runs, and six isolated remote calls.
+
+Top-level summary:
+
+| Metric | Value |
+| --- | ---: |
+| Mean shared-minus-control cumulative logged cache hit rate | 36.667 pp |
+| Mean shared-minus-control direct counter hit rate | 66.501 pp |
+| Max direct counter hit-rate population stdev | 0.000 |
+
+Scenario direct counters:
+
+| Profile | Requests | Logged Hit Mean | Direct Counter Hit Mean | Direct Queries | Direct Hits |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| `matched_unique_prefix` | 2 | 2.200% | 2.682% | 1193 | 32 |
+| `matched_unique_prefix` | 4 | 2.600% | 2.682% | 2386 | 64 |
+| `matched_unique_prefix` | 8 | 2.800% | 2.686% | 4765 | 128 |
+| `shared_prefix_long` | 2 | 28.100% | 49.612% | 1161 | 576 |
+| `shared_prefix_long` | 4 | 41.400% | 73.040% | 2322 | 1696 |
+| `shared_prefix_long` | 8 | 48.100% | 84.901% | 4636 | 3936 |
+
+Shared-prefix versus matched control:
+
+| Requests | Logged Shared | Logged Control | Direct Counter Delta | Throughput Delta | p95 Latency Delta |
+| ---: | ---: | ---: | ---: | ---: | ---: |
+| 2 | 28.100% | 2.200% | 46.930 pp | 2.480 | -0.729 |
+| 4 | 41.400% | 2.600% | 70.358 pp | -0.539 | 0.357 |
+| 8 | 48.100% | 2.800% | 82.215 pp | 0.048 | -0.065 |
+
+The direct counter deltas match Training 036's estimated measured-window rates
+within rounding:
+
+| Requests | Training 036 estimate delta | Training 037 direct delta |
+| ---: | ---: | ---: |
+| 2 | 46.970 pp | 46.930 pp |
+| 4 | 70.434 pp | 70.358 pp |
+| 8 | 82.241 pp | 82.215 pp |
+
+## Interpretation
+
+This is the strongest cache-observability result so far. It shows that:
+
+- neutral warmup keeps the matched-control measured-window hit rate low, around
+  `2.68%`
+- shared-prefix measured-window hit rates are high and scale with request count:
+  `49.612%`, `73.040%`, `84.901%`
+- the cumulative vLLM log line was the source of dilution, not a loss of prefix
+  reuse under neutral warmup
+
+The timing story remains noisy at this small model/request scale. The direct
+counter artifact is a measurement-quality improvement first; speedup claims
+still need repeated trials and larger workloads.
+
+## Next Step
+
+Training 038 should repeat the direct-counter neutral-warmup design across
+multiple seeds and repeats, then report confidence intervals for direct
+measured-window cache-hit deltas and timing deltas. The counter path is now good
+enough that the next question is stability, not observability.
