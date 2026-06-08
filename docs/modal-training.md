@@ -6242,3 +6242,88 @@ results/prefix-cache-study-mega-long-qwen05b-l4-smoke-r2/intervals.md
 Promote this mega-long L4 result to more repeats, then decide whether the next
 axis should be larger model size on L4 or a backend comparison using the same
 prompt/control pair.
+
+# Training 064: Qwen 0.5B Mega-Long L4 Merged r5
+
+Training 064 adds a three-repeat mega-long L4 chunk and merges it with the
+Training 063 r2 smoke. This promotes the L4 context-shape artifact from a smoke
+to a five-repeat result.
+
+## Goal
+
+Check whether the mega-long L4 result remains favorable after more repeats
+before moving to a larger model or backend comparison.
+
+## Chunk Run
+
+```bash
+modal run modal_app.py --mode vllm-prefix-cache-isolated-neutral-warmup \
+  --modal-gpu L4 \
+  --hf-model Qwen/Qwen2.5-0.5B-Instruct \
+  --prompt-profiles shared_prefix_mega_long_no_repeat_variant,matched_unique_prefix_mega_long_no_repeat_variant \
+  --output-tokens 8 \
+  --request-counts 16 \
+  --repeats 3 \
+  --scenario-seed 1801 \
+  --phase-order cold_first \
+  --kv-cache-metrics-sample 1.0 \
+  --warmup-prompt-profile neutral_mega_long \
+  --prefix-cache-shared-profile shared_prefix_mega_long_no_repeat_variant \
+  --prefix-cache-control-profile matched_unique_prefix_mega_long_no_repeat_variant \
+  --output-dir results/modal-vllm-prefix-cache-mega-long-qwen05b-l4-n16-chunk-r3-seed1801
+```
+
+The chunk produced `6` scenario-level cold/cache paired runs, or `3`
+shared/control comparisons, and preserved the L4 hardware evidence in
+`nvidia-smi` samples. The run reported the same `695,249` GPU KV-cache tokens
+for `max_model_len=3790`.
+
+## Merge And Report
+
+```bash
+modal run modal_app.py --mode vllm-prefix-cache-isolated-merge \
+  --prefix-cache-isolated-merge-dirs results/modal-vllm-prefix-cache-mega-long-qwen05b-l4-n16-smoke-r2,results/modal-vllm-prefix-cache-mega-long-qwen05b-l4-n16-chunk-r3-seed1801 \
+  --prefix-cache-shared-profile shared_prefix_mega_long_no_repeat_variant \
+  --prefix-cache-control-profile matched_unique_prefix_mega_long_no_repeat_variant \
+  --output-dir results/modal-vllm-prefix-cache-mega-long-qwen05b-l4-n16-merged-r5
+
+modal run modal_app.py --mode vllm-prefix-cache-isolated-stability-summary \
+  --prefix-cache-isolated-metrics-dir results/modal-vllm-prefix-cache-mega-long-qwen05b-l4-n16-merged-r5 \
+  --prefix-cache-shared-profile shared_prefix_mega_long_no_repeat_variant \
+  --prefix-cache-control-profile matched_unique_prefix_mega_long_no_repeat_variant \
+  --output-dir results/modal-vllm-prefix-cache-mega-long-qwen05b-l4-n16-merged-r5-summary
+
+python3 scripts/build_prefix_cache_study_table.py \
+  --summary-json results/modal-vllm-prefix-cache-mega-long-qwen05b-l4-n16-merged-r5-summary/prefix-cache-isolated-stability-summary.json \
+  --output-dir results/prefix-cache-study-mega-long-qwen05b-l4-merged-r5
+```
+
+## Result
+
+The merged artifact has `10` scenario-level cold/cache paired runs, or `5`
+shared/control comparisons, for `n=16`.
+
+- control direct counter hit rate: `0.447%`
+- shared direct counter hit rate: `93.070%`
+- shared-minus-control direct counter delta: `92.623 pp`, interval
+  `92.549 pp` to `92.698 pp`
+- p95 first-event/TTFT ratio delta: `-0.903`, interval `-0.923` to `-0.884`
+- throughput-ratio delta: `3.908`, interval `3.487` to `4.297`
+- p95 latency-ratio delta: `-0.829`, interval `-0.845` to `-0.812`
+- p95 stream TPOT-ratio delta: `-0.890`, interval `-0.910` to `-0.872`
+
+Generated artifacts:
+
+```text
+results/modal-vllm-prefix-cache-mega-long-qwen05b-l4-n16-chunk-r3-seed1801/prefix-cache-isolated-metrics.json
+results/modal-vllm-prefix-cache-mega-long-qwen05b-l4-n16-merged-r5/prefix-cache-isolated-metrics.json
+results/modal-vllm-prefix-cache-mega-long-qwen05b-l4-n16-merged-r5-summary/prefix-cache-isolated-stability-summary.md
+results/prefix-cache-study-mega-long-qwen05b-l4-merged-r5/key-results.md
+results/prefix-cache-study-mega-long-qwen05b-l4-merged-r5/intervals.md
+```
+
+## Next Step
+
+Promote this L4 context-shape artifact to r8, then use the repeat-count-matched
+result to decide whether the next research axis should be larger model size,
+larger batch pressure, or backend comparison.

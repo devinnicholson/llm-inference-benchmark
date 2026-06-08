@@ -166,11 +166,23 @@ or `223` full KV-cache blocks, while the matched unique-prefix control stays at
 `1` full block. At n=16, both profiles still have sixteen unique prompts and
 zero exact duplicate reusable tokens. On Modal L4, vLLM reported `695,249` GPU
 KV-cache tokens available for `max_model_len=3790`, and the artifact records
-`NVIDIA L4, 23034` in `nvidia-smi` samples. The r2 smoke shows a `92.605 pp`
-direct counter delta, p95 first-event/TTFT ratio delta `-0.911`,
-throughput-ratio delta `3.969`, p95 latency-ratio delta `-0.842`, and p95
-stream TPOT-ratio delta `-0.902`. This is now the best L4 context-shape smoke;
-the T4 r8 ultra-long result remains the stronger repeat-count artifact.
+`NVIDIA L4, 23034` in `nvidia-smi` samples. The r2 smoke showed a `92.605 pp`
+direct counter delta and favorable timing intervals.
+
+Training 064 promotes the mega-long L4 axis to r5:
+
+```text
+results/prefix-cache-study-mega-long-qwen05b-l4-merged-r5/key-results.md
+results/prefix-cache-study-mega-long-qwen05b-l4-merged-r5/intervals.md
+```
+
+The merged r5 artifact has `10` scenario-level cold/cache paired runs, which
+produce `5` shared/control comparisons. It keeps the direct-cache mechanism
+stable with a `92.623 pp` direct counter delta and favorable timing intervals:
+p95 first-event/TTFT ratio delta `-0.903`, throughput-ratio delta `3.908`, p95
+latency-ratio delta `-0.829`, and p95 stream TPOT-ratio delta `-0.890`. This is
+now the best L4 context-shape artifact; the T4 r8 ultra-long result remains the
+stronger repeat-count artifact.
 
 ## Reproduce
 
@@ -274,11 +286,16 @@ results/modal-vllm-prefix-cache-mega-long-qwen05b-l4-n16-smoke-r2/prefix-cache-i
 results/modal-vllm-prefix-cache-mega-long-qwen05b-l4-n16-smoke-r2-summary/prefix-cache-isolated-stability-summary.md
 results/prefix-cache-study-mega-long-qwen05b-l4-smoke-r2/key-results.md
 results/prefix-cache-study-mega-long-qwen05b-l4-smoke-r2/intervals.md
+results/modal-vllm-prefix-cache-mega-long-qwen05b-l4-n16-chunk-r3-seed1801/prefix-cache-isolated-metrics.json
+results/modal-vllm-prefix-cache-mega-long-qwen05b-l4-n16-merged-r5/prefix-cache-isolated-metrics.json
+results/modal-vllm-prefix-cache-mega-long-qwen05b-l4-n16-merged-r5-summary/prefix-cache-isolated-stability-summary.md
+results/prefix-cache-study-mega-long-qwen05b-l4-merged-r5/key-results.md
+results/prefix-cache-study-mega-long-qwen05b-l4-merged-r5/intervals.md
 ```
 
 ## Next Step
 
-Promote the mega-long L4 smoke with more repeats, or use the same L4 context
-shape to test a larger small model. The next useful artifact should separate
-"longer reusable prefix" from "model size" instead of only repeating the old
-ultra-long T4 workload.
+Promote the mega-long L4 axis to r8, or use the same L4 context shape to test a
+larger small model. The next useful artifact should separate "longer reusable
+prefix" from "model size" instead of only repeating the old ultra-long T4
+workload.
