@@ -4713,3 +4713,139 @@ at request count sixteen or a no-repeat request-count sweep such as 8, 12, 16,
 and 20. That would tell us whether the timing-positive result is stable across
 more paired observations and where the shared-prefix timing effect starts to
 separate from small-model noise.
+
+# Training 045: No-Repeat Request-Count Scaling Smoke
+
+Training 045 runs the no-repeat shared-prefix versus matched unique-prefix
+profiles across request counts 8, 12, 16, and 20.
+
+## Goal
+
+Check whether the clean Training 044 n=16 result is a one-off or part of a
+scaling pattern. This run keeps the duplicate-free prompt profiles, neutral
+warmup, cold-first phase order, output length, and seed family, but sweeps
+request count with two repeats per profile:
+
+- `shared_prefix_long_no_repeat_variant`
+- `matched_unique_prefix_no_repeat_variant`
+
+This is intentionally a smoke, not a final stability pass. The isolated mode
+invokes each request count in a separate remote call, which also changes the
+vLLM shape configuration for that call: `max_num_batched_tokens` scales with
+`request_count * max_model_len`, and `max_num_seqs` equals the request count.
+So the result measures a realistic shape-scaling sweep, not a pure request-count
+variable with all engine limits fixed.
+
+## Command
+
+Run the no-repeat request-count scaling smoke:
+
+```bash
+modal run modal_app.py --mode vllm-prefix-cache-isolated-neutral-warmup \
+  --prompt-profiles shared_prefix_long_no_repeat_variant,matched_unique_prefix_no_repeat_variant \
+  --output-tokens 8 \
+  --request-counts 8,12,16,20 \
+  --repeats 2 \
+  --scenario-seed 577 \
+  --phase-order cold_first \
+  --kv-cache-metrics-sample 1.0 \
+  --prefix-cache-shared-profile shared_prefix_long_no_repeat_variant \
+  --prefix-cache-control-profile matched_unique_prefix_no_repeat_variant \
+  --output-dir results/modal-vllm-prefix-cache-no-repeat-scaling-smoke
+```
+
+Generate the scaling-smoke stability summary:
+
+```bash
+modal run modal_app.py --mode vllm-prefix-cache-isolated-stability-summary \
+  --prefix-cache-isolated-metrics-dir results/modal-vllm-prefix-cache-no-repeat-scaling-smoke \
+  --prefix-cache-shared-profile shared_prefix_long_no_repeat_variant \
+  --prefix-cache-control-profile matched_unique_prefix_no_repeat_variant \
+  --output-dir results/modal-vllm-prefix-cache-no-repeat-scaling-smoke-summary
+```
+
+## Artifacts
+
+```text
+results/modal-vllm-prefix-cache-no-repeat-scaling-smoke/prefix-cache-isolated-metrics.json
+results/modal-vllm-prefix-cache-no-repeat-scaling-smoke/prefix-cache-isolated-metrics-summary.csv
+results/modal-vllm-prefix-cache-no-repeat-scaling-smoke/prefix-cache-isolated-metrics-runs.csv
+results/modal-vllm-prefix-cache-no-repeat-scaling-smoke/prefix-cache-isolated-profile-control.csv
+results/modal-vllm-prefix-cache-no-repeat-scaling-smoke-summary/prefix-cache-isolated-stability-summary.json
+results/modal-vllm-prefix-cache-no-repeat-scaling-smoke-summary/prefix-cache-isolated-stability-summary.csv
+results/modal-vllm-prefix-cache-no-repeat-scaling-smoke-summary/prefix-cache-isolated-stability-profile-control.csv
+results/modal-vllm-prefix-cache-no-repeat-scaling-smoke-summary/prefix-cache-isolated-stability-summary.md
+```
+
+## Result
+
+The raw scaling smoke produced eight scenarios, sixteen paired runs, and sixteen
+isolated remote calls.
+
+| Metric | Value |
+| --- | ---: |
+| Mean cache-to-cold throughput ratio | 1.097 |
+| Mean cache-to-cold latency ratio | 0.969 |
+| Mean shared-minus-control logged cache-hit delta | 31.600 pp |
+| Mean shared-minus-control direct counter delta | 76.888 pp |
+
+Counter-aware stability summary:
+
+| Metric | Value |
+| --- | ---: |
+| Mean shared-minus-control cumulative logged cache hit rate | 31.625 pp |
+| Mean shared-minus-control direct counter hit rate | 76.997 pp |
+| Direct counter hit-rate 90% bootstrap interval | 75.781 pp to 78.163 pp |
+| Throughput-ratio delta 90% bootstrap interval | -0.022 to 0.590 |
+| p95 latency-ratio delta 90% bootstrap interval | -0.293 to 0.033 |
+| Max direct counter hit-rate population stdev | 0.122 |
+
+Scenario direct counters:
+
+| Profile | Requests | Runs | Logged Hit Mean | Direct Counter Hit Mean | Direct Queries | Direct Hits |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| `matched_unique_prefix_no_repeat_variant` | 8 | 2 | 3.700% | 4.815% | 2658.500 | 128.000 |
+| `matched_unique_prefix_no_repeat_variant` | 12 | 2 | 22.300% | 4.786% | 4011.500 | 192.000 |
+| `matched_unique_prefix_no_repeat_variant` | 16 | 2 | 31.550% | 4.772% | 5364.500 | 256.000 |
+| `matched_unique_prefix_no_repeat_variant` | 20 | 2 | 37.100% | 4.769% | 6710.500 | 320.000 |
+| `shared_prefix_long_no_repeat_variant` | 8 | 2 | 33.650% | 78.532% | 2587.500 | 2032.000 |
+| `shared_prefix_long_no_repeat_variant` | 12 | 2 | 53.800% | 81.547% | 3904.500 | 3184.000 |
+| `shared_prefix_long_no_repeat_variant` | 16 | 2 | 63.850% | 83.041% | 5221.500 | 4336.000 |
+| `shared_prefix_long_no_repeat_variant` | 20 | 2 | 69.850% | 84.011% | 6532.500 | 5488.000 |
+
+Shared-prefix versus matched control:
+
+| Requests | Paired Obs | Direct Counter Delta | Direct Counter 90% CI | Throughput Delta | Throughput 90% CI | p95 Latency Delta | p95 Latency 90% CI |
+| ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| 8 | 2 | 73.717 pp | 73.617 pp to 73.817 pp | 0.061 | -0.085 to 0.207 | -0.079 | -0.241 to 0.084 |
+| 12 | 2 | 76.761 pp | 76.653 pp to 76.869 pp | 0.039 | -0.197 to 0.276 | 0.000 | -0.218 to 0.219 |
+| 16 | 2 | 78.269 pp | 78.157 pp to 78.382 pp | 0.680 | -0.126 to 1.487 | -0.273 | -0.656 to 0.110 |
+| 20 | 2 | 79.242 pp | 79.127 pp to 79.358 pp | 0.164 | -0.080 to 0.408 | -0.131 | -0.345 to 0.084 |
+
+## Interpretation
+
+The direct prefix-cache counter story is strong and monotonic. The matched
+unique-prefix control stays near `4.8%` direct measured-window hit rate at every
+request count, while the shared-prefix profile rises from `78.532%` at n=8 to
+`84.011%` at n=20. The shared-minus-control direct counter interval is positive
+for every request count and the aggregate interval is `75.781 pp` to
+`78.163 pp`.
+
+The timing story is weaker than Training 044 because this was only two repeats
+per request count. The aggregate throughput delta interval barely crosses zero,
+and every per-request-count timing interval crosses zero. The n=16 row has the
+largest mean throughput-ratio delta (`0.680`) and the largest mean p95 latency
+improvement (`-0.273`), which is consistent with Training 044, but its interval
+is wide enough that this run should not be treated as a final timing claim.
+
+Training 045 is useful because it says the no-repeat counter effect generalizes
+across request counts. It does not replace the cleaner Training 044 timing
+result, which had three n=16 observations and positive timing intervals.
+
+## Next Step
+
+Training 046 should focus on more repeats at a fixed shape, probably n=16. That
+is the request count where Training 044 already produced positive timing
+intervals and Training 045 produced the largest mean timing separation. A good
+next run is eight to ten no-repeat paired observations at n=16, followed by the
+same stability summary.
