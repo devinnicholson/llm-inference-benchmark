@@ -23,6 +23,7 @@ DEFAULT_VLLM_OUTPUT = "results/modal-vllm-inference"
 DEFAULT_VLLM_STREAMING_OUTPUT = "results/modal-vllm-streaming"
 DEFAULT_VLLM_CONCURRENT_OUTPUT = "results/modal-vllm-concurrent"
 DEFAULT_VLLM_CACHE_METRICS_PROBE_OUTPUT = "results/modal-vllm-cache-metrics-probe"
+DEFAULT_VLLM_CACHE_METRICS_SMOKE_OUTPUT = "results/modal-vllm-cache-metrics-smoke"
 DEFAULT_VLLM_SWEEP_OUTPUT = "results/modal-vllm-sweep"
 DEFAULT_VLLM_SERVER_OUTPUT = "results/modal-vllm-server-streaming"
 DEFAULT_VLLM_SERVER_CONCURRENT_OUTPUT = "results/modal-vllm-server-concurrent"
@@ -1303,6 +1304,314 @@ def run_vllm_cache_metrics_probe_remote(
         "note": (
             "Remote introspection of vLLM constructor surfaces related to cache "
             "metrics, observability, and logging. This does not run inference."
+        ),
+    }
+
+
+@app.function(
+    image=vllm_image,
+    gpu="T4",
+    timeout=1200,
+    volumes={HF_CACHE_PATH: hf_cache_volume, VLLM_CACHE_PATH: vllm_cache_volume},
+)
+def run_vllm_cache_metrics_smoke_remote(
+    hf_model: str = DEFAULT_HF_MODEL,
+    prompt_profile: str = "shared_prefix_long",
+    request_count: int = 4,
+    max_new_tokens: int = 8,
+) -> dict[str, Any]:
+    import asyncio
+    import contextlib
+    import inspect
+    import io
+    import logging
+    import platform
+    import re
+    import time
+
+    from transformers import AutoTokenizer
+    from vllm import SamplingParams
+    from vllm.engine.arg_utils import AsyncEngineArgs
+    from vllm.sampling_params import RequestOutputKind
+    from vllm.v1.engine.async_llm import AsyncLLM
+    import vllm
+
+    if request_count <= 0:
+        raise ValueError("request_count must be positive")
+    if max_new_tokens <= 0:
+        raise ValueError("max_new_tokens must be positive")
+    prompt_profile = prompt_profile.lower().replace("-", "_")
+    _validate_vllm_prompt_profiles([prompt_profile], label="prompt_profile")
+
+    tokenizer = AutoTokenizer.from_pretrained(hf_model)
+    prompts = _select_sweep_prompts(request_count, prompt_profile)
+    prompt_records = []
+    for index, prompt in enumerate(prompts):
+        formatted_prompt, prompt_format = _format_prompt_for_generation(tokenizer, prompt)
+        prompt_records.append(
+            {
+                "request_id": f"{prompt_profile}-metrics-n{request_count}-{index:02d}",
+                "prompt": prompt,
+                "formatted_prompt": formatted_prompt,
+                "prompt_format": prompt_format,
+                "prompt_tokens": len(tokenizer.encode(formatted_prompt)),
+            }
+        )
+    max_prompt_tokens = max(record["prompt_tokens"] for record in prompt_records)
+    max_model_len = max(1024, max_prompt_tokens + max_new_tokens + 32)
+    max_num_batched_tokens = max(2048, request_count * max_model_len)
+
+    def relevant_object_attrs(target: Any) -> list[dict[str, Any]]:
+        rows = []
+        markers = ("cache", "metric", "stat", "log")
+        for name in dir(target):
+            if name.startswith("__") or not any(marker in name.lower() for marker in markers):
+                continue
+            try:
+                value = getattr(target, name)
+                value_type = type(value).__name__
+                if callable(value):
+                    value_repr = f"<callable {value_type}>"
+                else:
+                    value_repr = repr(value)
+            except Exception as error:  # pragma: no cover - remote object probe
+                value_type = type(error).__name__
+                value_repr = f"<error {error}>"
+            rows.append(
+                {
+                    "name": name,
+                    "type": value_type,
+                    "repr": value_repr[:500],
+                }
+            )
+        return rows
+
+    async def call_log_stats(engine: Any, label: str) -> dict[str, Any]:
+        stdout_buffer = io.StringIO()
+        stderr_buffer = io.StringIO()
+        captured_logs: list[str] = []
+
+        class CaptureHandler(logging.Handler):
+            def emit(self, record: logging.LogRecord) -> None:
+                captured_logs.append(self.format(record))
+
+        handler = CaptureHandler()
+        handler.setLevel(logging.INFO)
+        handler.setFormatter(logging.Formatter("%(levelname)s %(name)s: %(message)s"))
+        capture_loggers = [
+            logging.getLogger(),
+            logging.getLogger("vllm"),
+            logging.getLogger("vllm.v1.metrics.loggers"),
+        ]
+        started = time.perf_counter()
+        try:
+            for logger in capture_loggers:
+                logger.addHandler(handler)
+            with contextlib.redirect_stdout(stdout_buffer), contextlib.redirect_stderr(
+                stderr_buffer
+            ):
+                result = engine.do_log_stats()
+                if inspect.isawaitable(result):
+                    result = await result
+            return {
+                "label": label,
+                "ok": True,
+                "elapsed_ms": (time.perf_counter() - started) * 1000,
+                "return_type": type(result).__name__,
+                "return_repr": repr(result)[:1000],
+                "stdout": stdout_buffer.getvalue()[-4000:],
+                "stderr": stderr_buffer.getvalue()[-4000:],
+                "captured_logs": captured_logs[-20:],
+            }
+        except Exception as error:  # pragma: no cover - remote object probe
+            return {
+                "label": label,
+                "ok": False,
+                "elapsed_ms": (time.perf_counter() - started) * 1000,
+                "return_type": type(error).__name__,
+                "return_repr": str(error)[:1000],
+                "stdout": stdout_buffer.getvalue()[-4000:],
+                "stderr": stderr_buffer.getvalue()[-4000:],
+                "captured_logs": captured_logs[-20:],
+            }
+        finally:
+            for logger in capture_loggers:
+                logger.removeHandler(handler)
+
+    def parse_log_metrics(log_stats: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        rows = []
+        patterns = {
+            "avg_prompt_throughput_tokens_per_s": r"Avg prompt throughput: ([0-9.]+) tokens/s",
+            "avg_generation_throughput_tokens_per_s": (
+                r"Avg generation throughput: ([0-9.]+) tokens/s"
+            ),
+            "gpu_kv_cache_usage_pct": r"GPU KV cache usage: ([0-9.]+)%",
+            "prefix_cache_hit_rate_pct": r"Prefix cache hit rate: ([0-9.]+)%",
+        }
+        for call in log_stats:
+            for line in call.get("captured_logs", []):
+                row: dict[str, Any] = {
+                    "label": call["label"],
+                    "line": line,
+                }
+                matched = False
+                for field, pattern in patterns.items():
+                    match = re.search(pattern, line)
+                    if match:
+                        row[field] = float(match.group(1))
+                        matched = True
+                if matched:
+                    rows.append(row)
+        return rows
+
+    async def run_smoke() -> dict[str, Any]:
+        engine_args = AsyncEngineArgs(
+            model=hf_model,
+            dtype="half",
+            max_model_len=max_model_len,
+            max_num_batched_tokens=max_num_batched_tokens,
+            max_num_seqs=request_count,
+            gpu_memory_utilization=0.50,
+            enable_prefix_caching=True,
+            kv_cache_metrics=True,
+            kv_cache_metrics_sample=1.0,
+            disable_log_stats=False,
+            enforce_eager=True,
+            trust_remote_code=False,
+        )
+        started = time.perf_counter()
+        engine = AsyncLLM.from_engine_args(engine_args)
+        engine_load_ms = (time.perf_counter() - started) * 1000
+        log_stats = []
+        try:
+            log_stats.append(await call_log_stats(engine, "after_engine_load"))
+            sampling_params = SamplingParams(
+                max_tokens=max_new_tokens,
+                temperature=0.0,
+                output_kind=RequestOutputKind.DELTA,
+            )
+
+            async def stream_one(record: dict[str, Any]) -> dict[str, Any]:
+                request_started = time.perf_counter()
+                first_chunk_ms: float | None = None
+                finished_ms: float | None = None
+                generated_tokens = 0
+                chunk_count = 0
+                async for output in engine.generate(
+                    request_id=f"metrics-smoke-{record['request_id']}",
+                    prompt=record["formatted_prompt"],
+                    sampling_params=sampling_params,
+                ):
+                    elapsed_ms = (time.perf_counter() - request_started) * 1000
+                    chunk_count += 1
+                    for completion in output.outputs:
+                        token_ids = list(completion.token_ids or [])
+                        if first_chunk_ms is None and (completion.text or token_ids):
+                            first_chunk_ms = elapsed_ms
+                        generated_tokens += len(token_ids)
+                    if output.finished:
+                        finished_ms = elapsed_ms
+                        break
+                stream_wall_ms = finished_ms or (
+                    (time.perf_counter() - request_started) * 1000
+                )
+                decode_tokens_after_first = max(generated_tokens - 1, 0)
+                decode_after_first_ms = (
+                    stream_wall_ms - first_chunk_ms
+                    if first_chunk_ms is not None
+                    else None
+                )
+                return {
+                    "request_id": record["request_id"],
+                    "prompt_tokens": record["prompt_tokens"],
+                    "first_chunk_ms": first_chunk_ms,
+                    "stream_wall_ms": stream_wall_ms,
+                    "decode_after_first_ms": decode_after_first_ms,
+                    "stream_tpot_ms": (
+                        decode_after_first_ms / decode_tokens_after_first
+                        if decode_after_first_ms is not None and decode_tokens_after_first
+                        else None
+                    ),
+                    "generated_tokens": generated_tokens,
+                    "total_sequence_tokens": record["prompt_tokens"] + generated_tokens,
+                    "chunk_count": chunk_count,
+                }
+
+            batch_started = time.perf_counter()
+            request_results = await asyncio.gather(
+                *(stream_one(record) for record in prompt_records)
+            )
+            batch_wall_ms = (time.perf_counter() - batch_started) * 1000
+            log_stats.append(await call_log_stats(engine, "after_shared_prefix_batch"))
+            parsed_log_metrics = parse_log_metrics(log_stats)
+            engine_attrs = relevant_object_attrs(engine)
+            engine_core_attrs = (
+                relevant_object_attrs(engine.engine_core)
+                if hasattr(engine, "engine_core")
+                else []
+            )
+        finally:
+            engine.shutdown()
+
+        return {
+            "engine_load_ms": engine_load_ms,
+            "request_results": request_results,
+            "batch_wall_ms": batch_wall_ms,
+            "summary": _summarize_stream_requests(request_results, batch_wall_ms),
+            "log_stats_calls": log_stats,
+            "parsed_log_metrics": parsed_log_metrics,
+            "engine_relevant_attrs": engine_attrs,
+            "engine_core_relevant_attrs": engine_core_attrs,
+        }
+
+    nvidia_smi_before = _run_command(
+        [
+            "nvidia-smi",
+            "--query-gpu=name,memory.total,memory.free,driver_version",
+            "--format=csv,noheader,nounits",
+        ]
+    )
+    smoke = asyncio.run(run_smoke())
+    hf_cache_volume.commit()
+    vllm_cache_volume.commit()
+    nvidia_smi_after = _run_command(
+        [
+            "nvidia-smi",
+            "--query-gpu=name,memory.total,memory.free,driver_version",
+            "--format=csv,noheader,nounits",
+        ]
+    )
+    return {
+        "schema_version": 1,
+        "execution": "modal",
+        "mode": "vllm-cache-metrics-smoke",
+        "backend": "vllm-async-engine",
+        "model_id": hf_model,
+        "prompt_profile": prompt_profile,
+        "request_count": request_count,
+        "max_new_tokens": max_new_tokens,
+        "prompt_tokens_min": min(record["prompt_tokens"] for record in prompt_records),
+        "prompt_tokens_max": max_prompt_tokens,
+        "prompt_tokens_mean": (
+            sum(record["prompt_tokens"] for record in prompt_records) / len(prompt_records)
+        ),
+        "max_model_len": max_model_len,
+        "max_num_batched_tokens": max_num_batched_tokens,
+        "enable_prefix_caching": True,
+        "kv_cache_metrics": True,
+        "kv_cache_metrics_sample": 1.0,
+        "disable_log_stats": False,
+        "smoke": smoke,
+        "vllm_version": str(vllm.__version__),
+        "platform": platform.platform(),
+        "python_version": platform.python_version(),
+        "nvidia_smi_before": nvidia_smi_before,
+        "nvidia_smi_after": nvidia_smi_after,
+        "note": (
+            "Tiny GPU-backed metrics smoke. The run enables vLLM KV-cache "
+            "metrics, executes one shared-prefix batch, calls do_log_stats "
+            "before and after the batch, and records visible cache/stat/log "
+            "attributes on AsyncLLM and engine_core."
         ),
     }
 
@@ -3362,6 +3671,39 @@ def main(
         print(f"json: {json_path}")
         return
 
+    if mode == "vllm-cache-metrics-smoke":
+        payload = run_vllm_cache_metrics_smoke_remote.remote(
+            hf_model=hf_model,
+            prompt_profile=prompt_profile,
+            request_count=prompt_count,
+            max_new_tokens=max_new_tokens,
+        )
+        output_path = Path(output_dir or DEFAULT_VLLM_CACHE_METRICS_SMOKE_OUTPUT)
+        output_path.mkdir(parents=True, exist_ok=True)
+        json_path = output_path / "cache-metrics-smoke.json"
+        json_path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+
+        print(f"model: {payload['model_id']}")
+        print(f"vllm_version: {payload['vllm_version']}")
+        print(f"prompt_profile: {payload['prompt_profile']}")
+        print(f"request_count: {payload['request_count']}")
+        print(f"engine_load_ms: {payload['smoke']['engine_load_ms']:.3f}")
+        for call in payload["smoke"]["log_stats_calls"]:
+            print(
+                f"log_stats {call['label']}: ok={call['ok']} "
+                f"return_type={call['return_type']}"
+            )
+        print(
+            "engine_relevant_attrs: "
+            f"{len(payload['smoke']['engine_relevant_attrs'])}"
+        )
+        print(
+            "engine_core_relevant_attrs: "
+            f"{len(payload['smoke']['engine_core_relevant_attrs'])}"
+        )
+        print(f"json: {json_path}")
+        return
+
     if mode == "vllm-inference":
         payload = run_vllm_inference_remote.remote(
             hf_model=hf_model,
@@ -3847,7 +4189,7 @@ def main(
         raise ValueError(
             "mode must be 'sweep', 'gpu-probe', 'tiny-inference', "
             "'vllm-cache-metrics-probe', 'vllm-inference', "
-            "'vllm-streaming', 'vllm-concurrent', "
+            "'vllm-cache-metrics-smoke', 'vllm-streaming', 'vllm-concurrent', "
             "'vllm-server-streaming', 'vllm-server-concurrent', "
             "'vllm-server-sweep', 'vllm-server-sweep-compare', "
             "'vllm-server-async-paired', "

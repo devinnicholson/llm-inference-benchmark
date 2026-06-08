@@ -1,0 +1,218 @@
+{
+  "backend": "vllm-async-engine",
+  "disable_log_stats": false,
+  "enable_prefix_caching": true,
+  "execution": "modal",
+  "kv_cache_metrics": true,
+  "kv_cache_metrics_sample": 1.0,
+  "max_model_len": 1024,
+  "max_new_tokens": 8,
+  "max_num_batched_tokens": 4096,
+  "mode": "vllm-cache-metrics-smoke",
+  "model_id": "HuggingFaceTB/SmolLM2-135M-Instruct",
+  "note": "Tiny GPU-backed metrics smoke. The run enables vLLM KV-cache metrics, executes one shared-prefix batch, calls do_log_stats before and after the batch, and records visible cache/stat/log attributes on AsyncLLM and engine_core.",
+  "nvidia_smi_after": "Tesla T4, 15360, 14913, 580.95.05",
+  "nvidia_smi_before": "Tesla T4, 15360, 14913, 580.95.05",
+  "platform": "Linux-4.4.0-x86_64-with-glibc2.35",
+  "prompt_profile": "shared_prefix_long",
+  "prompt_tokens_max": 582,
+  "prompt_tokens_mean": 580.5,
+  "prompt_tokens_min": 579,
+  "python_version": "3.12.1",
+  "request_count": 4,
+  "schema_version": 1,
+  "smoke": {
+    "batch_wall_ms": 726.0686079999914,
+    "engine_core_relevant_attrs": [
+      {
+        "name": "reset_encoder_cache",
+        "repr": "<callable method>",
+        "type": "method"
+      },
+      {
+        "name": "reset_encoder_cache_async",
+        "repr": "<callable method>",
+        "type": "method"
+      },
+      {
+        "name": "reset_mm_cache",
+        "repr": "<callable method>",
+        "type": "method"
+      },
+      {
+        "name": "reset_mm_cache_async",
+        "repr": "<callable method>",
+        "type": "method"
+      },
+      {
+        "name": "reset_prefix_cache",
+        "repr": "<callable method>",
+        "type": "method"
+      },
+      {
+        "name": "reset_prefix_cache_async",
+        "repr": "<callable method>",
+        "type": "method"
+      },
+      {
+        "name": "save_sharded_state",
+        "repr": "<callable method>",
+        "type": "method"
+      },
+      {
+        "name": "save_sharded_state_async",
+        "repr": "<callable method>",
+        "type": "method"
+      },
+      {
+        "name": "stats_update_address",
+        "repr": "None",
+        "type": "NoneType"
+      }
+    ],
+    "engine_load_ms": 138529.425789,
+    "engine_relevant_attrs": [
+      {
+        "name": "_logger_ref",
+        "repr": "[<vllm.v1.metrics.loggers.StatLoggerManager object at 0x2ad90470ecf0>]",
+        "type": "list"
+      },
+      {
+        "name": "do_log_stats",
+        "repr": "<callable method>",
+        "type": "method"
+      },
+      {
+        "name": "log_requests",
+        "repr": "False",
+        "type": "bool"
+      },
+      {
+        "name": "log_stats",
+        "repr": "True",
+        "type": "bool"
+      },
+      {
+        "name": "logger_manager",
+        "repr": "<vllm.v1.metrics.loggers.StatLoggerManager object at 0x2ad90470ecf0>",
+        "type": "StatLoggerManager"
+      },
+      {
+        "name": "reset_encoder_cache",
+        "repr": "<callable method>",
+        "type": "method"
+      },
+      {
+        "name": "reset_mm_cache",
+        "repr": "<callable method>",
+        "type": "method"
+      },
+      {
+        "name": "reset_prefix_cache",
+        "repr": "<callable method>",
+        "type": "method"
+      }
+    ],
+    "log_stats_calls": [
+      {
+        "captured_logs": [],
+        "elapsed_ms": 0.14359400000785172,
+        "label": "after_engine_load",
+        "ok": true,
+        "return_repr": "None",
+        "return_type": "NoneType",
+        "stderr": "",
+        "stdout": ""
+      },
+      {
+        "captured_logs": [
+          "INFO vllm.v1.metrics.loggers: Engine 000: Avg prompt throughput: 883.8 tokens/s, Avg generation throughput: 44.1 tokens/s, Running: 0 reqs, Waiting: 0 reqs, GPU KV cache usage: 0.0%, Prefix cache hit rate: 72.4%",
+          "INFO vllm.v1.metrics.loggers: Engine 000: Avg prompt throughput: 883.8 tokens/s, Avg generation throughput: 44.1 tokens/s, Running: 0 reqs, Waiting: 0 reqs, GPU KV cache usage: 0.0%, Prefix cache hit rate: 72.4%"
+        ],
+        "elapsed_ms": 0.25121799998828465,
+        "label": "after_shared_prefix_batch",
+        "ok": true,
+        "return_repr": "None",
+        "return_type": "NoneType",
+        "stderr": "",
+        "stdout": ""
+      }
+    ],
+    "parsed_log_metrics": [
+      {
+        "avg_generation_throughput_tokens_per_s": 44.1,
+        "avg_prompt_throughput_tokens_per_s": 883.8,
+        "gpu_kv_cache_usage_pct": 0.0,
+        "label": "after_shared_prefix_batch",
+        "line": "INFO vllm.v1.metrics.loggers: Engine 000: Avg prompt throughput: 883.8 tokens/s, Avg generation throughput: 44.1 tokens/s, Running: 0 reqs, Waiting: 0 reqs, GPU KV cache usage: 0.0%, Prefix cache hit rate: 72.4%",
+        "prefix_cache_hit_rate_pct": 72.4
+      },
+      {
+        "avg_generation_throughput_tokens_per_s": 44.1,
+        "avg_prompt_throughput_tokens_per_s": 883.8,
+        "gpu_kv_cache_usage_pct": 0.0,
+        "label": "after_shared_prefix_batch",
+        "line": "INFO vllm.v1.metrics.loggers: Engine 000: Avg prompt throughput: 883.8 tokens/s, Avg generation throughput: 44.1 tokens/s, Running: 0 reqs, Waiting: 0 reqs, GPU KV cache usage: 0.0%, Prefix cache hit rate: 72.4%",
+        "prefix_cache_hit_rate_pct": 72.4
+      }
+    ],
+    "request_results": [
+      {
+        "chunk_count": 8,
+        "decode_after_first_ms": 146.3238810000007,
+        "first_chunk_ms": 579.0369659999897,
+        "generated_tokens": 8,
+        "prompt_tokens": 580,
+        "request_id": "shared_prefix_long-metrics-n4-00",
+        "stream_tpot_ms": 20.903411571428673,
+        "stream_wall_ms": 725.3608469999904,
+        "total_sequence_tokens": 588
+      },
+      {
+        "chunk_count": 7,
+        "decode_after_first_ms": 126.02352100000758,
+        "first_chunk_ms": 598.4729239999922,
+        "generated_tokens": 8,
+        "prompt_tokens": 581,
+        "request_id": "shared_prefix_long-metrics-n4-01",
+        "stream_tpot_ms": 18.003360142858224,
+        "stream_wall_ms": 724.4964449999998,
+        "total_sequence_tokens": 589
+      },
+      {
+        "chunk_count": 7,
+        "decode_after_first_ms": 126.0350130000063,
+        "first_chunk_ms": 598.3849609999936,
+        "generated_tokens": 8,
+        "prompt_tokens": 579,
+        "request_id": "shared_prefix_long-metrics-n4-02",
+        "stream_tpot_ms": 18.005001857143757,
+        "stream_wall_ms": 724.4199739999999,
+        "total_sequence_tokens": 587
+      },
+      {
+        "chunk_count": 7,
+        "decode_after_first_ms": 126.04204199999458,
+        "first_chunk_ms": 598.2870730000229,
+        "generated_tokens": 8,
+        "prompt_tokens": 582,
+        "request_id": "shared_prefix_long-metrics-n4-03",
+        "stream_tpot_ms": 18.006005999999225,
+        "stream_wall_ms": 724.3291150000175,
+        "total_sequence_tokens": 590
+      }
+    ],
+    "summary": {
+      "aggregate_output_tokens_per_second": 44.07297002985202,
+      "batch_wall_ms": 726.0686079999914,
+      "p50_first_chunk_ms": 598.2870730000229,
+      "p50_latency_ms": 724.4199739999999,
+      "p50_stream_tpot_ms": 18.005001857143757,
+      "p95_first_chunk_ms": 598.4729239999922,
+      "p95_latency_ms": 725.3608469999904,
+      "p95_stream_tpot_ms": 20.903411571428673,
+      "total_output_tokens": 32
+    }
+  },
+  "vllm_version": "0.21.0"
+}

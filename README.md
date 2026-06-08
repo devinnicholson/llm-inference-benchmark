@@ -121,6 +121,15 @@ Inspect vLLM cache-metrics support in the Modal image:
 modal run modal_app.py --mode vllm-cache-metrics-probe
 ```
 
+Run a tiny GPU-backed vLLM cache-metrics smoke:
+
+```bash
+modal run modal_app.py --mode vllm-cache-metrics-smoke \
+  --prompt-profile shared_prefix_long \
+  --prompt-count 4 \
+  --max-new-tokens 8
+```
+
 Run the first Modal vLLM streaming timing:
 
 ```bash

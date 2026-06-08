@@ -2659,3 +2659,87 @@ one shared-prefix scenario, prefix caching enabled, `kv_cache_metrics=True`,
 `kv_cache_metrics_sample=1.0`, and explicit `do_log_stats()` calls before and
 after the scenario. The artifact should report whether vLLM exposes usable
 hit-rate or block-reuse counters in logs or object state.
+
+# Training 027: GPU Cache-Metrics Smoke
+
+Training 027 adds `vllm-cache-metrics-smoke`, a tiny GPU-backed run that enables
+vLLM KV-cache metrics and captures the log output from `do_log_stats()`.
+
+## Goal
+
+Move from indirect timing evidence to direct cache observability. The smoke is
+intentionally small: four `shared_prefix_long` requests, eight generated tokens,
+prefix caching enabled, and metrics sampling set to `1.0`.
+
+## Command
+
+```bash
+modal run modal_app.py --mode vllm-cache-metrics-smoke \
+  --prompt-profile shared_prefix_long \
+  --prompt-count 4 \
+  --max-new-tokens 8 \
+  --output-dir results/modal-vllm-cache-metrics-smoke
+```
+
+## Artifact
+
+```text
+results/modal-vllm-cache-metrics-smoke/cache-metrics-smoke.json
+```
+
+## Result
+
+The vLLM engine was created with:
+
+- `enable_prefix_caching=True`
+- `kv_cache_metrics=True`
+- `kv_cache_metrics_sample=1.0`
+- `disable_log_stats=False`
+
+The smoke called `do_log_stats()` after engine load and again after the
+shared-prefix batch. The second call emitted and captured a vLLM metrics line:
+
+| Metric | Value |
+| --- | ---: |
+| Prefix cache hit rate | 72.4% |
+| Avg prompt throughput | 883.8 tokens/s |
+| Avg generation throughput | 44.1 tokens/s |
+| GPU KV cache usage after drain | 0.0% |
+
+The request timing summary for the four-request batch was:
+
+| Metric | Value |
+| --- | ---: |
+| Batch wall time | 726.069 ms |
+| Total output tokens | 32 |
+| Output tokens/s | 44.073 |
+| p95 first chunk | 598.473 ms |
+| p95 latency | 725.361 ms |
+| p95 TPOT | 20.903 ms |
+
+The Python object surface still does not expose an obvious direct metrics
+getter. The visible `AsyncLLM` attributes include `logger_manager`,
+`do_log_stats`, `reset_prefix_cache`, and log/cache reset helpers. The usable
+metrics path for vLLM `0.21.0` is therefore log-stat capture, not direct object
+state.
+
+## Interpretation
+
+This is the first direct cache-observability artifact in the project. The timing
+experiments in Trainings 024 and 025 showed mixed end-to-end performance, but
+Training 027 confirms that vLLM can report a prefix-cache hit rate for the exact
+Modal image and benchmark workload family.
+
+The hit-rate value is not yet a benchmark conclusion by itself. It comes from
+one tiny shared-prefix smoke, after the batch has drained. The important result
+is methodological: we now know how to enable and capture cache metrics in JSON,
+which means the next paired experiments can correlate timing deltas with actual
+cache behavior.
+
+## Next Step
+
+Training 028 should wire this log-stat capture into the paired prefix-cache
+harness. Each phase should optionally enable `kv_cache_metrics`, call
+`do_log_stats()` after warmup and after each scenario or scenario group, parse
+prefix-cache hit rate, and attach those metrics to paired rows. Then rerun the
+long shared-prefix versus matched unique-prefix control with metrics enabled.
