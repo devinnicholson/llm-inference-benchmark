@@ -4453,3 +4453,108 @@ eight. Because the n=16 matched-control profile now reports substantial direct
 cache hits, the next check is whether those hits come from repeated full blocks
 inside the expanded control batch, tokenizer scaffolding, or a measurement
 effect.
+
+# Training 043: n=16 Duplicate Prompt Audit
+
+Training 043 extends `vllm-prefix-cache-prompt-audit` so it reports exact
+duplicate prompt groups in addition to the common prefix shared by every prompt
+in a scenario. It then reruns the tokenizer-only audit for the n=16 variant
+probe from Training 042.
+
+## Goal
+
+Explain why Training 042's matched-control profile reported a high
+`50.525%` direct measured-window cache hit rate even though the prompt family
+was designed as a unique-prefix control. The prior prompt audit measured only
+the leading prefix common to all prompts. At request count sixteen, the variant
+prompt generator can also create pairwise exact duplicates because the task
+suffix and control label lists each have eight entries.
+
+## Command
+
+Run the n=16 prompt/block audit:
+
+```bash
+modal run modal_app.py --mode vllm-prefix-cache-prompt-audit \
+  --prompt-profiles shared_prefix_long_variant,matched_unique_prefix_variant \
+  --output-tokens 8 \
+  --request-counts 16 \
+  --repeats 3 \
+  --scenario-seed 577 \
+  --kv-cache-block-size 16 \
+  --output-dir results/modal-vllm-prefix-cache-prompt-audit-variant-n16
+```
+
+## Artifacts
+
+```text
+results/modal-vllm-prefix-cache-prompt-audit-variant-n16/prefix-cache-prompt-audit.json
+results/modal-vllm-prefix-cache-prompt-audit-variant-n16/prefix-cache-prompt-audit-scenarios.csv
+results/modal-vllm-prefix-cache-prompt-audit-variant-n16/prefix-cache-prompt-audit-prompts.csv
+results/modal-vllm-prefix-cache-prompt-audit-variant-n16/prefix-cache-prompt-audit-profile-control.csv
+results/modal-vllm-prefix-cache-prompt-audit-variant-n16/prefix-cache-prompt-audit.md
+```
+
+## Result
+
+The audit used the same model tokenizer, request count, repeats, seed, and
+block size as the n=16 timing probe. It did not run vLLM inference.
+
+| Metric | Value |
+| --- | ---: |
+| Scenarios | 6 |
+| Prompts | 96 |
+| KV cache block size | 16 |
+| Mean shared common-prefix full blocks | 18.333 |
+| Mean control common-prefix full blocks | 1.000 |
+| Mean shared-minus-control common-prefix blocks | 17.333 |
+| Mean shared-minus-control reusable block tokens | 4160.000 |
+| Mean shared exact-duplicate reusable block tokens | 2602.667 |
+| Mean control exact-duplicate reusable block tokens | 2602.667 |
+| Mean shared-minus-control exact-duplicate reusable block tokens | 0.000 |
+| Mean control exact-duplicate reusable block fraction | 0.482 |
+
+Scenario audit:
+
+| Profile | Repeat | Requests | Common Blocks | Unique Prompts | Duplicate Reusable Tokens | Duplicate Fraction |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| `shared_prefix_long_variant` | 0 | 16 | 18 | 8 | 2560 | 0.494 |
+| `matched_unique_prefix_variant` | 0 | 16 | 1 | 8 | 2560 | 0.481 |
+| `shared_prefix_long_variant` | 1 | 16 | 18 | 8 | 2560 | 0.495 |
+| `matched_unique_prefix_variant` | 1 | 16 | 1 | 8 | 2560 | 0.482 |
+| `shared_prefix_long_variant` | 2 | 16 | 19 | 8 | 2688 | 0.494 |
+| `matched_unique_prefix_variant` | 2 | 16 | 1 | 8 | 2688 | 0.482 |
+
+Shared-prefix versus matched control:
+
+| Repeat | Requests | Shared Blocks | Control Blocks | Block Delta | Reusable Token Delta | Shared Duplicate Tokens | Control Duplicate Tokens |
+| ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| 0 | 16 | 18 | 1 | 17 | 4080 | 2560 | 2560 |
+| 1 | 16 | 18 | 1 | 17 | 4080 | 2560 | 2560 |
+| 2 | 16 | 19 | 1 | 18 | 4320 | 2688 | 2688 |
+
+## Interpretation
+
+Training 043 explains the surprising Training 042 control hit rate. The
+matched-control profile still has only one full cache block common to all
+prompts, so the original all-prompt common-prefix estimate remains low:
+`240` reusable block tokens per repeat, or about `4.3%` to `4.5%` of prompt
+tokens. But each n=16 scenario contains only eight unique prompts, with each
+exact prompt appearing twice. That duplicate structure contributes about
+`2560` to `2688` reusable full-block tokens, or about `48.2%` of the control
+prompt tokens. That is consistent with the `50.525%` direct measured-window
+control hit rate from Training 042.
+
+This changes the interpretation of Training 042. The timing-positive n=16
+result is still useful evidence that larger batches can make cache reuse show
+up in timing, but it is not a clean unique-control experiment. Both profiles
+benefit from exact duplicate prompts at n=16; the shared profile then adds a
+long all-prompt reusable prefix on top.
+
+## Next Step
+
+Training 044 should remove the n=16 duplicate-control confound by adding a
+non-cycling variant prompt family or by expanding the task suffix and control
+label pools beyond sixteen entries. Then rerun request count sixteen with no
+exact duplicate prompts and compare the direct counter and timing intervals
+against Training 042.

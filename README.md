@@ -627,6 +627,20 @@ modal run modal_app.py --mode vllm-prefix-cache-isolated-stability-summary \
   --output-dir results/modal-vllm-prefix-cache-variant-n16-summary
 ```
 
+Audit prompt token, cache-block, and exact duplicate alignment for the n=16
+variant probe:
+
+```bash
+modal run modal_app.py --mode vllm-prefix-cache-prompt-audit \
+  --prompt-profiles shared_prefix_long_variant,matched_unique_prefix_variant \
+  --output-tokens 8 \
+  --request-counts 16 \
+  --repeats 3 \
+  --scenario-seed 577 \
+  --kv-cache-block-size 16 \
+  --output-dir results/modal-vllm-prefix-cache-prompt-audit-variant-n16
+```
+
 Modal training is documented in
 [`docs/modal-training.md`](docs/modal-training.md).
 

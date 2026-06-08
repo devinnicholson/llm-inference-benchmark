@@ -249,6 +249,57 @@ class ModalAppTests(unittest.TestCase):
             )
         self.assertIn("Prefix-Cache Prompt Token Audit", payload["markdown"])
 
+    def test_prompt_audit_reports_exact_duplicate_reuse(self) -> None:
+        payload = modal_app._build_vllm_prefix_cache_prompt_audit_payload(
+            tokenizer=_WhitespaceTokenizer(),
+            hf_model="fake-model",
+            request_count_values=[16],
+            prompt_profile_values=[
+                "shared_prefix_long_variant",
+                "matched_unique_prefix_variant",
+            ],
+            output_token_values=[8],
+            repeats=1,
+            scenario_seed=577,
+            kv_cache_block_size=8,
+        )
+
+        control = next(
+            row
+            for row in payload["scenario_rows"]
+            if row["prompt_profile"] == "matched_unique_prefix_variant"
+        )
+        self.assertEqual(control["unique_prompt_count"], 8)
+        self.assertEqual(control["exact_duplicate_prompt_repeated_count"], 8)
+        self.assertGreater(
+            control["estimated_exact_duplicate_reusable_block_tokens"],
+            control["estimated_reusable_block_tokens"],
+        )
+
+        comparison = payload["profile_control_rows"][0]
+        self.assertEqual(comparison["control_unique_prompt_count"], 8)
+        self.assertGreater(
+            comparison[
+                "control_estimated_exact_duplicate_reusable_block_tokens"
+            ],
+            0,
+        )
+
+        duplicate_prompt_rows = [
+            row
+            for row in payload["prompt_rows"]
+            if row["prompt_profile"] == "matched_unique_prefix_variant"
+        ]
+        self.assertEqual(
+            duplicate_prompt_rows[0]["formatted_prompt_duplicate_group_size"],
+            2,
+        )
+        self.assertEqual(
+            duplicate_prompt_rows[8]["formatted_prompt_duplicate_ordinal"],
+            1,
+        )
+        self.assertIn("Mean control exact-duplicate", payload["markdown"])
+
 
 def _window_source_payload() -> dict:
     return {

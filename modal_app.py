@@ -8495,6 +8495,22 @@ def _build_vllm_prefix_cache_prompt_audit_payload(
                     estimated_reusable_block_tokens = (
                         common_prefix_block_tokens * max(request_count - 1, 0)
                     )
+                    duplicate_reuse = _exact_duplicate_prompt_reuse_stats(
+                        internal_prompt_rows,
+                        kv_cache_block_size,
+                    )
+                    duplicate_group_sizes: dict[int, int] = {}
+                    duplicate_ordinals: dict[int, int] = {}
+                    duplicate_groups: dict[tuple[int, ...], list[dict[str, Any]]] = {}
+                    for row in internal_prompt_rows:
+                        duplicate_groups.setdefault(tuple(row["token_ids"]), []).append(
+                            row
+                        )
+                    for rows in duplicate_groups.values():
+                        group_size = len(rows)
+                        for ordinal, row in enumerate(rows):
+                            duplicate_group_sizes[int(row["prompt_index"])] = group_size
+                            duplicate_ordinals[int(row["prompt_index"])] = ordinal
                     scenario_id = (
                         f"{prompt_profile}_out{max_new_tokens}_n{request_count}"
                         f"_rep{repeat_index:02d}"
@@ -8534,6 +8550,28 @@ def _build_vllm_prefix_cache_prompt_audit_payload(
                         "suffix_after_common_tokens_mean": _mean_present(
                             suffix_after_common_tokens
                         ),
+                        "unique_prompt_count": duplicate_reuse[
+                            "unique_prompt_count"
+                        ],
+                        "exact_duplicate_prompt_group_count": duplicate_reuse[
+                            "exact_duplicate_prompt_group_count"
+                        ],
+                        "exact_duplicate_prompt_repeated_count": duplicate_reuse[
+                            "exact_duplicate_prompt_repeated_count"
+                        ],
+                        "exact_duplicate_prompt_max_group_size": duplicate_reuse[
+                            "exact_duplicate_prompt_max_group_size"
+                        ],
+                        "estimated_exact_duplicate_reusable_block_tokens": (
+                            duplicate_reuse[
+                                "estimated_exact_duplicate_reusable_block_tokens"
+                            ]
+                        ),
+                        "estimated_exact_duplicate_reusable_block_token_fraction_of_total_prompt": (
+                            duplicate_reuse[
+                                "estimated_exact_duplicate_reusable_block_token_fraction_of_total_prompt"
+                            ]
+                        ),
                         "estimated_reusable_block_tokens": estimated_reusable_block_tokens,
                         "estimated_reusable_block_token_fraction_of_total_prompt": (
                             estimated_reusable_block_tokens / total_prompt_tokens
@@ -8565,6 +8603,12 @@ def _build_vllm_prefix_cache_prompt_audit_payload(
                                 "suffix_after_common_tokens": max(
                                     row["prompt_tokens"] - common_prefix_tokens,
                                     0,
+                                ),
+                                "formatted_prompt_duplicate_group_size": (
+                                    duplicate_group_sizes[int(row["prompt_index"])]
+                                ),
+                                "formatted_prompt_duplicate_ordinal": (
+                                    duplicate_ordinals[int(row["prompt_index"])]
                                 ),
                                 "formatted_prompt_sha256_16": hashlib.sha256(
                                     formatted_prompt.encode("utf-8")
@@ -8628,6 +8672,46 @@ def _token_block_count(token_count: int, block_size: int) -> int:
     if block_size <= 0:
         raise ValueError("block_size must be positive")
     return max(token_count, 0) // block_size
+
+
+def _exact_duplicate_prompt_reuse_stats(
+    prompt_rows: list[dict[str, Any]],
+    block_size: int,
+) -> dict[str, Any]:
+    groups: dict[tuple[int, ...], list[dict[str, Any]]] = {}
+    for row in prompt_rows:
+        groups.setdefault(tuple(row["token_ids"]), []).append(row)
+
+    reusable_block_tokens = 0
+    duplicate_group_count = 0
+    repeated_count = 0
+    max_group_size = 0
+    for token_ids, rows in groups.items():
+        group_size = len(rows)
+        max_group_size = max(max_group_size, group_size)
+        if group_size <= 1:
+            continue
+        duplicate_group_count += 1
+        repeated_count += group_size - 1
+        reusable_block_tokens += (
+            _token_block_count(len(token_ids), block_size)
+            * block_size
+            * (group_size - 1)
+        )
+
+    total_prompt_tokens = sum(int(row["prompt_tokens"]) for row in prompt_rows)
+    return {
+        "unique_prompt_count": len(groups),
+        "exact_duplicate_prompt_group_count": duplicate_group_count,
+        "exact_duplicate_prompt_repeated_count": repeated_count,
+        "exact_duplicate_prompt_max_group_size": max_group_size,
+        "estimated_exact_duplicate_reusable_block_tokens": reusable_block_tokens,
+        "estimated_exact_duplicate_reusable_block_token_fraction_of_total_prompt": (
+            reusable_block_tokens / total_prompt_tokens
+            if total_prompt_tokens
+            else None
+        ),
+    }
 
 
 def _vllm_prefix_cache_prompt_audit_profile_control_rows(
@@ -8701,6 +8785,38 @@ def _vllm_prefix_cache_prompt_audit_profile_control_rows(
                         "estimated_reusable_block_token_fraction_of_total_prompt"
                     ],
                 ),
+                "shared_unique_prompt_count": shared["unique_prompt_count"],
+                "control_unique_prompt_count": control["unique_prompt_count"],
+                "shared_exact_duplicate_prompt_repeated_count": shared[
+                    "exact_duplicate_prompt_repeated_count"
+                ],
+                "control_exact_duplicate_prompt_repeated_count": control[
+                    "exact_duplicate_prompt_repeated_count"
+                ],
+                "shared_estimated_exact_duplicate_reusable_block_tokens": shared[
+                    "estimated_exact_duplicate_reusable_block_tokens"
+                ],
+                "control_estimated_exact_duplicate_reusable_block_tokens": control[
+                    "estimated_exact_duplicate_reusable_block_tokens"
+                ],
+                "shared_minus_control_estimated_exact_duplicate_reusable_block_tokens": _delta(
+                    shared["estimated_exact_duplicate_reusable_block_tokens"],
+                    control["estimated_exact_duplicate_reusable_block_tokens"],
+                ),
+                "shared_exact_duplicate_reusable_block_token_fraction": shared[
+                    "estimated_exact_duplicate_reusable_block_token_fraction_of_total_prompt"
+                ],
+                "control_exact_duplicate_reusable_block_token_fraction": control[
+                    "estimated_exact_duplicate_reusable_block_token_fraction_of_total_prompt"
+                ],
+                "shared_minus_control_exact_duplicate_reusable_block_token_fraction": _delta(
+                    shared[
+                        "estimated_exact_duplicate_reusable_block_token_fraction_of_total_prompt"
+                    ],
+                    control[
+                        "estimated_exact_duplicate_reusable_block_token_fraction_of_total_prompt"
+                    ],
+                ),
             }
         )
     return profile_control_rows
@@ -8741,6 +8857,26 @@ def _vllm_prefix_cache_prompt_audit_summary(
         "control_estimated_reusable_block_tokens_mean": _mean_present(
             row["estimated_reusable_block_tokens"] for row in control_rows
         ),
+        "shared_estimated_exact_duplicate_reusable_block_tokens_mean": _mean_present(
+            row["estimated_exact_duplicate_reusable_block_tokens"]
+            for row in shared_rows
+        ),
+        "control_estimated_exact_duplicate_reusable_block_tokens_mean": _mean_present(
+            row["estimated_exact_duplicate_reusable_block_tokens"]
+            for row in control_rows
+        ),
+        "shared_exact_duplicate_reusable_block_fraction_mean": _mean_present(
+            row[
+                "estimated_exact_duplicate_reusable_block_token_fraction_of_total_prompt"
+            ]
+            for row in shared_rows
+        ),
+        "control_exact_duplicate_reusable_block_fraction_mean": _mean_present(
+            row[
+                "estimated_exact_duplicate_reusable_block_token_fraction_of_total_prompt"
+            ]
+            for row in control_rows
+        ),
         "shared_minus_control_common_prefix_blocks_mean": _mean_present(
             row["shared_minus_control_common_prefix_full_blocks"]
             for row in profile_control_rows
@@ -8751,6 +8887,16 @@ def _vllm_prefix_cache_prompt_audit_summary(
         ),
         "shared_minus_control_reusable_block_fraction_mean": _mean_present(
             row["shared_minus_control_reusable_block_token_fraction"]
+            for row in profile_control_rows
+        ),
+        "shared_minus_control_exact_duplicate_reusable_block_tokens_mean": _mean_present(
+            row[
+                "shared_minus_control_estimated_exact_duplicate_reusable_block_tokens"
+            ]
+            for row in profile_control_rows
+        ),
+        "shared_minus_control_exact_duplicate_reusable_block_fraction_mean": _mean_present(
+            row["shared_minus_control_exact_duplicate_reusable_block_token_fraction"]
             for row in profile_control_rows
         ),
     }
@@ -8801,14 +8947,31 @@ def _format_vllm_prefix_cache_prompt_audit_markdown(
             "| Mean shared-minus-control reusable block fraction | "
             f"{fmt(summary['shared_minus_control_reusable_block_fraction_mean'])} |"
         ),
+        (
+            "| Mean shared exact-duplicate reusable block tokens | "
+            f"{fmt(summary['shared_estimated_exact_duplicate_reusable_block_tokens_mean'])} |"
+        ),
+        (
+            "| Mean control exact-duplicate reusable block tokens | "
+            f"{fmt(summary['control_estimated_exact_duplicate_reusable_block_tokens_mean'])} |"
+        ),
+        (
+            "| Mean shared-minus-control exact-duplicate reusable block tokens | "
+            f"{fmt(summary['shared_minus_control_exact_duplicate_reusable_block_tokens_mean'])} |"
+        ),
+        (
+            "| Mean control exact-duplicate reusable block fraction | "
+            f"{fmt(summary['control_exact_duplicate_reusable_block_fraction_mean'])} |"
+        ),
         "",
         "## Scenario Audit",
         "",
         (
             "| Profile | Repeat | Requests | Common Prefix Tokens | Full Blocks | "
-            "Reusable Block Tokens | Reusable Fraction |"
+            "Reusable Block Tokens | Reusable Fraction | Unique Prompts | "
+            "Duplicate Reusable Tokens | Duplicate Fraction |"
         ),
-        "| --- | ---: | ---: | ---: | ---: | ---: | ---: |",
+        "| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |",
     ]
     for row in payload["scenario_rows"]:
         lines.append(
@@ -8818,7 +8981,10 @@ def _format_vllm_prefix_cache_prompt_audit_markdown(
             f"{row['common_prefix_tokens']} | "
             f"{row['common_prefix_full_blocks']} | "
             f"{row['estimated_reusable_block_tokens']} | "
-            f"{fmt(row['estimated_reusable_block_token_fraction_of_total_prompt'])} |"
+            f"{fmt(row['estimated_reusable_block_token_fraction_of_total_prompt'])} | "
+            f"{row['unique_prompt_count']} | "
+            f"{row['estimated_exact_duplicate_reusable_block_tokens']} | "
+            f"{fmt(row['estimated_exact_duplicate_reusable_block_token_fraction_of_total_prompt'])} |"
         )
 
     lines.extend(
@@ -8828,9 +8994,10 @@ def _format_vllm_prefix_cache_prompt_audit_markdown(
             "",
             (
                 "| Repeat | Requests | Shared Blocks | Control Blocks | "
-                "Block Delta | Reusable Token Delta |"
+                "Block Delta | Reusable Token Delta | Shared Duplicate Tokens | "
+                "Control Duplicate Tokens |"
             ),
-            "| ---: | ---: | ---: | ---: | ---: | ---: |",
+            "| ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |",
         ]
     )
     for row in payload["profile_control_rows"]:
@@ -8840,7 +9007,9 @@ def _format_vllm_prefix_cache_prompt_audit_markdown(
             f"{row['shared_common_prefix_full_blocks']} | "
             f"{row['control_common_prefix_full_blocks']} | "
             f"{fmt(row['shared_minus_control_common_prefix_full_blocks'])} | "
-            f"{fmt(row['shared_minus_control_estimated_reusable_block_tokens'])} |"
+            f"{fmt(row['shared_minus_control_estimated_reusable_block_tokens'])} | "
+            f"{fmt(row['shared_estimated_exact_duplicate_reusable_block_tokens'])} | "
+            f"{fmt(row['control_estimated_exact_duplicate_reusable_block_tokens'])} |"
         )
 
     lines.extend(
@@ -8849,8 +9018,9 @@ def _format_vllm_prefix_cache_prompt_audit_markdown(
             (
                 "Reusable block tokens estimate how many full leading-token "
                 "blocks could be reused by requests after the first request in "
-                "a batch. This is a tokenizer/block audit, not a vLLM timing "
-                "measurement."
+                "a batch. Exact-duplicate reusable tokens estimate repeated "
+                "full-prompt token groups within the same scenario. This is a "
+                "tokenizer/block audit, not a vLLM timing measurement."
             ),
             "",
         ]
