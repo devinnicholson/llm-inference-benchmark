@@ -110,15 +110,18 @@ best evidence that larger prefill work can turn the cache mechanism into broader
 serving wins under this setup.
 
 Training 056 adds a Qwen2.5-0.5B model-shape smoke on the same extra-long
-prompt pair:
+prompt pair, and Training 057 promotes it to a five-repeat merged follow-up:
 
 ```text
-results/prefix-cache-study-extra-long-qwen05b-smoke-r2/key-results.md
-results/prefix-cache-study-extra-long-qwen05b-smoke-r2/intervals.md
+results/prefix-cache-study-extra-long-qwen05b-merged-r5/key-results.md
+results/prefix-cache-study-extra-long-qwen05b-merged-r5/intervals.md
 ```
 
-That run is only r2, but it shows the same direct-cache mechanism survives a
-larger small model on T4 and gives a useful next target for a full r8 pass.
+The merged Qwen r5 result shows the same direct-cache mechanism survives a
+larger small model on T4. Direct counter reuse, p95 first-event/TTFT,
+throughput, end-to-end p95 latency, and stream TPOT all stay favorable in the
+five-repeat artifact, making it the best current model-shape follow-up while
+the full r8 pass remains open.
 
 ## Reproduce
 
@@ -198,6 +201,9 @@ results/prefix-cache-study-extra-long-merged-r8/intervals.md
 results/modal-vllm-prefix-cache-extra-long-qwen05b-n16-smoke-r2-summary/prefix-cache-isolated-stability-summary.md
 results/prefix-cache-study-extra-long-qwen05b-smoke-r2/key-results.md
 results/prefix-cache-study-extra-long-qwen05b-smoke-r2/intervals.md
+results/modal-vllm-prefix-cache-extra-long-qwen05b-n16-merged-r5-summary/prefix-cache-isolated-stability-summary.md
+results/prefix-cache-study-extra-long-qwen05b-merged-r5/key-results.md
+results/prefix-cache-study-extra-long-qwen05b-merged-r5/intervals.md
 ```
 
 ## Next Step

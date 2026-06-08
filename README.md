@@ -21,8 +21,8 @@ and [`results/prefix-cache-study/intervals.md`](results/prefix-cache-study/inter
 Latest extra-long follow-up:
 [`results/prefix-cache-study-extra-long-merged-r8/key-results.md`](results/prefix-cache-study-extra-long-merged-r8/key-results.md)
 
-Latest model-shape smoke:
-[`results/prefix-cache-study-extra-long-qwen05b-smoke-r2/key-results.md`](results/prefix-cache-study-extra-long-qwen05b-smoke-r2/key-results.md)
+Latest model-shape follow-up:
+[`results/prefix-cache-study-extra-long-qwen05b-merged-r5/key-results.md`](results/prefix-cache-study-extra-long-qwen05b-merged-r5/key-results.md)
 
 ## Course Track
 

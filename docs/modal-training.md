@@ -5610,6 +5610,88 @@ results/prefix-cache-study-extra-long-qwen05b-smoke-r2/intervals.md
 
 ## Next Step
 
-Promote the Qwen smoke only after a full r8 chunked run. The model-shape result
-is promising, but the current artifact is intentionally just a two-repeat
-viability check.
+This two-repeat smoke is superseded by the merged r5 follow-up in Training 057.
+The full r8 pass remains the next target before treating Qwen as repeat-count
+matched with the SmolLM2 extra-long result.
+
+# Training 057: Qwen 0.5B Merged r5 Follow-Up
+
+Training 057 extends the Qwen2.5-0.5B extra-long smoke with a three-repeat
+chunk at scenario seed `1001`, then merges it with the original r2 smoke into a
+five-repeat model-shape artifact.
+
+## Goal
+
+Move the Qwen result from viability smoke toward a credible model-shape
+follow-up while keeping the prompt/control methodology fixed. This tests
+whether the extra-long prefix-cache effect survives a larger small model, not
+whether Qwen is globally faster than SmolLM2.
+
+## Reproduce
+
+Run the r3 chunk:
+
+```bash
+modal run modal_app.py --mode vllm-prefix-cache-isolated-neutral-warmup \
+  --hf-model Qwen/Qwen2.5-0.5B-Instruct \
+  --prompt-profiles shared_prefix_extra_long_no_repeat_variant,matched_unique_prefix_extra_long_no_repeat_variant \
+  --output-tokens 8 \
+  --request-counts 16 \
+  --repeats 3 \
+  --scenario-seed 1001 \
+  --phase-order cold_first \
+  --kv-cache-metrics-sample 1.0 \
+  --warmup-prompt-profile neutral_extra_long \
+  --prefix-cache-shared-profile shared_prefix_extra_long_no_repeat_variant \
+  --prefix-cache-control-profile matched_unique_prefix_extra_long_no_repeat_variant \
+  --output-dir results/modal-vllm-prefix-cache-extra-long-qwen05b-n16-chunk-r3-seed1001
+```
+
+Merge and summarize:
+
+```bash
+modal run modal_app.py --mode vllm-prefix-cache-isolated-merge \
+  --prefix-cache-isolated-merge-dirs results/modal-vllm-prefix-cache-extra-long-qwen05b-n16-smoke-r2,results/modal-vllm-prefix-cache-extra-long-qwen05b-n16-chunk-r3-seed1001 \
+  --prefix-cache-shared-profile shared_prefix_extra_long_no_repeat_variant \
+  --prefix-cache-control-profile matched_unique_prefix_extra_long_no_repeat_variant \
+  --output-dir results/modal-vllm-prefix-cache-extra-long-qwen05b-n16-merged-r5
+
+modal run modal_app.py --mode vllm-prefix-cache-isolated-stability-summary \
+  --prefix-cache-isolated-metrics-dir results/modal-vllm-prefix-cache-extra-long-qwen05b-n16-merged-r5 \
+  --prefix-cache-shared-profile shared_prefix_extra_long_no_repeat_variant \
+  --prefix-cache-control-profile matched_unique_prefix_extra_long_no_repeat_variant \
+  --output-dir results/modal-vllm-prefix-cache-extra-long-qwen05b-n16-merged-r5-summary
+
+python3 scripts/build_prefix_cache_study_table.py \
+  --summary-json results/modal-vllm-prefix-cache-extra-long-qwen05b-n16-merged-r5-summary/prefix-cache-isolated-stability-summary.json \
+  --output-dir results/prefix-cache-study-extra-long-qwen05b-merged-r5
+```
+
+## Result
+
+The merged artifact has `5` paired shared/control observations for `n=16`.
+
+- control direct counter hit rate: `1.417%`
+- shared direct counter hit rate: `91.562%`
+- shared-minus-control direct counter delta: `90.145 pp`, interval
+  `89.869 pp` to `90.421 pp`
+- p95 first-event/TTFT ratio delta: `-0.811`, interval `-0.848` to `-0.777`
+- throughput-ratio delta: `1.747`, interval `1.276` to `2.210`
+- p95 latency-ratio delta: `-0.633`, interval `-0.909` to `-0.392`
+- p95 stream TPOT-ratio delta: `-0.692`, interval `-0.763` to `-0.603`
+
+Generated artifacts:
+
+```text
+results/modal-vllm-prefix-cache-extra-long-qwen05b-n16-chunk-r3-seed1001/prefix-cache-isolated-metrics.json
+results/modal-vllm-prefix-cache-extra-long-qwen05b-n16-merged-r5/prefix-cache-isolated-metrics.json
+results/modal-vllm-prefix-cache-extra-long-qwen05b-n16-merged-r5-summary/prefix-cache-isolated-stability-summary.md
+results/prefix-cache-study-extra-long-qwen05b-merged-r5/key-results.md
+results/prefix-cache-study-extra-long-qwen05b-merged-r5/intervals.md
+```
+
+## Next Step
+
+Add one more Qwen r3 chunk to reach r8, matching the SmolLM2 extra-long repeat
+count. If r8 holds, the repo will have both a small-model primary result and a
+stronger model-shape follow-up using the same prompt/control design.
