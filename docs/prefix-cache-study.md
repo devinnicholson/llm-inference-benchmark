@@ -181,8 +181,23 @@ produce `5` shared/control comparisons. It keeps the direct-cache mechanism
 stable with a `92.623 pp` direct counter delta and favorable timing intervals:
 p95 first-event/TTFT ratio delta `-0.903`, throughput-ratio delta `3.908`, p95
 latency-ratio delta `-0.829`, and p95 stream TPOT-ratio delta `-0.890`. This is
-now the best L4 context-shape artifact; the T4 r8 ultra-long result remains the
-stronger repeat-count artifact.
+the strongest L4 context-shape artifact before the r8 promotion.
+
+Training 065 promotes the mega-long L4 axis to r8, matching the repeat count of
+the strongest T4 follow-ups:
+
+```text
+results/prefix-cache-study-mega-long-qwen05b-l4-merged-r8/key-results.md
+results/prefix-cache-study-mega-long-qwen05b-l4-merged-r8/intervals.md
+```
+
+The merged r8 artifact has `16` scenario-level cold/cache paired runs, which
+produce `8` shared/control comparisons. It keeps the direct-cache mechanism
+stable with a `92.628 pp` direct counter delta and favorable timing intervals:
+p95 first-event/TTFT ratio delta `-0.900`, throughput-ratio delta `3.903`, p95
+latency-ratio delta `-0.825`, and p95 stream TPOT-ratio delta `-0.891`. This is
+now the best L4 context-shape artifact and is repeat-count-matched to the T4
+r8 results.
 
 ## Reproduce
 
@@ -291,11 +306,15 @@ results/modal-vllm-prefix-cache-mega-long-qwen05b-l4-n16-merged-r5/prefix-cache-
 results/modal-vllm-prefix-cache-mega-long-qwen05b-l4-n16-merged-r5-summary/prefix-cache-isolated-stability-summary.md
 results/prefix-cache-study-mega-long-qwen05b-l4-merged-r5/key-results.md
 results/prefix-cache-study-mega-long-qwen05b-l4-merged-r5/intervals.md
+results/modal-vllm-prefix-cache-mega-long-qwen05b-l4-n16-chunk-r3-seed1901/prefix-cache-isolated-metrics.json
+results/modal-vllm-prefix-cache-mega-long-qwen05b-l4-n16-merged-r8/prefix-cache-isolated-metrics.json
+results/modal-vllm-prefix-cache-mega-long-qwen05b-l4-n16-merged-r8-summary/prefix-cache-isolated-stability-summary.md
+results/prefix-cache-study-mega-long-qwen05b-l4-merged-r8/key-results.md
+results/prefix-cache-study-mega-long-qwen05b-l4-merged-r8/intervals.md
 ```
 
 ## Next Step
 
-Promote the mega-long L4 axis to r8, or use the same L4 context shape to test a
-larger small model. The next useful artifact should separate "longer reusable
-prefix" from "model size" instead of only repeating the old ultra-long T4
-workload.
+Use the same L4 mega-long context shape to test a larger small model, or run a
+backend comparison with the same prompt/control pair. The next useful artifact
+should separate "longer reusable prefix" from "model size" or backend behavior.

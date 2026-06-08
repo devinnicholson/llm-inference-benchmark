@@ -29,7 +29,7 @@ Latest longer-context follow-up:
 [`results/prefix-cache-study-ultra-long-qwen05b-merged-r8/key-results.md`](results/prefix-cache-study-ultra-long-qwen05b-merged-r8/key-results.md)
 
 Latest L4-scale context follow-up:
-[`results/prefix-cache-study-mega-long-qwen05b-l4-merged-r5/key-results.md`](results/prefix-cache-study-mega-long-qwen05b-l4-merged-r5/key-results.md)
+[`results/prefix-cache-study-mega-long-qwen05b-l4-merged-r8/key-results.md`](results/prefix-cache-study-mega-long-qwen05b-l4-merged-r8/key-results.md)
 
 ## Course Track
 

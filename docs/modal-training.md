@@ -6327,3 +6327,89 @@ results/prefix-cache-study-mega-long-qwen05b-l4-merged-r5/intervals.md
 Promote this L4 context-shape artifact to r8, then use the repeat-count-matched
 result to decide whether the next research axis should be larger model size,
 larger batch pressure, or backend comparison.
+
+# Training 065: Qwen 0.5B Mega-Long L4 Merged r8
+
+Training 065 adds one more three-repeat mega-long L4 chunk and merges it with
+the Training 064 r5 artifact. This gives the L4 context-shape axis the same
+repeat count as the strongest T4 follow-ups.
+
+## Goal
+
+Turn the mega-long L4 r5 result into a repeat-count-matched r8 artifact and
+check whether the favorable cache and timing intervals survive the extra
+repeats.
+
+## Chunk Run
+
+```bash
+modal run modal_app.py --mode vllm-prefix-cache-isolated-neutral-warmup \
+  --modal-gpu L4 \
+  --hf-model Qwen/Qwen2.5-0.5B-Instruct \
+  --prompt-profiles shared_prefix_mega_long_no_repeat_variant,matched_unique_prefix_mega_long_no_repeat_variant \
+  --output-tokens 8 \
+  --request-counts 16 \
+  --repeats 3 \
+  --scenario-seed 1901 \
+  --phase-order cold_first \
+  --kv-cache-metrics-sample 1.0 \
+  --warmup-prompt-profile neutral_mega_long \
+  --prefix-cache-shared-profile shared_prefix_mega_long_no_repeat_variant \
+  --prefix-cache-control-profile matched_unique_prefix_mega_long_no_repeat_variant \
+  --output-dir results/modal-vllm-prefix-cache-mega-long-qwen05b-l4-n16-chunk-r3-seed1901
+```
+
+The chunk produced `6` scenario-level cold/cache paired runs, or `3`
+shared/control comparisons, and preserved the L4 hardware evidence in
+`nvidia-smi` samples. The run reported the same `695,249` GPU KV-cache tokens
+for `max_model_len=3790`.
+
+## Merge And Report
+
+```bash
+modal run modal_app.py --mode vllm-prefix-cache-isolated-merge \
+  --prefix-cache-isolated-merge-dirs results/modal-vllm-prefix-cache-mega-long-qwen05b-l4-n16-merged-r5,results/modal-vllm-prefix-cache-mega-long-qwen05b-l4-n16-chunk-r3-seed1901 \
+  --prefix-cache-shared-profile shared_prefix_mega_long_no_repeat_variant \
+  --prefix-cache-control-profile matched_unique_prefix_mega_long_no_repeat_variant \
+  --output-dir results/modal-vllm-prefix-cache-mega-long-qwen05b-l4-n16-merged-r8
+
+modal run modal_app.py --mode vllm-prefix-cache-isolated-stability-summary \
+  --prefix-cache-isolated-metrics-dir results/modal-vllm-prefix-cache-mega-long-qwen05b-l4-n16-merged-r8 \
+  --prefix-cache-shared-profile shared_prefix_mega_long_no_repeat_variant \
+  --prefix-cache-control-profile matched_unique_prefix_mega_long_no_repeat_variant \
+  --output-dir results/modal-vllm-prefix-cache-mega-long-qwen05b-l4-n16-merged-r8-summary
+
+python3 scripts/build_prefix_cache_study_table.py \
+  --summary-json results/modal-vllm-prefix-cache-mega-long-qwen05b-l4-n16-merged-r8-summary/prefix-cache-isolated-stability-summary.json \
+  --output-dir results/prefix-cache-study-mega-long-qwen05b-l4-merged-r8
+```
+
+## Result
+
+The merged artifact has `16` scenario-level cold/cache paired runs, or `8`
+shared/control comparisons, for `n=16`.
+
+- control direct counter hit rate: `0.447%`
+- shared direct counter hit rate: `93.075%`
+- shared-minus-control direct counter delta: `92.628 pp`, interval
+  `92.581 pp` to `92.675 pp`
+- p95 first-event/TTFT ratio delta: `-0.900`, interval `-0.915` to `-0.887`
+- throughput-ratio delta: `3.903`, interval `3.644` to `4.171`
+- p95 latency-ratio delta: `-0.825`, interval `-0.837` to `-0.814`
+- p95 stream TPOT-ratio delta: `-0.891`, interval `-0.906` to `-0.878`
+
+Generated artifacts:
+
+```text
+results/modal-vllm-prefix-cache-mega-long-qwen05b-l4-n16-chunk-r3-seed1901/prefix-cache-isolated-metrics.json
+results/modal-vllm-prefix-cache-mega-long-qwen05b-l4-n16-merged-r8/prefix-cache-isolated-metrics.json
+results/modal-vllm-prefix-cache-mega-long-qwen05b-l4-n16-merged-r8-summary/prefix-cache-isolated-stability-summary.md
+results/prefix-cache-study-mega-long-qwen05b-l4-merged-r8/key-results.md
+results/prefix-cache-study-mega-long-qwen05b-l4-merged-r8/intervals.md
+```
+
+## Next Step
+
+Use this repeat-count-matched L4 result as the control point for a new axis:
+larger small model on L4, larger batch pressure at the same context shape, or a
+backend comparison using the same prompt/control pair.
