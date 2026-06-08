@@ -96,19 +96,18 @@ The tokenizer audit shows:
 - shared-minus-control reusable block tokens: `17,040`
 - exact duplicate reusable tokens: `0` for both profiles
 
-The r3 GPU smoke is promising but not yet the replacement primary claim:
+The r3 GPU smoke was promising, and the merged r6 follow-up is stronger:
 
 ```text
-results/prefix-cache-study-extra-long-smoke-r3/key-results.md
-results/prefix-cache-study-extra-long-smoke-r3/intervals.md
+results/prefix-cache-study-extra-long-merged-r6/key-results.md
+results/prefix-cache-study-extra-long-merged-r6/intervals.md
 ```
 
-In that smoke, direct counter reuse, p95 first-event/TTFT, throughput,
-end-to-end p95 latency, and stream TPOT all move in the expected direction. A
-longer stability pass is still needed before promoting the broader timing claim.
-Training 053 adds a chunk merge mode for that next pass, so additional r2/r3
-chunks can be merged with the existing r3 smoke before generating a new
-stability summary.
+In the r6 merge, direct counter reuse, p95 first-event/TTFT, throughput,
+end-to-end p95 latency, and stream TPOT all stay on the favorable side of zero.
+This is still a follow-up to the r8 no-repeat primary result, but it is now the
+best evidence that larger prefill work can turn the cache mechanism into broader
+serving wins under this setup.
 
 ## Reproduce
 
@@ -182,9 +181,9 @@ Extra-long follow-up:
 
 ```text
 results/modal-vllm-prefix-cache-prompt-audit-extra-long-no-repeat-n16/prefix-cache-prompt-audit.md
-results/modal-vllm-prefix-cache-extra-long-no-repeat-n16-smoke-r3-summary/prefix-cache-isolated-stability-summary.md
-results/prefix-cache-study-extra-long-smoke-r3/key-results.md
-results/prefix-cache-study-extra-long-smoke-r3/intervals.md
+results/modal-vllm-prefix-cache-extra-long-no-repeat-n16-merged-r6-summary/prefix-cache-isolated-stability-summary.md
+results/prefix-cache-study-extra-long-merged-r6/key-results.md
+results/prefix-cache-study-extra-long-merged-r6/intervals.md
 ```
 
 ## Next Step

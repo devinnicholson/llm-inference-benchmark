@@ -18,8 +18,8 @@ Generated result artifacts:
 [`results/prefix-cache-study/key-results.md`](results/prefix-cache-study/key-results.md)
 and [`results/prefix-cache-study/intervals.md`](results/prefix-cache-study/intervals.md)
 
-Latest follow-up smoke:
-[`results/prefix-cache-study-extra-long-smoke-r3/key-results.md`](results/prefix-cache-study-extra-long-smoke-r3/key-results.md)
+Latest extra-long follow-up:
+[`results/prefix-cache-study-extra-long-merged-r6/key-results.md`](results/prefix-cache-study-extra-long-merged-r6/key-results.md)
 
 ## Course Track
 
@@ -748,13 +748,13 @@ modal run modal_app.py --mode vllm-prefix-cache-isolated-merge \
   --prefix-cache-isolated-merge-dirs results/modal-vllm-prefix-cache-extra-long-no-repeat-n16-smoke-r3,results/modal-vllm-prefix-cache-extra-long-no-repeat-n16-chunk-r3-seed680 \
   --prefix-cache-shared-profile shared_prefix_extra_long_no_repeat_variant \
   --prefix-cache-control-profile matched_unique_prefix_extra_long_no_repeat_variant \
-  --output-dir results/modal-vllm-prefix-cache-extra-long-no-repeat-n16-merged
+  --output-dir results/modal-vllm-prefix-cache-extra-long-no-repeat-n16-merged-r6
 
 modal run modal_app.py --mode vllm-prefix-cache-isolated-stability-summary \
-  --prefix-cache-isolated-metrics-dir results/modal-vllm-prefix-cache-extra-long-no-repeat-n16-merged \
+  --prefix-cache-isolated-metrics-dir results/modal-vllm-prefix-cache-extra-long-no-repeat-n16-merged-r6 \
   --prefix-cache-shared-profile shared_prefix_extra_long_no_repeat_variant \
   --prefix-cache-control-profile matched_unique_prefix_extra_long_no_repeat_variant \
-  --output-dir results/modal-vllm-prefix-cache-extra-long-no-repeat-n16-merged-summary
+  --output-dir results/modal-vllm-prefix-cache-extra-long-no-repeat-n16-merged-r6-summary
 ```
 
 Modal training is documented in

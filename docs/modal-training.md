@@ -5343,13 +5343,13 @@ modal run modal_app.py --mode vllm-prefix-cache-isolated-merge \
   --prefix-cache-isolated-merge-dirs results/modal-vllm-prefix-cache-extra-long-no-repeat-n16-smoke-r3,results/modal-vllm-prefix-cache-extra-long-no-repeat-n16-chunk-r3-seed680 \
   --prefix-cache-shared-profile shared_prefix_extra_long_no_repeat_variant \
   --prefix-cache-control-profile matched_unique_prefix_extra_long_no_repeat_variant \
-  --output-dir results/modal-vllm-prefix-cache-extra-long-no-repeat-n16-merged
+  --output-dir results/modal-vllm-prefix-cache-extra-long-no-repeat-n16-merged-r6
 
 modal run modal_app.py --mode vllm-prefix-cache-isolated-stability-summary \
-  --prefix-cache-isolated-metrics-dir results/modal-vllm-prefix-cache-extra-long-no-repeat-n16-merged \
+  --prefix-cache-isolated-metrics-dir results/modal-vllm-prefix-cache-extra-long-no-repeat-n16-merged-r6 \
   --prefix-cache-shared-profile shared_prefix_extra_long_no_repeat_variant \
   --prefix-cache-control-profile matched_unique_prefix_extra_long_no_repeat_variant \
-  --output-dir results/modal-vllm-prefix-cache-extra-long-no-repeat-n16-merged-summary
+  --output-dir results/modal-vllm-prefix-cache-extra-long-no-repeat-n16-merged-r6-summary
 ```
 
 ## Next Step
@@ -5357,3 +5357,85 @@ modal run modal_app.py --mode vllm-prefix-cache-isolated-stability-summary \
 Run the next extra-long chunk with a new scenario seed, merge it with the r3
 smoke, and check whether the broader timing intervals still stay on the
 favorable side of zero.
+
+# Training 054: Extra-Long Merged r6 Stability
+
+Training 054 runs the next extra-long r3 chunk with scenario seed `680`, merges
+it with the original r3 smoke, and regenerates the stability summary and
+GitHub-facing result table.
+
+## Goal
+
+Test whether the broader timing wins from Training 051 survive beyond a
+three-repeat smoke. The chunked path uses the merge mode from Training 053 so
+the run can be extended incrementally without depending on one long local Modal
+entrypoint.
+
+## Reproduce
+
+Run the additional chunk:
+
+```bash
+modal run modal_app.py --mode vllm-prefix-cache-isolated-neutral-warmup \
+  --prompt-profiles shared_prefix_extra_long_no_repeat_variant,matched_unique_prefix_extra_long_no_repeat_variant \
+  --output-tokens 8 \
+  --request-counts 16 \
+  --repeats 3 \
+  --scenario-seed 680 \
+  --phase-order cold_first \
+  --kv-cache-metrics-sample 1.0 \
+  --warmup-prompt-profile neutral_extra_long \
+  --prefix-cache-shared-profile shared_prefix_extra_long_no_repeat_variant \
+  --prefix-cache-control-profile matched_unique_prefix_extra_long_no_repeat_variant \
+  --output-dir results/modal-vllm-prefix-cache-extra-long-no-repeat-n16-chunk-r3-seed680
+```
+
+Merge and summarize:
+
+```bash
+modal run modal_app.py --mode vllm-prefix-cache-isolated-merge \
+  --prefix-cache-isolated-merge-dirs results/modal-vllm-prefix-cache-extra-long-no-repeat-n16-smoke-r3,results/modal-vllm-prefix-cache-extra-long-no-repeat-n16-chunk-r3-seed680 \
+  --prefix-cache-shared-profile shared_prefix_extra_long_no_repeat_variant \
+  --prefix-cache-control-profile matched_unique_prefix_extra_long_no_repeat_variant \
+  --output-dir results/modal-vllm-prefix-cache-extra-long-no-repeat-n16-merged-r6
+
+modal run modal_app.py --mode vllm-prefix-cache-isolated-stability-summary \
+  --prefix-cache-isolated-metrics-dir results/modal-vllm-prefix-cache-extra-long-no-repeat-n16-merged-r6 \
+  --prefix-cache-shared-profile shared_prefix_extra_long_no_repeat_variant \
+  --prefix-cache-control-profile matched_unique_prefix_extra_long_no_repeat_variant \
+  --output-dir results/modal-vllm-prefix-cache-extra-long-no-repeat-n16-merged-r6-summary
+
+python3 scripts/build_prefix_cache_study_table.py \
+  --summary-json results/modal-vllm-prefix-cache-extra-long-no-repeat-n16-merged-r6-summary/prefix-cache-isolated-stability-summary.json \
+  --output-dir results/prefix-cache-study-extra-long-merged-r6
+```
+
+## Result
+
+The merged artifact has `6` paired shared/control observations for `n=16`.
+
+- control direct counter hit rate: `1.342%`
+- shared direct counter hit rate: `91.233%`
+- shared-minus-control direct counter delta: `89.891 pp`, interval
+  `89.867 pp` to `89.915 pp`
+- p95 first-event/TTFT ratio delta: `-0.561`, interval `-0.701` to `-0.376`
+- throughput-ratio delta: `0.772`, interval `0.411` to `1.111`
+- p95 latency-ratio delta: `-0.525`, interval `-0.867` to `-0.235`
+- p95 stream TPOT-ratio delta: `-0.583`, interval `-0.888` to `-0.356`
+
+Generated artifacts:
+
+```text
+results/modal-vllm-prefix-cache-extra-long-no-repeat-n16-chunk-r3-seed680/prefix-cache-isolated-metrics.json
+results/modal-vllm-prefix-cache-extra-long-no-repeat-n16-merged-r6/prefix-cache-isolated-metrics.json
+results/modal-vllm-prefix-cache-extra-long-no-repeat-n16-merged-r6-summary/prefix-cache-isolated-stability-summary.md
+results/prefix-cache-study-extra-long-merged-r6/key-results.md
+results/prefix-cache-study-extra-long-merged-r6/intervals.md
+```
+
+## Next Step
+
+The result now supports a stronger extra-long follow-up claim. The next useful
+iteration is methodological: either add one more r2 chunk to match the original
+eight-repeat count or compare against a larger model/GPU configuration where
+prefill cost is more realistic.
