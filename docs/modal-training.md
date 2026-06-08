@@ -6925,3 +6925,60 @@ results/prefix-cache-study-mega-long-qwen15b-l4-n32-merged-r8/intervals.md
 Use the repeat-count-matched n16 and n32 Qwen 1.5B L4 artifacts as control
 points for backend comparison, or add a scheduler/capacity diagnostic for the
 n32 vLLM capacity drop.
+
+# Training 072: Qwen 1.5B L4 n16-vs-n32 Batch-Pressure Comparison
+
+Training 072 turns the repeat-count-matched n16 and n32 Qwen 1.5B L4 artifacts
+into a compact comparison report. This is a local postprocessing step; it does
+not launch another GPU run.
+
+## Goal
+
+Make the batch-pressure result easier to review on GitHub by comparing n16 r8
+and n32 r8 side by side with matched model, GPU, prompt family, output tokens,
+and repeat count.
+
+## Command
+
+```bash
+python3 scripts/build_prefix_cache_batch_pressure_comparison.py
+```
+
+The generator reads:
+
+```text
+results/modal-vllm-prefix-cache-mega-long-qwen15b-l4-n16-merged-r8-summary/prefix-cache-isolated-stability-summary.json
+results/modal-vllm-prefix-cache-mega-long-qwen15b-l4-n32-merged-r8-summary/prefix-cache-isolated-stability-summary.json
+```
+
+## Result
+
+The comparison artifact reports:
+
+- request count: `16` to `32`, delta `+16`
+- shared-minus-control direct counter delta: `92.628 pp` to `95.797 pp`,
+  delta `+3.169 pp`
+- shared direct counter hit rate: `93.075%` to `96.243%`, delta `+3.168 pp`
+- control direct counter hit rate: `0.447%` to `0.446%`, delta `-0.001 pp`
+- throughput-ratio delta: `7.491` to `9.863`, delta `+2.372`
+- p95 first-event/TTFT ratio delta: `-0.910` to `-0.942`, delta `-0.032`
+- p95 latency-ratio delta: `-0.892` to `-0.911`, delta `-0.019`
+- p95 stream TPOT-ratio delta: `-0.947` to `-0.683`, delta `+0.264`
+
+The higher-request-count artifact preserves the direct KV-cache reuse claim and
+strengthens the throughput and first-token effects. The weaker stream TPOT
+delta means the next systems question is why the n32 capacity profile changes
+decode behavior, not whether prefix reuse exists.
+
+Generated artifacts:
+
+```text
+results/prefix-cache-study-mega-long-qwen15b-l4-n16-vs-n32-r8/batch-pressure-comparison.md
+results/prefix-cache-study-mega-long-qwen15b-l4-n16-vs-n32-r8/batch-pressure-comparison.json
+results/prefix-cache-study-mega-long-qwen15b-l4-n16-vs-n32-r8/batch-pressure-comparison.csv
+```
+
+## Next Step
+
+Add a scheduler/capacity diagnostic that persists vLLM capacity values that are
+currently visible only in Modal console logs.

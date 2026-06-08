@@ -298,6 +298,24 @@ ratio delta `-0.942`, throughput-ratio delta `9.863`, p95 latency-ratio delta
 batch-pressure artifact and is repeat-count-matched against the n16 Qwen 1.5B
 L4 model-size artifact.
 
+Training 072 packages the repeat-count-matched Qwen 1.5B L4 n16-vs-n32
+comparison:
+
+```text
+results/prefix-cache-study-mega-long-qwen15b-l4-n16-vs-n32-r8/batch-pressure-comparison.md
+results/prefix-cache-study-mega-long-qwen15b-l4-n16-vs-n32-r8/batch-pressure-comparison.json
+results/prefix-cache-study-mega-long-qwen15b-l4-n16-vs-n32-r8/batch-pressure-comparison.csv
+```
+
+The comparison changes only request count (`16` to `32`) while keeping model,
+GPU, prompt family, output tokens, and repeats matched. The n32 artifact has a
+`+3.169 pp` direct counter delta change, `+2.372` throughput-ratio delta
+change, `-0.032` p95 first-event/TTFT ratio-delta change, and `-0.019` p95
+latency-ratio delta change versus n16. The weaker point is decode: p95 stream
+TPOT-ratio delta moves from `-0.947` to `-0.683`, a `+0.264` change. That makes
+the next systems question a scheduler/capacity diagnostic rather than another
+plain repeat-count promotion.
+
 ## Reproduce
 
 Run the no-repeat n=16 fixed-shape stability pass:
@@ -438,10 +456,13 @@ results/modal-vllm-prefix-cache-mega-long-qwen15b-l4-n32-merged-r8/prefix-cache-
 results/modal-vllm-prefix-cache-mega-long-qwen15b-l4-n32-merged-r8-summary/prefix-cache-isolated-stability-summary.md
 results/prefix-cache-study-mega-long-qwen15b-l4-n32-merged-r8/key-results.md
 results/prefix-cache-study-mega-long-qwen15b-l4-n32-merged-r8/intervals.md
+results/prefix-cache-study-mega-long-qwen15b-l4-n16-vs-n32-r8/batch-pressure-comparison.md
+results/prefix-cache-study-mega-long-qwen15b-l4-n16-vs-n32-r8/batch-pressure-comparison.json
+results/prefix-cache-study-mega-long-qwen15b-l4-n16-vs-n32-r8/batch-pressure-comparison.csv
 ```
 
 ## Next Step
 
-Use the repeat-count-matched n16 and n32 Qwen 1.5B L4 artifacts as control
-points for a backend comparison, or add a scheduler/capacity diagnostic that
-explains why vLLM's n32 shape reports much lower KV-cache capacity.
+Add a scheduler/capacity diagnostic that persists the vLLM capacity values
+currently visible only in Modal console logs, then use that diagnostic before
+making backend-level claims from the n16/n32 comparison.

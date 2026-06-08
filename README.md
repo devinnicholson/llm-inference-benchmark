@@ -37,6 +37,9 @@ Latest L4 model-size follow-up:
 Latest L4 batch-pressure follow-up:
 [`results/prefix-cache-study-mega-long-qwen15b-l4-n32-merged-r8/key-results.md`](results/prefix-cache-study-mega-long-qwen15b-l4-n32-merged-r8/key-results.md)
 
+Latest L4 batch-pressure comparison:
+[`results/prefix-cache-study-mega-long-qwen15b-l4-n16-vs-n32-r8/batch-pressure-comparison.md`](results/prefix-cache-study-mega-long-qwen15b-l4-n16-vs-n32-r8/batch-pressure-comparison.md)
+
 ## Course Track
 
 This repo starts with the 568 path:

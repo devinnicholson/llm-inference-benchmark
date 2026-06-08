@@ -1,0 +1,9 @@
+metric,baseline_value,candidate_value,candidate_minus_baseline,interpretation
+Request count,16,32,+16,"Batch pressure is higher while model, GPU, prompt family, repeats, and output tokens stay matched."
+Shared-minus-control direct counter delta,92.628 pp,95.797 pp,+3.169 pp,Direct measured-window KV reuse remains strong at the higher request count.
+Shared direct counter hit rate,93.075%,96.243%,+3.168 pp,The shared-prefix workload still drives high direct cache reuse under n32.
+Control direct counter hit rate,0.447%,0.446%,-0.001 pp,The matched unique-prefix control remains near zero in both artifacts.
+Throughput-ratio delta,7.491,9.863,+2.372,The n32 artifact shows a larger favorable throughput effect.
+p95 first-event/TTFT ratio delta,-0.910,-0.942,-0.032,First-token latency remains favorable and is slightly stronger under n32.
+p95 latency-ratio delta,-0.892,-0.911,-0.019,End-to-end p95 latency remains favorable and slightly stronger under n32.
+p95 stream TPOT-ratio delta,-0.947,-0.683,+0.264,"Decode TPOT remains favorable, but the n32 improvement is weaker than n16."

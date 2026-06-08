@@ -1,0 +1,114 @@
+{
+  "baseline": {
+    "control_direct_hit_rate_pct": 0.44659272633554215,
+    "direct_counter_delta_high_pp": 92.6750447659134,
+    "direct_counter_delta_low_pp": 92.58130516156538,
+    "direct_counter_delta_pp": 92.62817496373938,
+    "first_event_delta": -0.9099450256018563,
+    "first_event_high": -0.90039279665845,
+    "first_event_low": -0.9181487324985342,
+    "label": "n16 r8",
+    "latency_delta": -0.8921070518442661,
+    "latency_high": -0.8811546221461917,
+    "latency_low": -0.9034367192333372,
+    "max_new_tokens": 8,
+    "paired_observations": 8,
+    "request_count": 16,
+    "shared_direct_hit_rate_pct": 93.07476769007492,
+    "source_dir": "results/modal-vllm-prefix-cache-mega-long-qwen15b-l4-n16-merged-r8",
+    "source_json": "results/modal-vllm-prefix-cache-mega-long-qwen15b-l4-n16-merged-r8/prefix-cache-isolated-metrics.json",
+    "stream_tpot_delta": -0.947290589278091,
+    "stream_tpot_high": -0.9407382210541232,
+    "stream_tpot_low": -0.9539729117605442,
+    "summary_json": "results/modal-vllm-prefix-cache-mega-long-qwen15b-l4-n16-merged-r8-summary/prefix-cache-isolated-stability-summary.json",
+    "throughput_delta": 7.49068188937111,
+    "throughput_high": 7.794647418828276,
+    "throughput_low": 7.22167339110747
+  },
+  "candidate": {
+    "control_direct_hit_rate_pct": 0.4460545153341104,
+    "direct_counter_delta_high_pp": 95.84501789747479,
+    "direct_counter_delta_low_pp": 95.7484177868512,
+    "direct_counter_delta_pp": 95.79671948315688,
+    "first_event_delta": -0.9416060370764128,
+    "first_event_high": -0.9238470866616424,
+    "first_event_low": -0.9567938604714962,
+    "label": "n32 r8",
+    "latency_delta": -0.9110809195535151,
+    "latency_high": -0.8970317082787791,
+    "latency_low": -0.9254787355982949,
+    "max_new_tokens": 8,
+    "paired_observations": 8,
+    "request_count": 32,
+    "shared_direct_hit_rate_pct": 96.24277399849099,
+    "source_dir": "results/modal-vllm-prefix-cache-mega-long-qwen15b-l4-n32-merged-r8",
+    "source_json": "results/modal-vllm-prefix-cache-mega-long-qwen15b-l4-n32-merged-r8/prefix-cache-isolated-metrics.json",
+    "stream_tpot_delta": -0.6833222417519399,
+    "stream_tpot_high": -0.6316949325940056,
+    "stream_tpot_low": -0.736023614535226,
+    "summary_json": "results/modal-vllm-prefix-cache-mega-long-qwen15b-l4-n32-merged-r8-summary/prefix-cache-isolated-stability-summary.json",
+    "throughput_delta": 9.86254025847106,
+    "throughput_high": 10.711344548257964,
+    "throughput_low": 9.015126573554955
+  },
+  "comparison_rows": [
+    {
+      "baseline_value": "16",
+      "candidate_minus_baseline": "+16",
+      "candidate_value": "32",
+      "interpretation": "Batch pressure is higher while model, GPU, prompt family, repeats, and output tokens stay matched.",
+      "metric": "Request count"
+    },
+    {
+      "baseline_value": "92.628 pp",
+      "candidate_minus_baseline": "+3.169 pp",
+      "candidate_value": "95.797 pp",
+      "interpretation": "Direct measured-window KV reuse remains strong at the higher request count.",
+      "metric": "Shared-minus-control direct counter delta"
+    },
+    {
+      "baseline_value": "93.075%",
+      "candidate_minus_baseline": "+3.168 pp",
+      "candidate_value": "96.243%",
+      "interpretation": "The shared-prefix workload still drives high direct cache reuse under n32.",
+      "metric": "Shared direct counter hit rate"
+    },
+    {
+      "baseline_value": "0.447%",
+      "candidate_minus_baseline": "-0.001 pp",
+      "candidate_value": "0.446%",
+      "interpretation": "The matched unique-prefix control remains near zero in both artifacts.",
+      "metric": "Control direct counter hit rate"
+    },
+    {
+      "baseline_value": "7.491",
+      "candidate_minus_baseline": "+2.372",
+      "candidate_value": "9.863",
+      "interpretation": "The n32 artifact shows a larger favorable throughput effect.",
+      "metric": "Throughput-ratio delta"
+    },
+    {
+      "baseline_value": "-0.910",
+      "candidate_minus_baseline": "-0.032",
+      "candidate_value": "-0.942",
+      "interpretation": "First-token latency remains favorable and is slightly stronger under n32.",
+      "metric": "p95 first-event/TTFT ratio delta"
+    },
+    {
+      "baseline_value": "-0.892",
+      "candidate_minus_baseline": "-0.019",
+      "candidate_value": "-0.911",
+      "interpretation": "End-to-end p95 latency remains favorable and slightly stronger under n32.",
+      "metric": "p95 latency-ratio delta"
+    },
+    {
+      "baseline_value": "-0.947",
+      "candidate_minus_baseline": "+0.264",
+      "candidate_value": "-0.683",
+      "interpretation": "Decode TPOT remains favorable, but the n32 improvement is weaker than n16.",
+      "metric": "p95 stream TPOT-ratio delta"
+    }
+  ],
+  "mode": "prefix-cache-batch-pressure-comparison",
+  "schema_version": 1
+}
