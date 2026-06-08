@@ -5868,6 +5868,85 @@ results/prefix-cache-study-ultra-long-qwen05b-smoke-r2/intervals.md
 
 ## Next Step
 
-Run chunked ultra-long repeats to reach r8 if this longer-context axis remains
-the priority. The r2 signal is strong, but it should not be presented as
-repeat-count matched until the r8 merge exists.
+Training 060 extends this smoke to a merged r5 follow-up. The remaining
+repeat-count target is r8.
+
+# Training 060: Qwen 0.5B Ultra-Long Merged r5
+
+Training 060 adds a three-repeat ultra-long Qwen chunk and merges it with the
+Training 059 r2 smoke. This turns the longer-context checkpoint from a smoke
+test into a five-repeat follow-up while keeping the same clean prompt-control
+design.
+
+## Goal
+
+Check whether the ultra-long result remains favorable after more repeats before
+spending another chunk to reach r8.
+
+## Chunk Run
+
+```bash
+modal run modal_app.py --mode vllm-prefix-cache-isolated-neutral-warmup \
+  --hf-model Qwen/Qwen2.5-0.5B-Instruct \
+  --prompt-profiles shared_prefix_ultra_long_no_repeat_variant,matched_unique_prefix_ultra_long_no_repeat_variant \
+  --output-tokens 8 \
+  --request-counts 16 \
+  --repeats 3 \
+  --scenario-seed 1401 \
+  --phase-order cold_first \
+  --kv-cache-metrics-sample 1.0 \
+  --warmup-prompt-profile neutral_ultra_long \
+  --prefix-cache-shared-profile shared_prefix_ultra_long_no_repeat_variant \
+  --prefix-cache-control-profile matched_unique_prefix_ultra_long_no_repeat_variant \
+  --output-dir results/modal-vllm-prefix-cache-ultra-long-qwen05b-n16-chunk-r3-seed1401
+```
+
+The chunk produced `6` paired shared/control observations.
+
+## Merge And Report
+
+```bash
+modal run modal_app.py --mode vllm-prefix-cache-isolated-merge \
+  --prefix-cache-isolated-merge-dirs results/modal-vllm-prefix-cache-ultra-long-qwen05b-n16-smoke-r2,results/modal-vllm-prefix-cache-ultra-long-qwen05b-n16-chunk-r3-seed1401 \
+  --prefix-cache-shared-profile shared_prefix_ultra_long_no_repeat_variant \
+  --prefix-cache-control-profile matched_unique_prefix_ultra_long_no_repeat_variant \
+  --output-dir results/modal-vllm-prefix-cache-ultra-long-qwen05b-n16-merged-r5
+
+modal run modal_app.py --mode vllm-prefix-cache-isolated-stability-summary \
+  --prefix-cache-isolated-metrics-dir results/modal-vllm-prefix-cache-ultra-long-qwen05b-n16-merged-r5 \
+  --prefix-cache-shared-profile shared_prefix_ultra_long_no_repeat_variant \
+  --prefix-cache-control-profile matched_unique_prefix_ultra_long_no_repeat_variant \
+  --output-dir results/modal-vllm-prefix-cache-ultra-long-qwen05b-n16-merged-r5-summary
+
+python3 scripts/build_prefix_cache_study_table.py \
+  --summary-json results/modal-vllm-prefix-cache-ultra-long-qwen05b-n16-merged-r5-summary/prefix-cache-isolated-stability-summary.json \
+  --output-dir results/prefix-cache-study-ultra-long-qwen05b-merged-r5
+```
+
+## Result
+
+The merged artifact has `10` paired shared/control observations for `n=16`.
+
+- control direct counter hit rate: `0.822%`
+- shared direct counter hit rate: `92.294%`
+- shared-minus-control direct counter delta: `91.472 pp`, interval
+  `91.372 pp` to `91.581 pp`
+- p95 first-event/TTFT ratio delta: `-1.032`, interval `-1.372` to `-0.848`
+- throughput-ratio delta: `2.184`, interval `1.387` to `2.967`
+- p95 latency-ratio delta: `-0.809`, interval `-1.063` to `-0.601`
+- p95 stream TPOT-ratio delta: `-0.773`, interval `-0.857` to `-0.629`
+
+Generated artifacts:
+
+```text
+results/modal-vllm-prefix-cache-ultra-long-qwen05b-n16-chunk-r3-seed1401/prefix-cache-isolated-metrics.json
+results/modal-vllm-prefix-cache-ultra-long-qwen05b-n16-merged-r5/prefix-cache-isolated-metrics.json
+results/modal-vllm-prefix-cache-ultra-long-qwen05b-n16-merged-r5-summary/prefix-cache-isolated-stability-summary.md
+results/prefix-cache-study-ultra-long-qwen05b-merged-r5/key-results.md
+results/prefix-cache-study-ultra-long-qwen05b-merged-r5/intervals.md
+```
+
+## Next Step
+
+Run one more three-repeat ultra-long chunk and merge to r8 if the current
+priority remains the longer-context Qwen axis.
