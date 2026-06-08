@@ -5521,3 +5521,95 @@ The extra-long r8 result is now a credible second result, not just a smoke. The
 next research iteration should change hardware/model shape: larger model,
 longer context, or a GPU configuration where prefill is a bigger fraction of
 serving cost.
+
+# Training 056: Qwen 0.5B Extra-Long Smoke
+
+Training 056 changes model shape while keeping the extra-long no-repeat prompt
+methodology fixed. It uses `Qwen/Qwen2.5-0.5B-Instruct` on the existing T4
+prefix-cache harness.
+
+## Goal
+
+Check whether the extra-long prefix-cache result is specific to
+`HuggingFaceTB/SmolLM2-135M-Instruct` or survives a larger small model. This is
+a viability smoke before spending more GPU time on a full r8 run.
+
+## Prompt Audit
+
+```bash
+modal run modal_app.py --mode vllm-prefix-cache-prompt-audit \
+  --hf-model Qwen/Qwen2.5-0.5B-Instruct \
+  --prompt-profiles shared_prefix_extra_long_no_repeat_variant,matched_unique_prefix_extra_long_no_repeat_variant \
+  --request-counts 16 \
+  --output-tokens 8 \
+  --repeats 1 \
+  --scenario-seed 901 \
+  --kv-cache-block-size 16 \
+  --output-dir results/modal-vllm-prefix-cache-prompt-audit-extra-long-qwen05b-n16
+```
+
+Result:
+
+- shared common-prefix full blocks: `68`
+- control common-prefix full blocks: `1`
+- shared-minus-control reusable block tokens: `16,080`
+
+## GPU Smoke
+
+```bash
+modal run modal_app.py --mode vllm-prefix-cache-isolated-neutral-warmup \
+  --hf-model Qwen/Qwen2.5-0.5B-Instruct \
+  --prompt-profiles shared_prefix_extra_long_no_repeat_variant,matched_unique_prefix_extra_long_no_repeat_variant \
+  --output-tokens 8 \
+  --request-counts 16 \
+  --repeats 2 \
+  --scenario-seed 901 \
+  --phase-order cold_first \
+  --kv-cache-metrics-sample 1.0 \
+  --warmup-prompt-profile neutral_extra_long \
+  --prefix-cache-shared-profile shared_prefix_extra_long_no_repeat_variant \
+  --prefix-cache-control-profile matched_unique_prefix_extra_long_no_repeat_variant \
+  --output-dir results/modal-vllm-prefix-cache-extra-long-qwen05b-n16-smoke-r2
+
+modal run modal_app.py --mode vllm-prefix-cache-isolated-stability-summary \
+  --prefix-cache-isolated-metrics-dir results/modal-vllm-prefix-cache-extra-long-qwen05b-n16-smoke-r2 \
+  --prefix-cache-shared-profile shared_prefix_extra_long_no_repeat_variant \
+  --prefix-cache-control-profile matched_unique_prefix_extra_long_no_repeat_variant \
+  --output-dir results/modal-vllm-prefix-cache-extra-long-qwen05b-n16-smoke-r2-summary
+
+python3 scripts/build_prefix_cache_study_table.py \
+  --summary-json results/modal-vllm-prefix-cache-extra-long-qwen05b-n16-smoke-r2-summary/prefix-cache-isolated-stability-summary.json \
+  --output-dir results/prefix-cache-study-extra-long-qwen05b-smoke-r2
+```
+
+## Result
+
+The Qwen model loads and runs on T4. vLLM reports `Qwen2ForCausalLM`,
+`max_model_len=1345`, and about `0.93 GiB` model memory.
+
+Key r2 smoke result:
+
+- control direct counter hit rate: `1.419%`
+- shared direct counter hit rate: `91.518%`
+- shared-minus-control direct counter delta: `90.099 pp`, interval
+  `89.716 pp` to `90.482 pp`
+- p95 first-event/TTFT ratio delta: `-0.838`, interval `-0.896` to `-0.779`
+- throughput-ratio delta: `2.341`, interval `1.913` to `2.768`
+- p95 latency-ratio delta: `-0.934`, interval `-1.285` to `-0.582`
+- p95 stream TPOT-ratio delta: `-0.742`, interval `-0.801` to `-0.684`
+
+Generated artifacts:
+
+```text
+results/modal-vllm-prefix-cache-prompt-audit-extra-long-qwen05b-n16/prefix-cache-prompt-audit.md
+results/modal-vllm-prefix-cache-extra-long-qwen05b-n16-smoke-r2/prefix-cache-isolated-metrics.json
+results/modal-vllm-prefix-cache-extra-long-qwen05b-n16-smoke-r2-summary/prefix-cache-isolated-stability-summary.md
+results/prefix-cache-study-extra-long-qwen05b-smoke-r2/key-results.md
+results/prefix-cache-study-extra-long-qwen05b-smoke-r2/intervals.md
+```
+
+## Next Step
+
+Promote the Qwen smoke only after a full r8 chunked run. The model-shape result
+is promising, but the current artifact is intentionally just a two-repeat
+viability check.
