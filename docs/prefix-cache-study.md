@@ -83,6 +83,30 @@ latency, and stream TPOT intervals all cross zero in the eight-repeat pass. That
 is a useful result, not a failure: it separates the cache mechanism from broader
 serving throughput under a tiny model, short output length, and T4/eager setup.
 
+## Extra-Long Follow-Up
+
+Training 051 adds an extra-long no-repeat prompt/control pair that raises the
+mean prompt length from roughly `327` tokens to roughly `1,185` tokens while
+keeping the shared and control shapes matched.
+
+The tokenizer audit shows:
+
+- shared common-prefix full blocks: `72`
+- control common-prefix full blocks: `1`
+- shared-minus-control reusable block tokens: `17,040`
+- exact duplicate reusable tokens: `0` for both profiles
+
+The r3 GPU smoke is promising but not yet the replacement primary claim:
+
+```text
+results/prefix-cache-study-extra-long-smoke-r3/key-results.md
+results/prefix-cache-study-extra-long-smoke-r3/intervals.md
+```
+
+In that smoke, direct counter reuse, p95 first-event/TTFT, throughput,
+end-to-end p95 latency, and stream TPOT all move in the expected direction. A
+longer stability pass is still needed before promoting the broader timing claim.
+
 ## Reproduce
 
 Run the no-repeat n=16 fixed-shape stability pass:
@@ -149,6 +173,15 @@ Supporting prompt audit:
 
 ```text
 results/modal-vllm-prefix-cache-prompt-audit-no-repeat-n16/prefix-cache-prompt-audit.md
+```
+
+Extra-long follow-up:
+
+```text
+results/modal-vllm-prefix-cache-prompt-audit-extra-long-no-repeat-n16/prefix-cache-prompt-audit.md
+results/modal-vllm-prefix-cache-extra-long-no-repeat-n16-smoke-r3-summary/prefix-cache-isolated-stability-summary.md
+results/prefix-cache-study-extra-long-smoke-r3/key-results.md
+results/prefix-cache-study-extra-long-smoke-r3/intervals.md
 ```
 
 ## Next Step

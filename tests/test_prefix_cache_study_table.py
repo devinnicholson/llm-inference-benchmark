@@ -22,6 +22,11 @@ SUMMARY_JSON = (
     / "results/modal-vllm-prefix-cache-no-repeat-n16-stability-r8-summary-ttft"
     / "prefix-cache-isolated-stability-summary.json"
 )
+EXTRA_LONG_SUMMARY_JSON = (
+    ROOT
+    / "results/modal-vllm-prefix-cache-extra-long-no-repeat-n16-smoke-r3-summary"
+    / "prefix-cache-isolated-stability-summary.json"
+)
 
 
 class PrefixCacheStudyTableTests(unittest.TestCase):
@@ -52,6 +57,26 @@ class PrefixCacheStudyTableTests(unittest.TestCase):
             "no stable throughput claim",
             by_metric["Throughput-ratio delta"]["interpretation"],
         )
+
+    def test_labels_non_crossing_extra_long_intervals(self) -> None:
+        payload = json.loads(EXTRA_LONG_SUMMARY_JSON.read_text())
+
+        rows = build_rows(payload)
+        intervals = build_intervals(payload)
+        chart = render_interval_chart(intervals, EXTRA_LONG_SUMMARY_JSON)
+
+        by_metric = {row["metric"]: row for row in rows}
+        self.assertIn(
+            "Stable favorable throughput effect",
+            by_metric["Throughput-ratio delta"]["interpretation"],
+        )
+        self.assertIn(
+            "Stable favorable end-to-end latency effect",
+            by_metric["p95 latency-ratio delta"]["interpretation"],
+        )
+        self.assertIn("scale: 0.000 pp to 94.", chart)
+        self.assertIn("scale: -1.", chart)
+        self.assertIn("0.998", chart)
 
     def test_builds_interval_chart_from_key_effects(self) -> None:
         payload = json.loads(SUMMARY_JSON.read_text())

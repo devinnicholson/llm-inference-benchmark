@@ -18,6 +18,9 @@ Generated result artifacts:
 [`results/prefix-cache-study/key-results.md`](results/prefix-cache-study/key-results.md)
 and [`results/prefix-cache-study/intervals.md`](results/prefix-cache-study/intervals.md)
 
+Latest follow-up smoke:
+[`results/prefix-cache-study-extra-long-smoke-r3/key-results.md`](results/prefix-cache-study-extra-long-smoke-r3/key-results.md)
+
 ## Course Track
 
 This repo starts with the 568 path:

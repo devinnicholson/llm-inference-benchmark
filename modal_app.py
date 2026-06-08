@@ -94,6 +94,7 @@ DEFAULT_VLLM_SWEEP_OUTPUT_TOKENS = "16,32"
 DEFAULT_VLLM_SWEEP_REPEATS = 3
 DEFAULT_VLLM_SWEEP_SEED = 568
 DEFAULT_HF_MODEL = "HuggingFaceTB/SmolLM2-135M-Instruct"
+EXTRA_LONG_PREFIX_CONTEXT_REPEATS = 6
 DEFAULT_INFERENCE_PROMPT = "Explain KV cache in LLM inference in two concise sentences."
 DEFAULT_CONCURRENT_PROMPTS = (
     "Explain KV cache pressure in LLM serving in two concise sentences.",
@@ -109,10 +110,13 @@ VALID_VLLM_PROMPT_PROFILES = {
     "shared_prefix_long",
     "shared_prefix_long_variant",
     "shared_prefix_long_no_repeat_variant",
+    "shared_prefix_extra_long_no_repeat_variant",
     "matched_unique_prefix",
     "matched_unique_prefix_variant",
     "matched_unique_prefix_no_repeat_variant",
+    "matched_unique_prefix_extra_long_no_repeat_variant",
     "neutral_long",
+    "neutral_extra_long",
 }
 HF_CACHE_PATH = "/cache"
 VLLM_CACHE_PATH = "/vllm-cache"
@@ -4665,8 +4669,124 @@ def main(
             else ""
         )
 
+        default_output = (
+            DEFAULT_VLLM_PREFIX_CACHE_ISOLATED_WARM_WINDOW_OUTPUT
+            if mode == "vllm-prefix-cache-isolated-warm-window"
+            else DEFAULT_VLLM_PREFIX_CACHE_ISOLATED_NEUTRAL_WARMUP_OUTPUT
+            if mode == "vllm-prefix-cache-isolated-neutral-warmup"
+            else DEFAULT_VLLM_PREFIX_CACHE_ISOLATED_METRICS_OUTPUT
+        )
+        output_path = Path(output_dir or default_output)
+        output_path.mkdir(parents=True, exist_ok=True)
+        planned_remote_call_count = (
+            int(repeats)
+            * len(prompt_profile_values)
+            * len(output_token_values)
+            * len(request_count_values)
+        )
+
         paired_runs = []
         remote_call_summaries = []
+
+        def build_isolated_payload(checkpoint_complete: bool) -> tuple[dict[str, Any], list[dict[str, Any]]]:
+            paired_scenarios = _aggregate_vllm_prefix_cache_paired_scenarios(
+                paired_runs
+            )
+            summary_rows = _vllm_prefix_cache_paired_summary_rows(paired_scenarios)
+            profile_control_rows = _vllm_prefix_cache_isolated_profile_control_rows(
+                paired_scenarios,
+                shared_profile=shared_profile,
+                control_profile=control_profile,
+            )
+            payload = {
+                "schema_version": 1,
+                "execution": "modal",
+                "mode": mode,
+                "backend": "vllm-paired-prefix-cache",
+                "model_id": hf_model,
+                "request_counts": request_count_values,
+                "prompt_profiles": prompt_profile_values,
+                "output_tokens": output_token_values,
+                "repeats": int(repeats),
+                "scenario_seed": int(scenario_seed),
+                "phase_order": isolated_phase_order,
+                "warmup_runs": effective_warmup_runs,
+                "warmup_prompt_profile": effective_warmup_prompt_profile or None,
+                "collect_cache_metrics": True,
+                "kv_cache_metrics_sample": float(kv_cache_metrics_sample),
+                "checkpoint_complete": checkpoint_complete,
+                "planned_remote_call_count": planned_remote_call_count,
+                "isolation_method": (
+                    "Each scenario/repeat is executed by a separate remote paired "
+                    "benchmark call with fresh cold/cache AsyncLLM engines. The "
+                    f"run uses {effective_warmup_runs} warmup scenario run(s) "
+                    "inside each fresh engine before the measured scenario. "
+                    f"Warmup prompt profile: {effective_warmup_prompt_profile or 'measured scenario'}."
+                ),
+                "remote_call_count": len(remote_call_summaries),
+                "scenario_count": len(paired_scenarios),
+                "paired_run_count": len(paired_runs),
+                "summary": summary_rows,
+                "paired_runs": paired_runs,
+                "paired_scenarios": paired_scenarios,
+                "profile_control": {
+                    "shared_profile": shared_profile,
+                    "control_profile": control_profile,
+                    "row_count": len(profile_control_rows),
+                    "summary": _vllm_prefix_cache_isolated_profile_control_summary(
+                        profile_control_rows
+                    ),
+                    "rows": profile_control_rows,
+                },
+                "remote_call_summaries": remote_call_summaries,
+                "mean_cache_to_cold_throughput_ratio": _mean_present(
+                    row["cache_to_cold_output_tokens_per_second_ratio"]
+                    for row in paired_runs
+                ),
+                "mean_cache_to_cold_first_event_ratio": _mean_present(
+                    row["cache_to_cold_p95_first_event_ms_ratio"]
+                    for row in paired_runs
+                ),
+                "mean_cache_to_cold_latency_ratio": _mean_present(
+                    row["cache_to_cold_p95_latency_ms_ratio"] for row in paired_runs
+                ),
+                "mean_cache_to_cold_tpot_ratio": _mean_present(
+                    row["cache_to_cold_p95_stream_tpot_ms_ratio"]
+                    for row in paired_runs
+                ),
+                "note": (
+                    "This is a metric-isolation harness. The warm-window mode adds "
+                    "a throwaway warmup window before the measured scenario; the "
+                    "default isolated mode runs with no warmup."
+                ),
+            }
+            return payload, profile_control_rows
+
+        def write_isolated_outputs(
+            payload: dict[str, Any],
+            profile_control_rows: list[dict[str, Any]],
+            partial: bool,
+        ) -> tuple[Path, Path, Path, Path]:
+            suffix = ".partial" if partial else ""
+            json_path = output_path / f"prefix-cache-isolated-metrics{suffix}.json"
+            summary_csv_path = (
+                output_path / f"prefix-cache-isolated-metrics-summary{suffix}.csv"
+            )
+            runs_csv_path = (
+                output_path / f"prefix-cache-isolated-metrics-runs{suffix}.csv"
+            )
+            profile_csv_path = (
+                output_path / f"prefix-cache-isolated-profile-control{suffix}.csv"
+            )
+            json_path.write_text(
+                json.dumps(payload, indent=2, sort_keys=True) + "\n",
+                encoding="utf-8",
+            )
+            _write_records_csv(summary_csv_path, payload["summary"])
+            _write_records_csv(runs_csv_path, payload["paired_runs"])
+            _write_records_csv(profile_csv_path, profile_control_rows)
+            return json_path, summary_csv_path, runs_csv_path, profile_csv_path
+
         call_index = 0
         for repeat_index in range(repeats):
             for prompt_profile_value in prompt_profile_values:
@@ -4823,89 +4943,26 @@ def main(
                             }
                         )
                         call_index += 1
+                        partial_payload, partial_profile_control_rows = (
+                            build_isolated_payload(checkpoint_complete=False)
+                        )
+                        write_isolated_outputs(
+                            partial_payload,
+                            partial_profile_control_rows,
+                            partial=True,
+                        )
+                        print(
+                            "checkpoint_remote_calls: "
+                            f"{partial_payload['remote_call_count']}/"
+                            f"{partial_payload['planned_remote_call_count']}"
+                        )
 
-        paired_scenarios = _aggregate_vllm_prefix_cache_paired_scenarios(paired_runs)
-        summary_rows = _vllm_prefix_cache_paired_summary_rows(paired_scenarios)
-        profile_control_rows = _vllm_prefix_cache_isolated_profile_control_rows(
-            paired_scenarios,
-            shared_profile=shared_profile,
-            control_profile=control_profile,
+        payload, profile_control_rows = build_isolated_payload(checkpoint_complete=True)
+        json_path, summary_csv_path, runs_csv_path, profile_csv_path = write_isolated_outputs(
+            payload,
+            profile_control_rows,
+            partial=False,
         )
-        payload = {
-            "schema_version": 1,
-            "execution": "modal",
-            "mode": mode,
-            "backend": "vllm-paired-prefix-cache",
-            "model_id": hf_model,
-            "request_counts": request_count_values,
-            "prompt_profiles": prompt_profile_values,
-            "output_tokens": output_token_values,
-            "repeats": int(repeats),
-            "scenario_seed": int(scenario_seed),
-            "phase_order": isolated_phase_order,
-            "warmup_runs": effective_warmup_runs,
-            "warmup_prompt_profile": effective_warmup_prompt_profile or None,
-            "collect_cache_metrics": True,
-            "kv_cache_metrics_sample": float(kv_cache_metrics_sample),
-            "isolation_method": (
-                "Each scenario/repeat is executed by a separate remote paired "
-                "benchmark call with fresh cold/cache AsyncLLM engines. The "
-                f"run uses {effective_warmup_runs} warmup scenario run(s) "
-                "inside each fresh engine before the measured scenario. "
-                f"Warmup prompt profile: {effective_warmup_prompt_profile or 'measured scenario'}."
-            ),
-            "remote_call_count": len(remote_call_summaries),
-            "scenario_count": len(paired_scenarios),
-            "paired_run_count": len(paired_runs),
-            "summary": summary_rows,
-            "paired_runs": paired_runs,
-            "paired_scenarios": paired_scenarios,
-            "profile_control": {
-                "shared_profile": shared_profile,
-                "control_profile": control_profile,
-                "row_count": len(profile_control_rows),
-                "summary": _vllm_prefix_cache_isolated_profile_control_summary(
-                    profile_control_rows
-                ),
-                "rows": profile_control_rows,
-            },
-            "remote_call_summaries": remote_call_summaries,
-            "mean_cache_to_cold_throughput_ratio": _mean_present(
-                row["cache_to_cold_output_tokens_per_second_ratio"]
-                for row in paired_runs
-            ),
-            "mean_cache_to_cold_first_event_ratio": _mean_present(
-                row["cache_to_cold_p95_first_event_ms_ratio"] for row in paired_runs
-            ),
-            "mean_cache_to_cold_latency_ratio": _mean_present(
-                row["cache_to_cold_p95_latency_ms_ratio"] for row in paired_runs
-            ),
-            "mean_cache_to_cold_tpot_ratio": _mean_present(
-                row["cache_to_cold_p95_stream_tpot_ms_ratio"] for row in paired_runs
-            ),
-            "note": (
-                "This is a metric-isolation harness. The warm-window mode adds "
-                "a throwaway warmup window before the measured scenario; the "
-                "default isolated mode runs with no warmup."
-            ),
-        }
-        default_output = (
-            DEFAULT_VLLM_PREFIX_CACHE_ISOLATED_WARM_WINDOW_OUTPUT
-            if mode == "vllm-prefix-cache-isolated-warm-window"
-            else DEFAULT_VLLM_PREFIX_CACHE_ISOLATED_NEUTRAL_WARMUP_OUTPUT
-            if mode == "vllm-prefix-cache-isolated-neutral-warmup"
-            else DEFAULT_VLLM_PREFIX_CACHE_ISOLATED_METRICS_OUTPUT
-        )
-        output_path = Path(output_dir or default_output)
-        output_path.mkdir(parents=True, exist_ok=True)
-        json_path = output_path / "prefix-cache-isolated-metrics.json"
-        summary_csv_path = output_path / "prefix-cache-isolated-metrics-summary.csv"
-        runs_csv_path = output_path / "prefix-cache-isolated-metrics-runs.csv"
-        profile_csv_path = output_path / "prefix-cache-isolated-profile-control.csv"
-        json_path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
-        _write_records_csv(summary_csv_path, payload["summary"])
-        _write_records_csv(runs_csv_path, payload["paired_runs"])
-        _write_records_csv(profile_csv_path, profile_control_rows)
 
         print(f"scenarios: {payload['scenario_count']}")
         print(f"paired_runs: {payload['paired_run_count']}")
@@ -5224,6 +5281,13 @@ def _select_sweep_prompts(
             variant_index,
             allow_prompt_repeats=False,
         )
+    if prompt_profile == "shared_prefix_extra_long_no_repeat_variant":
+        return _select_shared_prefix_variant_prompts(
+            prompt_count,
+            variant_index,
+            allow_prompt_repeats=False,
+            extra_context_repeats=EXTRA_LONG_PREFIX_CONTEXT_REPEATS,
+        )
     if prompt_profile == "matched_unique_prefix":
         return _select_matched_unique_prefix_prompts(prompt_count)
     if prompt_profile == "matched_unique_prefix_variant":
@@ -5237,8 +5301,21 @@ def _select_sweep_prompts(
             variant_index,
             allow_prompt_repeats=False,
         )
+    if prompt_profile == "matched_unique_prefix_extra_long_no_repeat_variant":
+        return _select_matched_unique_prefix_variant_prompts(
+            prompt_count,
+            variant_index,
+            allow_prompt_repeats=False,
+            extra_context_repeats=EXTRA_LONG_PREFIX_CONTEXT_REPEATS,
+        )
     if prompt_profile == "neutral_long":
         return _select_neutral_long_prompts(prompt_count)
+    if prompt_profile == "neutral_extra_long":
+        return _select_neutral_long_prompts(
+            prompt_count,
+            extra_context_repeats=EXTRA_LONG_PREFIX_CONTEXT_REPEATS,
+            allow_prompt_repeats=False,
+        )
     valid_profiles = ", ".join(sorted(VALID_VLLM_PROMPT_PROFILES))
     raise ValueError(f"prompt_profile must be one of: {valid_profiles}")
 
@@ -5304,6 +5381,7 @@ def _select_shared_prefix_variant_prompts(
     prompt_count: int,
     variant_index: int,
     allow_prompt_repeats: bool = True,
+    extra_context_repeats: int = 0,
 ) -> list[str]:
     family = _prefix_cache_variant_family(variant_index)
     common_prefix = (
@@ -5324,6 +5402,12 @@ def _select_shared_prefix_variant_prompts(
         "dominated by scheduler and kernel noise. A good result separates "
         "large exact-prefix reuse from generic warm-engine effects."
     )
+    extra_context = _extra_long_shared_variant_context(
+        family,
+        extra_context_repeats,
+    )
+    if extra_context:
+        common_prefix = f"{common_prefix}\n\n{extra_context}"
     suffixes = _variant_task_suffixes(
         family,
         prompt_count,
@@ -5344,6 +5428,7 @@ def _select_matched_unique_prefix_variant_prompts(
     prompt_count: int,
     variant_index: int,
     allow_prompt_repeats: bool = True,
+    extra_context_repeats: int = 0,
 ) -> list[str]:
     family = _prefix_cache_variant_family(variant_index)
     suffixes = _variant_task_suffixes(
@@ -5364,6 +5449,12 @@ def _select_matched_unique_prefix_variant_prompts(
             if allow_prompt_repeats
             else suffixes[index]
         )
+        extra_context = _extra_long_control_variant_context(
+            family,
+            label,
+            extra_context_repeats,
+        )
+        extra_context_block = f"{extra_context}\n\n" if extra_context else ""
         unique_context = (
             f"{label} {family['title']} control packet. This request starts "
             "with a distinct tenant marker, dashboard route, owner alias, "
@@ -5378,6 +5469,7 @@ def _select_matched_unique_prefix_variant_prompts(
             "different incident identifier. That makes the beginning of every "
             "request diverge before a reusable prefix block can form.\n\n"
             f"{family['detail']}\n\n"
+            f"{extra_context_block}"
             "Control decision rule. If this unique-prefix control improves by "
             "the same amount as the shared-prefix profile, the benchmark is "
             "probably measuring warm allocation state or generic shape effects. "
@@ -5531,7 +5623,78 @@ def _variant_task_suffixes(
     return suffixes
 
 
-def _select_neutral_long_prompts(prompt_count: int) -> list[str]:
+def _extra_long_shared_variant_context(
+    family: dict[str, str],
+    repeats: int,
+) -> str:
+    sections = []
+    for index in range(max(repeats, 0)):
+        sections.append(
+            f"Extended shared prefill section {index + 1}. The {family['object']} "
+            f"uses the same {family['system']} terminology, incident objective, "
+            "traffic envelope, rollout guard, failure budget, and benchmark "
+            "measurement plan for every request in this batch. The paragraph is "
+            "intentionally stable across requests so complete leading cache "
+            "blocks can be populated once and queried by later requests. The "
+            "operator review repeats the same fields: admission timestamp, "
+            "tenant priority, retry policy, backpressure reason, model routing "
+            "state, tokenizer policy, deterministic decode setting, expected "
+            "output budget, and trace identifiers for prefill, decode, stream "
+            "TPOT, and p95 first-event latency. The final task remains short "
+            "and request-specific only after this shared section ends."
+        )
+    return "\n\n".join(sections)
+
+
+def _extra_long_control_variant_context(
+    family: dict[str, str],
+    label: str,
+    repeats: int,
+) -> str:
+    sections = []
+    for index in range(max(repeats, 0)):
+        sections.append(
+            f"Extended control prefill section {index + 1} for {label}. This "
+            f"{family['object']} uses a distinct route marker, dashboard owner, "
+            "incident objective, traffic envelope, rollout guard, failure "
+            "budget, and benchmark measurement plan before it reaches language "
+            "that resembles the shared profile. The paragraph is intentionally "
+            "long but not a shared leading prefix across requests. It repeats "
+            "comparable fields for admission timestamp, tenant priority, retry "
+            "policy, backpressure reason, model routing state, tokenizer policy, "
+            "deterministic decode setting, expected output budget, and trace "
+            "identifiers for prefill, decode, stream TPOT, and p95 first-event "
+            "latency. The final task remains short and request-specific only "
+            "after this distinct control section ends."
+        )
+    return "\n\n".join(sections)
+
+
+def _extra_long_neutral_context(label: str, repeats: int) -> str:
+    sections = []
+    for index in range(max(repeats, 0)):
+        sections.append(
+            f"Extended neutral warmup section {index + 1} for {label}. This "
+            "calibration text describes an unrelated analytics review with a "
+            "separate owner, route marker, freshness objective, retry plan, "
+            "validation checklist, and publication decision. It is long enough "
+            "to exercise prefill allocation and scheduling, but it avoids the "
+            "measured incident packet, the shared prefix language, and the "
+            "matched-control decision rule. The paragraph repeats comparable "
+            "serving fields for admission timestamp, tenant priority, model "
+            "routing state, tokenizer policy, deterministic decode setting, "
+            "output budget, prefill trace, decode trace, stream TPOT, and p95 "
+            "first-event latency so the warmup shape is close without seeding "
+            "the measured prefix-cache claim."
+        )
+    return "\n\n".join(sections)
+
+
+def _select_neutral_long_prompts(
+    prompt_count: int,
+    extra_context_repeats: int = 0,
+    allow_prompt_repeats: bool = True,
+) -> list[str]:
     suffixes = [
         "Calibration task A: classify which queue should receive this packet.",
         "Calibration task B: summarize the dominant constraint in one sentence.",
@@ -5546,6 +5709,20 @@ def _select_neutral_long_prompts(prompt_count: int) -> list[str]:
     for index in range(prompt_count):
         suffix = suffixes[index % len(suffixes)]
         unique_context = _neutral_long_context(index)
+        if not allow_prompt_repeats:
+            suffix = f"{suffix} Calibration item {index + 1}."
+            unique_context = (
+                f"{unique_context}\n\n"
+                f"Neutral no-repeat marker {index + 1}. This calibration request "
+                "keeps the same warmup role but carries a unique item number so "
+                "the extra-long warmup batch does not contain exact duplicates."
+            )
+        extra_context = _extra_long_neutral_context(
+            unique_context.split(" ", 1)[0],
+            extra_context_repeats,
+        )
+        if extra_context:
+            unique_context = f"{unique_context}\n\n{extra_context}"
         prompts.append(f"{unique_context}\n\n{suffix}")
     return prompts
 
@@ -7102,12 +7279,28 @@ def _estimated_window_rate_pct(
     return max(0.0, min(100.0, estimated))
 
 
+def _prefix_cache_isolated_metrics_source_paths(
+    isolated_metrics_dir: Path,
+) -> tuple[Path, Path]:
+    final_json = isolated_metrics_dir / "prefix-cache-isolated-metrics.json"
+    final_runs_csv = isolated_metrics_dir / "prefix-cache-isolated-metrics-runs.csv"
+    partial_json = isolated_metrics_dir / "prefix-cache-isolated-metrics.partial.json"
+    partial_runs_csv = (
+        isolated_metrics_dir / "prefix-cache-isolated-metrics-runs.partial.csv"
+    )
+    if final_json.exists() or not partial_json.exists():
+        return final_json, final_runs_csv
+    return partial_json, partial_runs_csv
+
+
 def _summarize_vllm_prefix_cache_isolated_window(
     isolated_metrics_dir: Path,
     shared_profile: str = "shared_prefix_long",
     control_profile: str = "matched_unique_prefix",
 ) -> dict[str, Any]:
-    source_json = isolated_metrics_dir / "prefix-cache-isolated-metrics.json"
+    source_json, _source_runs_csv = _prefix_cache_isolated_metrics_source_paths(
+        isolated_metrics_dir
+    )
     source_payload = json.loads(source_json.read_text(encoding="utf-8"))
     paired_runs = source_payload["paired_runs"]
     remote_calls = {
@@ -7347,6 +7540,7 @@ def _summarize_vllm_prefix_cache_isolated_window(
         "source_dir": str(isolated_metrics_dir),
         "source_json": str(source_json),
         "source_mode": source_payload.get("mode"),
+        "source_checkpoint_complete": source_payload.get("checkpoint_complete"),
         "source_warmup_runs": source_payload.get("warmup_runs"),
         "source_warmup_prompt_profile": source_payload.get("warmup_prompt_profile"),
         "source_scenario_count": source_payload["scenario_count"],
@@ -7522,8 +7716,9 @@ def _summarize_vllm_prefix_cache_isolated_stability(
     shared_profile: str = "shared_prefix_long",
     control_profile: str = "matched_unique_prefix",
 ) -> dict[str, Any]:
-    source_json = isolated_metrics_dir / "prefix-cache-isolated-metrics.json"
-    source_runs_csv = isolated_metrics_dir / "prefix-cache-isolated-metrics-runs.csv"
+    source_json, source_runs_csv = _prefix_cache_isolated_metrics_source_paths(
+        isolated_metrics_dir
+    )
     source_payload = json.loads(source_json.read_text(encoding="utf-8"))
     with source_runs_csv.open("r", encoding="utf-8", newline="") as handle:
         run_rows = list(csv.DictReader(handle))
@@ -7829,6 +8024,7 @@ def _summarize_vllm_prefix_cache_isolated_stability(
         "source_scenario_count": source_payload["scenario_count"],
         "source_paired_run_count": source_payload["paired_run_count"],
         "source_remote_call_count": source_payload["remote_call_count"],
+        "source_checkpoint_complete": source_payload.get("checkpoint_complete"),
         "source_mode": source_mode,
         "source_warmup_runs": source_warmup_runs,
         "source_warmup_prompt_profile": source_warmup_prompt_profile,
@@ -8885,6 +9081,10 @@ def _infer_vllm_prefix_cache_prompt_audit_pair(
 ) -> tuple[str, str]:
     profile_set = set(prompt_profiles)
     candidate_pairs = [
+        (
+            "shared_prefix_extra_long_no_repeat_variant",
+            "matched_unique_prefix_extra_long_no_repeat_variant",
+        ),
         (
             "shared_prefix_long_no_repeat_variant",
             "matched_unique_prefix_no_repeat_variant",

@@ -5171,3 +5171,127 @@ dependencies. The important visual result is:
 Training 051 should return to GPU experimentation. The strongest next run is a
 longer-prefix or larger-model variant that increases prefill cost and tests
 whether the stable TTFT effect becomes a broader latency or throughput effect.
+
+# Training 051: Extra-Long No-Repeat Prefix-Cache Smoke
+
+Training 051 adds an extra-long prompt/control pair:
+
+```text
+shared_prefix_extra_long_no_repeat_variant
+matched_unique_prefix_extra_long_no_repeat_variant
+neutral_extra_long
+```
+
+## Goal
+
+Increase prefill cost while preserving the clean no-repeat control methodology.
+The shared profile should have a long identical leading prefix; the matched
+control should have nearly the same prompt length but diverge immediately.
+
+## Prompt Audit
+
+Real-tokenizer audit:
+
+```bash
+modal run modal_app.py --mode vllm-prefix-cache-prompt-audit \
+  --prompt-profiles shared_prefix_extra_long_no_repeat_variant,matched_unique_prefix_extra_long_no_repeat_variant \
+  --request-counts 16 \
+  --output-tokens 8 \
+  --repeats 1 \
+  --scenario-seed 577 \
+  --kv-cache-block-size 16 \
+  --output-dir results/modal-vllm-prefix-cache-prompt-audit-extra-long-no-repeat-n16
+```
+
+Result:
+
+- shared mean prompt tokens: about `1,185`
+- control mean prompt tokens: about `1,185`
+- shared common-prefix full blocks: `72`
+- control common-prefix full blocks: `1`
+- shared-minus-control reusable block tokens: `17,040`
+- exact duplicate reusable tokens: `0` for both profiles
+
+## GPU Smoke
+
+```bash
+modal run modal_app.py --mode vllm-prefix-cache-isolated-neutral-warmup \
+  --prompt-profiles shared_prefix_extra_long_no_repeat_variant,matched_unique_prefix_extra_long_no_repeat_variant \
+  --output-tokens 8 \
+  --request-counts 16 \
+  --repeats 3 \
+  --scenario-seed 577 \
+  --phase-order cold_first \
+  --kv-cache-metrics-sample 1.0 \
+  --warmup-prompt-profile neutral_extra_long \
+  --prefix-cache-shared-profile shared_prefix_extra_long_no_repeat_variant \
+  --prefix-cache-control-profile matched_unique_prefix_extra_long_no_repeat_variant \
+  --output-dir results/modal-vllm-prefix-cache-extra-long-no-repeat-n16-smoke-r3
+```
+
+Summary artifact:
+
+```text
+results/modal-vllm-prefix-cache-extra-long-no-repeat-n16-smoke-r3-summary/prefix-cache-isolated-stability-summary.md
+```
+
+Key r3 result:
+
+- control direct counter hit rate: `1.342%`
+- shared direct counter hit rate: `91.233%`
+- shared-minus-control direct counter delta: `89.891 pp`, with a 90%
+  bootstrap interval from `89.860 pp` to `89.922 pp`
+- p95 first-event/TTFT ratio delta: `-0.618`, interval `-0.671` to `-0.565`
+- throughput-ratio delta: `0.834`, interval `0.671` to `0.998`
+- p95 latency-ratio delta: `-0.754`, interval `-1.107` to `-0.401`
+- p95 stream TPOT-ratio delta: `-0.800`, interval `-1.114` to `-0.485`
+
+Generated follow-up artifacts:
+
+```text
+results/prefix-cache-study-extra-long-smoke-r3/key-results.md
+results/prefix-cache-study-extra-long-smoke-r3/intervals.md
+```
+
+## Caveat
+
+This is a three-repeat smoke. It is strong enough to justify a longer stability
+pass, but not enough to replace the existing r8 primary result.
+
+# Training 052: Isolated Metrics Checkpointing
+
+Training 052 fixes a failure mode from the attempted extra-long r8 pass.
+
+## Problem
+
+The r8 run was healthy for multiple remote calls, but Modal stopped the app
+before the local entrypoint wrote final artifacts:
+
+```text
+ConflictError: function ... is stopped
+RemoteError: Function call was cancelled by user or a failure.
+```
+
+Because the isolated harness only wrote files at the end, the partial r8 data
+was lost.
+
+## Result
+
+The isolated metrics harness now writes checkpoint artifacts after every
+completed remote call:
+
+```text
+prefix-cache-isolated-metrics.partial.json
+prefix-cache-isolated-metrics-summary.partial.csv
+prefix-cache-isolated-metrics-runs.partial.csv
+prefix-cache-isolated-profile-control.partial.csv
+```
+
+The window and stability summary modes prefer final artifacts, but fall back to
+partial checkpoint files when the final JSON is missing.
+
+## Next Step
+
+Retry the extra-long stability pass in smaller chunks or move the whole r8
+orchestration into a Modal remote function so the local client lifecycle cannot
+cancel accumulated work.

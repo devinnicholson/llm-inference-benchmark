@@ -106,6 +106,34 @@ def _interval(low: float, high: float, suffix: str = "") -> str:
     return f"{low:.3f}{suffix} to {high:.3f}{suffix}"
 
 
+def _crosses_zero(low: float, high: float) -> bool:
+    return low <= 0.0 <= high
+
+
+def _direct_counter_interpretation(low: float, high: float) -> str:
+    if low > 0.0:
+        return "Stable positive reuse effect; interval is far above zero."
+    if high < 0.0:
+        return "Stable negative reuse effect; investigate the control shape."
+    return "Interval crosses zero; no stable direct-counter claim."
+
+
+def _throughput_interpretation(low: float, high: float) -> str:
+    if _crosses_zero(low, high):
+        return "Interval crosses zero; no stable throughput claim."
+    if low > 0.0:
+        return "Stable favorable throughput effect; positive ratio is better."
+    return "Stable unfavorable throughput effect; positive ratio is better."
+
+
+def _latency_interpretation(low: float, high: float, metric: str) -> str:
+    if _crosses_zero(low, high):
+        return f"Interval crosses zero; no stable {metric} claim."
+    if high < 0.0:
+        return f"Stable favorable {metric} effect; negative latency ratio is better."
+    return f"Stable unfavorable {metric} effect; negative latency ratio is better."
+
+
 def _row(metric: str, value: str, interval: str, interpretation: str) -> Row:
     return {
         "metric": metric,
@@ -184,31 +212,43 @@ def build_rows(payload: dict[str, Any]) -> list[Row]:
             "Shared-minus-control direct counter delta",
             _percentage_points(direct_delta),
             _interval(direct_low, direct_high, " pp"),
-            "Stable positive reuse effect; interval is far above zero.",
+            _direct_counter_interpretation(direct_low, direct_high),
         ),
         _row(
             "p95 first-event/TTFT ratio delta",
             _ratio(first_event_delta),
             _interval(first_event_low, first_event_high),
-            "Stable favorable first-token effect; negative latency ratio is better.",
+            _latency_interpretation(
+                first_event_low,
+                first_event_high,
+                "first-token",
+            ),
         ),
         _row(
             "Throughput-ratio delta",
             _ratio(throughput_delta),
             _interval(throughput_low, throughput_high),
-            "Interval crosses zero; no stable throughput claim.",
+            _throughput_interpretation(throughput_low, throughput_high),
         ),
         _row(
             "p95 latency-ratio delta",
             _ratio(latency_delta),
             _interval(latency_low, latency_high),
-            "Interval crosses zero; no stable end-to-end latency claim.",
+            _latency_interpretation(
+                latency_low,
+                latency_high,
+                "end-to-end latency",
+            ),
         ),
         _row(
             "p95 stream TPOT-ratio delta",
             _ratio(stream_tpot_delta),
             _interval(stream_tpot_low, stream_tpot_high),
-            "Interval crosses zero; no stable decode TPOT claim.",
+            _latency_interpretation(
+                stream_tpot_low,
+                stream_tpot_high,
+                "decode TPOT",
+            ),
         ),
     ]
 
@@ -246,6 +286,22 @@ def build_intervals(payload: dict[str, Any]) -> list[EffectInterval]:
         "shared_minus_control_cache_to_cold_p95_stream_tpot_ratio_bootstrap_mean_p95",
     )
 
+    counter_axis_low = 0.0
+    counter_axis_high = max(direct_high * 1.05, 1.0)
+    ratio_lows = [first_event_low, throughput_low, latency_low, stream_tpot_low, 0.0]
+    ratio_highs = [
+        first_event_high,
+        throughput_high,
+        latency_high,
+        stream_tpot_high,
+        0.0,
+    ]
+    ratio_axis_low = min(ratio_lows)
+    ratio_axis_high = max(ratio_highs)
+    ratio_span = max(ratio_axis_high - ratio_axis_low, 1e-9)
+    ratio_axis_low -= ratio_span * 0.05
+    ratio_axis_high += ratio_span * 0.05
+
     return [
         EffectInterval(
             metric="Direct counter delta",
@@ -253,9 +309,12 @@ def build_intervals(payload: dict[str, Any]) -> list[EffectInterval]:
             low=direct_low,
             high=direct_high,
             unit="pp",
-            axis_low=0.0,
-            axis_high=85.0,
-            interpretation="stable positive reuse",
+            axis_low=counter_axis_low,
+            axis_high=counter_axis_high,
+            interpretation=_direct_counter_interpretation(
+                direct_low,
+                direct_high,
+            ),
         ),
         EffectInterval(
             metric="p95 first-event/TTFT ratio delta",
@@ -263,9 +322,13 @@ def build_intervals(payload: dict[str, Any]) -> list[EffectInterval]:
             low=first_event_low,
             high=first_event_high,
             unit="ratio",
-            axis_low=-0.6,
-            axis_high=0.3,
-            interpretation="stable favorable latency effect",
+            axis_low=ratio_axis_low,
+            axis_high=ratio_axis_high,
+            interpretation=_latency_interpretation(
+                first_event_low,
+                first_event_high,
+                "first-token",
+            ),
         ),
         EffectInterval(
             metric="Throughput-ratio delta",
@@ -273,9 +336,12 @@ def build_intervals(payload: dict[str, Any]) -> list[EffectInterval]:
             low=throughput_low,
             high=throughput_high,
             unit="ratio",
-            axis_low=-0.6,
-            axis_high=0.3,
-            interpretation="crosses zero; no stable throughput claim",
+            axis_low=ratio_axis_low,
+            axis_high=ratio_axis_high,
+            interpretation=_throughput_interpretation(
+                throughput_low,
+                throughput_high,
+            ),
         ),
         EffectInterval(
             metric="p95 latency-ratio delta",
@@ -283,9 +349,13 @@ def build_intervals(payload: dict[str, Any]) -> list[EffectInterval]:
             low=latency_low,
             high=latency_high,
             unit="ratio",
-            axis_low=-0.6,
-            axis_high=0.3,
-            interpretation="crosses zero; no stable end-to-end latency claim",
+            axis_low=ratio_axis_low,
+            axis_high=ratio_axis_high,
+            interpretation=_latency_interpretation(
+                latency_low,
+                latency_high,
+                "end-to-end latency",
+            ),
         ),
         EffectInterval(
             metric="p95 stream TPOT-ratio delta",
@@ -293,9 +363,13 @@ def build_intervals(payload: dict[str, Any]) -> list[EffectInterval]:
             low=stream_tpot_low,
             high=stream_tpot_high,
             unit="ratio",
-            axis_low=-0.6,
-            axis_high=0.3,
-            interpretation="crosses zero; no stable decode TPOT claim",
+            axis_low=ratio_axis_low,
+            axis_high=ratio_axis_high,
+            interpretation=_latency_interpretation(
+                stream_tpot_low,
+                stream_tpot_high,
+                "decode TPOT",
+            ),
         ),
     ]
 
@@ -341,6 +415,8 @@ def _render_interval_row(interval: EffectInterval) -> str:
 def render_interval_chart(intervals: list[EffectInterval], source_json: Path) -> str:
     counter_intervals = [interval for interval in intervals if interval.unit == "pp"]
     ratio_intervals = [interval for interval in intervals if interval.unit == "ratio"]
+    counter_axis = counter_intervals[0] if counter_intervals else None
+    ratio_axis = ratio_intervals[0] if ratio_intervals else None
     lines = [
         "# Prefix-Cache Study Interval Chart",
         "",
@@ -353,7 +429,12 @@ def render_interval_chart(intervals: list[EffectInterval], source_json: Path) ->
         "Positive percentage points mean the shared-prefix profile reused more KV cache.",
         "",
         "```text",
-        "scale: 0.000 pp to 85.000 pp",
+        (
+            "scale: "
+            f"{counter_axis.axis_low:.3f} pp to {counter_axis.axis_high:.3f} pp"
+            if counter_axis
+            else "scale: n/a"
+        ),
     ]
     lines.extend(_render_interval_row(interval) for interval in counter_intervals)
     lines.extend(
@@ -365,7 +446,12 @@ def render_interval_chart(intervals: list[EffectInterval], source_json: Path) ->
             "For latency-style ratios, negative is favorable. Intervals crossing zero are non-claims.",
             "",
             "```text",
-            "scale: -0.600 to 0.300",
+            (
+                "scale: "
+                f"{ratio_axis.axis_low:.3f} to {ratio_axis.axis_high:.3f}"
+                if ratio_axis
+                else "scale: n/a"
+            ),
         ]
     )
     lines.extend(_render_interval_row(interval) for interval in ratio_intervals)
