@@ -2943,3 +2943,138 @@ Training 030 should promote this from smoke to a small repeated metric trial:
 request counts `2,4,8`, both phase orders, `repeats=2`, and metrics enabled.
 The target artifact should answer whether the `~10 pp` shared-prefix hit-rate
 advantage is stable and whether any timing metric correlates with that advantage.
+
+# Training 030: Repeated Prefix-Cache Metrics Trial
+
+Training 030 promotes the metrics-aware prefix-cache smoke into a small repeated
+trial.
+
+## Goal
+
+Run both phase orders with:
+
+- prompt profiles `shared_prefix_long,matched_unique_prefix`
+- output tokens `8`
+- request counts `2,4,8`
+- `repeats=2`
+- `warmup-runs=1`
+- `scenario-seed=571`
+- vLLM cache metrics enabled
+
+This is still intentionally small. The goal is not a final throughput claim; it
+is to test whether direct cache-hit evidence remains visible when we add more
+request counts and repeated pairs.
+
+## Commands
+
+```bash
+modal run modal_app.py --mode vllm-prefix-cache-paired \
+  --prompt-profiles shared_prefix_long,matched_unique_prefix \
+  --output-tokens 8 \
+  --request-counts 2,4,8 \
+  --repeats 2 \
+  --warmup-runs 1 \
+  --scenario-seed 571 \
+  --phase-order cold_first \
+  --cache-metrics on \
+  --kv-cache-metrics-sample 1.0 \
+  --output-dir results/modal-vllm-prefix-cache-metrics-repeated
+```
+
+```bash
+modal run modal_app.py --mode vllm-prefix-cache-paired \
+  --prompt-profiles shared_prefix_long,matched_unique_prefix \
+  --output-tokens 8 \
+  --request-counts 2,4,8 \
+  --repeats 2 \
+  --warmup-runs 1 \
+  --scenario-seed 571 \
+  --phase-order cache_first \
+  --cache-metrics on \
+  --kv-cache-metrics-sample 1.0 \
+  --output-dir results/modal-vllm-prefix-cache-metrics-repeated-cache-first
+```
+
+```bash
+modal run modal_app.py --mode vllm-prefix-cache-phase-order-compare \
+  --prefix-cache-cold-first-paired-dir results/modal-vllm-prefix-cache-metrics-repeated \
+  --prefix-cache-cache-first-paired-dir results/modal-vllm-prefix-cache-metrics-repeated-cache-first \
+  --output-dir results/modal-vllm-prefix-cache-metrics-repeated-phase-order
+```
+
+```bash
+modal run modal_app.py --mode vllm-prefix-cache-profile-control \
+  --prefix-cache-phase-order-compare-dir results/modal-vllm-prefix-cache-metrics-repeated-phase-order \
+  --output-dir results/modal-vllm-prefix-cache-metrics-repeated-profile-control
+```
+
+## Artifacts
+
+```text
+results/modal-vllm-prefix-cache-metrics-repeated/paired-prefix-cache.json
+results/modal-vllm-prefix-cache-metrics-repeated/paired-prefix-cache-summary.csv
+results/modal-vllm-prefix-cache-metrics-repeated/paired-prefix-cache-runs.csv
+results/modal-vllm-prefix-cache-metrics-repeated-cache-first/paired-prefix-cache.json
+results/modal-vllm-prefix-cache-metrics-repeated-cache-first/paired-prefix-cache-summary.csv
+results/modal-vllm-prefix-cache-metrics-repeated-cache-first/paired-prefix-cache-runs.csv
+results/modal-vllm-prefix-cache-metrics-repeated-phase-order/prefix-cache-phase-order-compare.json
+results/modal-vllm-prefix-cache-metrics-repeated-phase-order/prefix-cache-phase-order-compare.csv
+results/modal-vllm-prefix-cache-metrics-repeated-profile-control/prefix-cache-profile-control.json
+results/modal-vllm-prefix-cache-metrics-repeated-profile-control/prefix-cache-profile-control.csv
+```
+
+## Result
+
+Each phase-order run produced six scenarios and twelve paired runs.
+
+Top-level paired-run means:
+
+| Phase order | Mean throughput ratio | Mean p95 latency ratio |
+| --- | ---: | ---: |
+| `cold_first` | 1.204 | 0.957 |
+| `cache_first` | 0.778 | 1.760 |
+
+The phase-order comparison rows show the same cache hit-rate values in both
+phase orders while timing remains phase-order sensitive:
+
+| Profile | Cold-first throughput | Cache-first throughput | Cold-first p95 latency | Cache-first p95 latency | Cache hit rate |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| `matched_unique_prefix` mean | 0.962 | 0.299 | 0.703 | 1.038 | 73.4% |
+| `shared_prefix_long` mean | 0.903 | 0.856 | 0.957 | 1.009 | 83.3% |
+
+Shared-prefix minus matched-control deltas by request count:
+
+| Request count | Hit-rate delta | Cold-first throughput delta | Cache-first throughput delta | Cold-first p95 latency delta | Cache-first p95 latency delta |
+| ---: | ---: | ---: | ---: | ---: | ---: |
+| 2 | 16.4 pp | -0.046 | 0.777 | 0.633 | -0.055 |
+| 4 | 9.8 pp | -0.021 | 0.594 | -0.008 | -0.005 |
+| 8 | 3.4 pp | -0.111 | 0.298 | 0.136 | -0.027 |
+| Mean | 9.9 pp | -0.059 | 0.556 | 0.254 | -0.029 |
+
+## Interpretation
+
+The direct cache evidence survived the move from a one-scenario smoke to a
+small repeated trial. `shared_prefix_long` kept a positive cache-hit-rate
+advantage over `matched_unique_prefix` at every request count.
+
+The timing story is still not a clean prefix-cache speedup claim. Under
+`cold_first`, the shared profile has a higher cache hit rate but slightly worse
+mean throughput delta than the matched control. Under `cache_first`, the shared
+profile has a large positive throughput-ratio delta and a slightly better p95
+latency-ratio delta.
+
+The most important caveat is metric isolation. vLLM `do_log_stats()` reports
+engine log-stat values; in this harness those are captured after each scenario,
+but they are not proven to be reset per scenario. That means the hit-rate fields
+are strong evidence that cache metrics are wired into the artifact chain, and
+useful for paired comparisons, but not yet a perfect per-scenario cache-hit
+counter.
+
+## Next Step
+
+Training 031 should isolate the cache metric itself. The next benchmark should
+run one scenario per fresh engine, or add a counter-delta scrape if vLLM exposes
+stable Prometheus counters, so the artifact can distinguish cumulative
+engine-level hit rate from per-scenario hit rate. After that, rerun the repeated
+profile-control grid with isolated metrics and compare whether the `shared`
+advantage still holds.

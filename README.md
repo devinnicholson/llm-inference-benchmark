@@ -379,6 +379,43 @@ modal run modal_app.py --mode vllm-prefix-cache-profile-control \
   --output-dir results/modal-vllm-prefix-cache-metrics-profile-control-smoke
 ```
 
+Run a small repeated metrics-enabled prefix-cache trial:
+
+```bash
+modal run modal_app.py --mode vllm-prefix-cache-paired \
+  --prompt-profiles shared_prefix_long,matched_unique_prefix \
+  --output-tokens 8 \
+  --request-counts 2,4,8 \
+  --repeats 2 \
+  --warmup-runs 1 \
+  --scenario-seed 571 \
+  --phase-order cold_first \
+  --cache-metrics on \
+  --kv-cache-metrics-sample 1.0 \
+  --output-dir results/modal-vllm-prefix-cache-metrics-repeated
+
+modal run modal_app.py --mode vllm-prefix-cache-paired \
+  --prompt-profiles shared_prefix_long,matched_unique_prefix \
+  --output-tokens 8 \
+  --request-counts 2,4,8 \
+  --repeats 2 \
+  --warmup-runs 1 \
+  --scenario-seed 571 \
+  --phase-order cache_first \
+  --cache-metrics on \
+  --kv-cache-metrics-sample 1.0 \
+  --output-dir results/modal-vllm-prefix-cache-metrics-repeated-cache-first
+
+modal run modal_app.py --mode vllm-prefix-cache-phase-order-compare \
+  --prefix-cache-cold-first-paired-dir results/modal-vllm-prefix-cache-metrics-repeated \
+  --prefix-cache-cache-first-paired-dir results/modal-vllm-prefix-cache-metrics-repeated-cache-first \
+  --output-dir results/modal-vllm-prefix-cache-metrics-repeated-phase-order
+
+modal run modal_app.py --mode vllm-prefix-cache-profile-control \
+  --prefix-cache-phase-order-compare-dir results/modal-vllm-prefix-cache-metrics-repeated-phase-order \
+  --output-dir results/modal-vllm-prefix-cache-metrics-repeated-profile-control
+```
+
 Modal training is documented in
 [`docs/modal-training.md`](docs/modal-training.md).
 
