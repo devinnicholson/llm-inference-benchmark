@@ -4123,3 +4123,121 @@ three repeats, then compare its direct-counter interval against Training 038.
 If the cache-counter interval stays positive under varied families, the next
 research step is to increase model size or request count until timing separates
 from startup, scheduler, and small-model decode noise.
+
+# Training 040: Full Variant Stability Grid
+
+Training 040 runs the full variant prompt-family stability grid introduced by
+Training 039.
+
+## Goal
+
+Convert the variant prompt-family smoke into a report-ready stability artifact.
+This is the first direct-counter interval in the project that varies both
+request count and workload family instead of replaying the same synthetic prompt
+set.
+
+## Command
+
+Run the full variant grid:
+
+```bash
+modal run modal_app.py --mode vllm-prefix-cache-isolated-neutral-warmup \
+  --prompt-profiles shared_prefix_long_variant,matched_unique_prefix_variant \
+  --output-tokens 8 \
+  --request-counts 2,4,8 \
+  --repeats 3 \
+  --scenario-seed 577 \
+  --phase-order cold_first \
+  --kv-cache-metrics-sample 1.0 \
+  --prefix-cache-shared-profile shared_prefix_long_variant \
+  --prefix-cache-control-profile matched_unique_prefix_variant \
+  --output-dir results/modal-vllm-prefix-cache-variant-stability
+```
+
+Generate the full variant stability summary:
+
+```bash
+modal run modal_app.py --mode vllm-prefix-cache-isolated-stability-summary \
+  --prefix-cache-isolated-metrics-dir results/modal-vllm-prefix-cache-variant-stability \
+  --prefix-cache-shared-profile shared_prefix_long_variant \
+  --prefix-cache-control-profile matched_unique_prefix_variant \
+  --output-dir results/modal-vllm-prefix-cache-variant-stability-summary
+```
+
+## Artifacts
+
+```text
+results/modal-vllm-prefix-cache-variant-stability/prefix-cache-isolated-metrics.json
+results/modal-vllm-prefix-cache-variant-stability/prefix-cache-isolated-metrics-summary.csv
+results/modal-vllm-prefix-cache-variant-stability/prefix-cache-isolated-metrics-runs.csv
+results/modal-vllm-prefix-cache-variant-stability/prefix-cache-isolated-profile-control.csv
+results/modal-vllm-prefix-cache-variant-stability-summary/prefix-cache-isolated-stability-summary.json
+results/modal-vllm-prefix-cache-variant-stability-summary/prefix-cache-isolated-stability-summary.csv
+results/modal-vllm-prefix-cache-variant-stability-summary/prefix-cache-isolated-stability-profile-control.csv
+results/modal-vllm-prefix-cache-variant-stability-summary/prefix-cache-isolated-stability-summary.md
+```
+
+## Result
+
+The raw run produced six scenarios, eighteen paired runs, and eighteen isolated
+remote calls. The top-level raw metrics were:
+
+| Metric | Value |
+| --- | ---: |
+| Mean cache-to-cold throughput ratio | 1.063 |
+| Mean cache-to-cold latency ratio | 1.018 |
+| Mean shared-minus-control logged cache-hit delta | 24.233 pp |
+| Mean shared-minus-control direct counter delta | 59.717 pp |
+
+Counter-aware stability summary:
+
+| Metric | Value |
+| --- | ---: |
+| Mean shared-minus-control cumulative logged cache hit rate | 24.522 pp |
+| Mean shared-minus-control direct counter hit rate | 59.790 pp |
+| Direct counter hit-rate 90% bootstrap interval | 52.709 pp to 66.830 pp |
+| Throughput-ratio delta 90% bootstrap interval | -0.112 to 0.569 |
+| p95 latency-ratio delta 90% bootstrap interval | -0.148 to 0.149 |
+| Max direct counter hit-rate population stdev | 0.174 |
+
+Scenario direct counters:
+
+| Profile | Requests | Runs | Logged Hit Mean | Direct Counter Hit Mean | Direct Queries | Direct Hits |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| `matched_unique_prefix_variant` | 2 | 3 | 2.967% | 4.727% | 677.333 | 32.000 |
+| `matched_unique_prefix_variant` | 4 | 3 | 3.467% | 4.731% | 1353.333 | 64.000 |
+| `matched_unique_prefix_variant` | 8 | 3 | 3.700% | 4.739% | 2702.333 | 128.000 |
+| `shared_prefix_long_variant` | 2 | 3 | 20.300% | 46.915% | 659.333 | 309.333 |
+| `shared_prefix_long_variant` | 4 | 3 | 29.400% | 68.013% | 1317.333 | 896.000 |
+| `shared_prefix_long_variant` | 8 | 3 | 34.000% | 78.639% | 2631.333 | 2069.333 |
+
+Shared-prefix versus matched control:
+
+| Requests | Paired Obs | Direct Counter Delta | Direct Counter 90% CI | Throughput Delta | Throughput 90% CI | p95 Latency Delta | p95 Latency 90% CI |
+| ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| 2 | 3 | 42.188 pp | 42.065 pp to 42.311 pp | 0.474 | -0.244 to 1.192 | -0.016 | -0.380 to 0.348 |
+| 4 | 3 | 63.282 pp | 63.097 pp to 63.467 pp | -0.045 | -0.070 to -0.020 | 0.052 | 0.022 to 0.082 |
+| 8 | 3 | 73.899 pp | 73.683 pp to 74.115 pp | 0.000 | -0.015 to 0.016 | -0.002 | -0.018 to 0.015 |
+
+## Interpretation
+
+The cache-reuse signal now has workload-stability evidence. The mean direct
+counter delta is `59.790 pp`, and the aggregate 90% interval remains positive
+from `52.709 pp` to `66.830 pp`. Per-shape direct-counter deltas also remain
+large: `42.188 pp`, `63.282 pp`, and `73.899 pp`.
+
+The timing claim is still not ready. The aggregate throughput interval crosses
+zero, and the aggregate p95 latency interval also crosses zero. Request count 4
+is actually worse on both throughput and p95 latency in this run, which keeps
+the current project claim focused on measured prefix-cache reuse rather than an
+end-to-end speedup.
+
+## Next Step
+
+Training 041 should explain the remaining timing ambiguity instead of running
+another similar grid. Useful next checks are:
+
+- token and cache-block alignment for each prompt family
+- prefill versus decode token accounting by phase
+- a larger model or larger request counts so avoided prefill work is large
+  enough to compete with scheduler and small-model decode noise
