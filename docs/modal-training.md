@@ -4241,3 +4241,97 @@ another similar grid. Useful next checks are:
 - prefill versus decode token accounting by phase
 - a larger model or larger request counts so avoided prefill work is large
   enough to compete with scheduler and small-model decode noise
+
+# Training 041: Prompt Block Alignment Audit
+
+Training 041 adds `vllm-prefix-cache-prompt-audit`, a tokenizer-only Modal mode
+that estimates exact leading-token overlap and reusable full KV-cache blocks for
+the same prompt profiles used by the prefix-cache benchmark.
+
+## Goal
+
+Explain one possible source of timing ambiguity without running another GPU
+timing grid. If the variant prompts do not share enough full cache blocks, then
+the direct counter result would be fragile and timing should not improve. If the
+shared prompts have many reusable full blocks while the controls do not, then
+the remaining timing ambiguity is more likely from small-model serving effects,
+scheduler noise, decode cost, or phase instrumentation.
+
+## Command
+
+Run the prompt/block audit for the full variant stability grid:
+
+```bash
+modal run modal_app.py --mode vllm-prefix-cache-prompt-audit \
+  --prompt-profiles shared_prefix_long_variant,matched_unique_prefix_variant \
+  --output-tokens 8 \
+  --request-counts 2,4,8 \
+  --repeats 3 \
+  --scenario-seed 577 \
+  --kv-cache-block-size 16 \
+  --output-dir results/modal-vllm-prefix-cache-prompt-audit-variant-stability
+```
+
+## Artifacts
+
+```text
+results/modal-vllm-prefix-cache-prompt-audit-variant-stability/prefix-cache-prompt-audit.json
+results/modal-vllm-prefix-cache-prompt-audit-variant-stability/prefix-cache-prompt-audit-scenarios.csv
+results/modal-vllm-prefix-cache-prompt-audit-variant-stability/prefix-cache-prompt-audit-prompts.csv
+results/modal-vllm-prefix-cache-prompt-audit-variant-stability/prefix-cache-prompt-audit-profile-control.csv
+results/modal-vllm-prefix-cache-prompt-audit-variant-stability/prefix-cache-prompt-audit.md
+```
+
+## Result
+
+The audit used the same model tokenizer, request counts, repeats, and seed as
+Training 040. It did not run vLLM inference.
+
+| Metric | Value |
+| --- | ---: |
+| Scenarios | 18 |
+| Prompts | 84 |
+| KV cache block size | 16 |
+| Mean shared common-prefix full blocks | 18.333 |
+| Mean control common-prefix full blocks | 1.000 |
+| Mean shared-minus-control common-prefix blocks | 17.333 |
+| Mean shared-minus-control reusable block tokens | 1016.889 |
+| Mean shared-minus-control reusable block fraction | 0.598 |
+
+Shared versus control block deltas:
+
+| Repeat | Requests | Shared Blocks | Control Blocks | Block Delta | Reusable Token Delta |
+| ---: | ---: | ---: | ---: | ---: | ---: |
+| 0 | 2 | 18 | 1 | 17 | 272 |
+| 0 | 4 | 18 | 1 | 17 | 816 |
+| 0 | 8 | 18 | 1 | 17 | 1904 |
+| 1 | 2 | 18 | 1 | 17 | 272 |
+| 1 | 4 | 18 | 1 | 17 | 816 |
+| 1 | 8 | 18 | 1 | 17 | 1904 |
+| 2 | 2 | 19 | 1 | 18 | 288 |
+| 2 | 4 | 19 | 1 | 18 | 864 |
+| 2 | 8 | 19 | 1 | 18 | 2016 |
+
+## Interpretation
+
+Block alignment is not the reason timing remains ambiguous. The shared variant
+prompts expose 18 to 19 full reusable leading blocks, while the matched unique
+controls expose only one full common block from tokenizer/template scaffolding.
+This explains why Training 040's direct measured-window counter deltas increase
+with request count: the estimated reusable-block-token delta grows from about
+`272` to `2016` tokens as the batch grows from two to eight requests.
+
+The timing result is still not ready because block availability alone does not
+guarantee an end-to-end win on a 135M model with eight output tokens, fresh
+isolated engines, eager execution, and repeated scheduler/JIT effects. Training
+041 rules out a prompt-shape failure; it does not prove a serving-speedup claim.
+
+## Next Step
+
+Training 042 should instrument prefill and decode more directly. Two useful
+paths are:
+
+- add a per-phase timing probe that separates prompt prefill time from decode
+  time for shared and matched-control profiles
+- rerun the variant grid with a larger model or larger request counts so the
+  reusable prefill work is big enough to dominate small-model overhead

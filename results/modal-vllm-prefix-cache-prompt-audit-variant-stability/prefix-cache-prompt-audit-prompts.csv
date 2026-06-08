@@ -1,0 +1,337 @@
+scenario_id,prompt_profile,repeat_index,variant_index,request_count,max_new_tokens,prompt_index,prompt_format,prompt_tokens,suffix_after_common_tokens,formatted_prompt_sha256_16,token_ids_head,token_ids_tail,prompt_preview,formatted_prompt_preview
+shared_prefix_long_variant_out8_n2_rep00,shared_prefix_long_variant,0,577,2,8,0,chat_template,324,21,f1b0ef738897c158,"[1, 9690, 198, 2683, 359, 253, 5356, 5646, 11173, 3365, 3511, 308, 34519, 28, 7018, 411]","[48002, 1971, 4478, 388, 1708, 327, 451, 36977, 7717, 30, 2, 198, 1, 520, 9531, 198]","Search Indexer shared incident packet. Every request in this batch begins with the same search indexing pipeline runbook, rollout timeline, model-serving envelope, and measurement checklist. The platform is testing whether vLLM can reuse ex","<|im_start|>system
+You are a helpful AI assistant named SmolLM, trained by Hugging Face<|im_end|>
+<|im_start|>user
+Search Indexer shared incident packet. Every request in this batch begins with the same search indexing pipeline runbook, rol"
+shared_prefix_long_variant_out8_n2_rep00,shared_prefix_long_variant,0,577,2,8,1,chat_template,325,22,d5e7bc851ddb2fc5,"[1, 9690, 198, 2683, 359, 253, 5356, 5646, 11173, 3365, 3511, 308, 34519, 28, 7018, 411]","[868, 1485, 585, 3018, 659, 70, 16828, 314, 2430, 30, 2, 198, 1, 520, 9531, 198]","Search Indexer shared incident packet. Every request in this batch begins with the same search indexing pipeline runbook, rollout timeline, model-serving envelope, and measurement checklist. The platform is testing whether vLLM can reuse ex","<|im_start|>system
+You are a helpful AI assistant named SmolLM, trained by Hugging Face<|im_end|>
+<|im_start|>user
+Search Indexer shared incident packet. Every request in this batch begins with the same search indexing pipeline runbook, rol"
+shared_prefix_long_variant_out8_n4_rep00,shared_prefix_long_variant,0,577,4,8,0,chat_template,324,21,f1b0ef738897c158,"[1, 9690, 198, 2683, 359, 253, 5356, 5646, 11173, 3365, 3511, 308, 34519, 28, 7018, 411]","[48002, 1971, 4478, 388, 1708, 327, 451, 36977, 7717, 30, 2, 198, 1, 520, 9531, 198]","Search Indexer shared incident packet. Every request in this batch begins with the same search indexing pipeline runbook, rollout timeline, model-serving envelope, and measurement checklist. The platform is testing whether vLLM can reuse ex","<|im_start|>system
+You are a helpful AI assistant named SmolLM, trained by Hugging Face<|im_end|>
+<|im_start|>user
+Search Indexer shared incident packet. Every request in this batch begins with the same search indexing pipeline runbook, rol"
+shared_prefix_long_variant_out8_n4_rep00,shared_prefix_long_variant,0,577,4,8,1,chat_template,325,22,d5e7bc851ddb2fc5,"[1, 9690, 198, 2683, 359, 253, 5356, 5646, 11173, 3365, 3511, 308, 34519, 28, 7018, 411]","[868, 1485, 585, 3018, 659, 70, 16828, 314, 2430, 30, 2, 198, 1, 520, 9531, 198]","Search Indexer shared incident packet. Every request in this batch begins with the same search indexing pipeline runbook, rollout timeline, model-serving envelope, and measurement checklist. The platform is testing whether vLLM can reuse ex","<|im_start|>system
+You are a helpful AI assistant named SmolLM, trained by Hugging Face<|im_end|>
+<|im_start|>user
+Search Indexer shared incident packet. Every request in this batch begins with the same search indexing pipeline runbook, rol"
+shared_prefix_long_variant_out8_n4_rep00,shared_prefix_long_variant,0,577,4,8,2,chat_template,323,20,ce56e6cec047fe80,"[1, 9690, 198, 2683, 359, 253, 5356, 5646, 11173, 3365, 3511, 308, 34519, 28, 7018, 411]","[4997, 5723, 585, 13842, 6703, 19494, 656, 451, 29278, 30, 2, 198, 1, 520, 9531, 198]","Search Indexer shared incident packet. Every request in this batch begins with the same search indexing pipeline runbook, rollout timeline, model-serving envelope, and measurement checklist. The platform is testing whether vLLM can reuse ex","<|im_start|>system
+You are a helpful AI assistant named SmolLM, trained by Hugging Face<|im_end|>
+<|im_start|>user
+Search Indexer shared incident packet. Every request in this batch begins with the same search indexing pipeline runbook, rol"
+shared_prefix_long_variant_out8_n4_rep00,shared_prefix_long_variant,0,577,4,8,3,chat_template,325,22,2bf12453220895ab,"[1, 9690, 198, 2683, 359, 253, 5356, 5646, 11173, 3365, 3511, 308, 34519, 28, 7018, 411]","[418, 827, 28, 1876, 28, 284, 4475, 20468, 8649, 30, 2, 198, 1, 520, 9531, 198]","Search Indexer shared incident packet. Every request in this batch begins with the same search indexing pipeline runbook, rollout timeline, model-serving envelope, and measurement checklist. The platform is testing whether vLLM can reuse ex","<|im_start|>system
+You are a helpful AI assistant named SmolLM, trained by Hugging Face<|im_end|>
+<|im_start|>user
+Search Indexer shared incident packet. Every request in this batch begins with the same search indexing pipeline runbook, rol"
+shared_prefix_long_variant_out8_n8_rep00,shared_prefix_long_variant,0,577,8,8,0,chat_template,324,21,f1b0ef738897c158,"[1, 9690, 198, 2683, 359, 253, 5356, 5646, 11173, 3365, 3511, 308, 34519, 28, 7018, 411]","[48002, 1971, 4478, 388, 1708, 327, 451, 36977, 7717, 30, 2, 198, 1, 520, 9531, 198]","Search Indexer shared incident packet. Every request in this batch begins with the same search indexing pipeline runbook, rollout timeline, model-serving envelope, and measurement checklist. The platform is testing whether vLLM can reuse ex","<|im_start|>system
+You are a helpful AI assistant named SmolLM, trained by Hugging Face<|im_end|>
+<|im_start|>user
+Search Indexer shared incident packet. Every request in this batch begins with the same search indexing pipeline runbook, rol"
+shared_prefix_long_variant_out8_n8_rep00,shared_prefix_long_variant,0,577,8,8,1,chat_template,325,22,d5e7bc851ddb2fc5,"[1, 9690, 198, 2683, 359, 253, 5356, 5646, 11173, 3365, 3511, 308, 34519, 28, 7018, 411]","[868, 1485, 585, 3018, 659, 70, 16828, 314, 2430, 30, 2, 198, 1, 520, 9531, 198]","Search Indexer shared incident packet. Every request in this batch begins with the same search indexing pipeline runbook, rollout timeline, model-serving envelope, and measurement checklist. The platform is testing whether vLLM can reuse ex","<|im_start|>system
+You are a helpful AI assistant named SmolLM, trained by Hugging Face<|im_end|>
+<|im_start|>user
+Search Indexer shared incident packet. Every request in this batch begins with the same search indexing pipeline runbook, rol"
+shared_prefix_long_variant_out8_n8_rep00,shared_prefix_long_variant,0,577,8,8,2,chat_template,323,20,ce56e6cec047fe80,"[1, 9690, 198, 2683, 359, 253, 5356, 5646, 11173, 3365, 3511, 308, 34519, 28, 7018, 411]","[4997, 5723, 585, 13842, 6703, 19494, 656, 451, 29278, 30, 2, 198, 1, 520, 9531, 198]","Search Indexer shared incident packet. Every request in this batch begins with the same search indexing pipeline runbook, rollout timeline, model-serving envelope, and measurement checklist. The platform is testing whether vLLM can reuse ex","<|im_start|>system
+You are a helpful AI assistant named SmolLM, trained by Hugging Face<|im_end|>
+<|im_start|>user
+Search Indexer shared incident packet. Every request in this batch begins with the same search indexing pipeline runbook, rol"
+shared_prefix_long_variant_out8_n8_rep00,shared_prefix_long_variant,0,577,8,8,3,chat_template,325,22,2bf12453220895ab,"[1, 9690, 198, 2683, 359, 253, 5356, 5646, 11173, 3365, 3511, 308, 34519, 28, 7018, 411]","[418, 827, 28, 1876, 28, 284, 4475, 20468, 8649, 30, 2, 198, 1, 520, 9531, 198]","Search Indexer shared incident packet. Every request in this batch begins with the same search indexing pipeline runbook, rollout timeline, model-serving envelope, and measurement checklist. The platform is testing whether vLLM can reuse ex","<|im_start|>system
+You are a helpful AI assistant named SmolLM, trained by Hugging Face<|im_end|>
+<|im_start|>user
+Search Indexer shared incident packet. Every request in this batch begins with the same search indexing pipeline runbook, rol"
+shared_prefix_long_variant_out8_n8_rep00,shared_prefix_long_variant,0,577,8,8,4,chat_template,324,21,195fb3d68012d72f,"[1, 9690, 198, 2683, 359, 253, 5356, 5646, 11173, 3365, 3511, 308, 34519, 28, 7018, 411]","[416, 19038, 990, 6514, 4478, 388, 746, 314, 12261, 30, 2, 198, 1, 520, 9531, 198]","Search Indexer shared incident packet. Every request in this batch begins with the same search indexing pipeline runbook, rollout timeline, model-serving envelope, and measurement checklist. The platform is testing whether vLLM can reuse ex","<|im_start|>system
+You are a helpful AI assistant named SmolLM, trained by Hugging Face<|im_end|>
+<|im_start|>user
+Search Indexer shared incident packet. Every request in this batch begins with the same search indexing pipeline runbook, rol"
+shared_prefix_long_variant_out8_n8_rep00,shared_prefix_long_variant,0,577,8,8,5,chat_template,325,22,a38eefceef2d3915,"[1, 9690, 198, 2683, 359, 253, 5356, 5646, 11173, 3365, 3511, 308, 34519, 28, 7018, 411]","[338, 868, 441, 325, 690, 11613, 429, 451, 1658, 30, 2, 198, 1, 520, 9531, 198]","Search Indexer shared incident packet. Every request in this batch begins with the same search indexing pipeline runbook, rollout timeline, model-serving envelope, and measurement checklist. The platform is testing whether vLLM can reuse ex","<|im_start|>system
+You are a helpful AI assistant named SmolLM, trained by Hugging Face<|im_end|>
+<|im_start|>user
+Search Indexer shared incident packet. Every request in this batch begins with the same search indexing pipeline runbook, rol"
+shared_prefix_long_variant_out8_n8_rep00,shared_prefix_long_variant,0,577,8,8,6,chat_template,323,20,d39dd0db738d96ab,"[1, 9690, 198, 2683, 359, 253, 5356, 5646, 11173, 3365, 3511, 308, 34519, 28, 7018, 411]","[253, 17272, 2116, 29, 12821, 1533, 13000, 260, 4446, 30, 2, 198, 1, 520, 9531, 198]","Search Indexer shared incident packet. Every request in this batch begins with the same search indexing pipeline runbook, rollout timeline, model-serving envelope, and measurement checklist. The platform is testing whether vLLM can reuse ex","<|im_start|>system
+You are a helpful AI assistant named SmolLM, trained by Hugging Face<|im_end|>
+<|im_start|>user
+Search Indexer shared incident packet. Every request in this batch begins with the same search indexing pipeline runbook, rol"
+shared_prefix_long_variant_out8_n8_rep00,shared_prefix_long_variant,0,577,8,8,7,chat_template,322,19,be7bd55515efe58c,"[1, 9690, 198, 2683, 359, 253, 5356, 5646, 11173, 3365, 3511, 308, 34519, 28, 7018, 411]","[260, 1867, 26211, 8613, 288, 15063, 451, 13842, 4973, 30, 2, 198, 1, 520, 9531, 198]","Search Indexer shared incident packet. Every request in this batch begins with the same search indexing pipeline runbook, rollout timeline, model-serving envelope, and measurement checklist. The platform is testing whether vLLM can reuse ex","<|im_start|>system
+You are a helpful AI assistant named SmolLM, trained by Hugging Face<|im_end|>
+<|im_start|>user
+Search Indexer shared incident packet. Every request in this batch begins with the same search indexing pipeline runbook, rol"
+matched_unique_prefix_variant_out8_n2_rep00,matched_unique_prefix_variant,0,577,2,8,0,chat_template,333,309,09504896c52dfae0,"[1, 9690, 198, 2683, 359, 253, 5356, 5646, 11173, 3365, 3511, 308, 34519, 28, 7018, 411]","[48002, 1971, 4478, 388, 1708, 327, 451, 36977, 7717, 30, 2, 198, 1, 520, 9531, 198]","Atlas-01 Search Indexer control packet. This request starts with a distinct tenant marker, dashboard route, owner alias, timeline summary, and mitigation note before it reaches the common search indexing pipeline vocabulary. It intentionall","<|im_start|>system
+You are a helpful AI assistant named SmolLM, trained by Hugging Face<|im_end|>
+<|im_start|>user
+Atlas-01 Search Indexer control packet. This request starts with a distinct tenant marker, dashboard route, owner alias, time"
+matched_unique_prefix_variant_out8_n2_rep00,matched_unique_prefix_variant,0,577,2,8,1,chat_template,334,310,58177de140a72b3d,"[1, 9690, 198, 2683, 359, 253, 5356, 5646, 11173, 3365, 3511, 308, 34519, 28, 7018, 411]","[868, 1485, 585, 3018, 659, 70, 16828, 314, 2430, 30, 2, 198, 1, 520, 9531, 198]","Beacon-02 Search Indexer control packet. This request starts with a distinct tenant marker, dashboard route, owner alias, timeline summary, and mitigation note before it reaches the common search indexing pipeline vocabulary. It intentional","<|im_start|>system
+You are a helpful AI assistant named SmolLM, trained by Hugging Face<|im_end|>
+<|im_start|>user
+Beacon-02 Search Indexer control packet. This request starts with a distinct tenant marker, dashboard route, owner alias, tim"
+matched_unique_prefix_variant_out8_n4_rep00,matched_unique_prefix_variant,0,577,4,8,0,chat_template,333,309,09504896c52dfae0,"[1, 9690, 198, 2683, 359, 253, 5356, 5646, 11173, 3365, 3511, 308, 34519, 28, 7018, 411]","[48002, 1971, 4478, 388, 1708, 327, 451, 36977, 7717, 30, 2, 198, 1, 520, 9531, 198]","Atlas-01 Search Indexer control packet. This request starts with a distinct tenant marker, dashboard route, owner alias, timeline summary, and mitigation note before it reaches the common search indexing pipeline vocabulary. It intentionall","<|im_start|>system
+You are a helpful AI assistant named SmolLM, trained by Hugging Face<|im_end|>
+<|im_start|>user
+Atlas-01 Search Indexer control packet. This request starts with a distinct tenant marker, dashboard route, owner alias, time"
+matched_unique_prefix_variant_out8_n4_rep00,matched_unique_prefix_variant,0,577,4,8,1,chat_template,334,310,58177de140a72b3d,"[1, 9690, 198, 2683, 359, 253, 5356, 5646, 11173, 3365, 3511, 308, 34519, 28, 7018, 411]","[868, 1485, 585, 3018, 659, 70, 16828, 314, 2430, 30, 2, 198, 1, 520, 9531, 198]","Beacon-02 Search Indexer control packet. This request starts with a distinct tenant marker, dashboard route, owner alias, timeline summary, and mitigation note before it reaches the common search indexing pipeline vocabulary. It intentional","<|im_start|>system
+You are a helpful AI assistant named SmolLM, trained by Hugging Face<|im_end|>
+<|im_start|>user
+Beacon-02 Search Indexer control packet. This request starts with a distinct tenant marker, dashboard route, owner alias, tim"
+matched_unique_prefix_variant_out8_n4_rep00,matched_unique_prefix_variant,0,577,4,8,2,chat_template,332,308,4c0a05a235130660,"[1, 9690, 198, 2683, 359, 253, 5356, 5646, 11173, 3365, 3511, 308, 34519, 28, 7018, 411]","[4997, 5723, 585, 13842, 6703, 19494, 656, 451, 29278, 30, 2, 198, 1, 520, 9531, 198]","Cinder-03 Search Indexer control packet. This request starts with a distinct tenant marker, dashboard route, owner alias, timeline summary, and mitigation note before it reaches the common search indexing pipeline vocabulary. It intentional","<|im_start|>system
+You are a helpful AI assistant named SmolLM, trained by Hugging Face<|im_end|>
+<|im_start|>user
+Cinder-03 Search Indexer control packet. This request starts with a distinct tenant marker, dashboard route, owner alias, tim"
+matched_unique_prefix_variant_out8_n4_rep00,matched_unique_prefix_variant,0,577,4,8,3,chat_template,334,310,c1432edee0697753,"[1, 9690, 198, 2683, 359, 253, 5356, 5646, 11173, 3365, 3511, 308, 34519, 28, 7018, 411]","[418, 827, 28, 1876, 28, 284, 4475, 20468, 8649, 30, 2, 198, 1, 520, 9531, 198]","Drift-04 Search Indexer control packet. This request starts with a distinct tenant marker, dashboard route, owner alias, timeline summary, and mitigation note before it reaches the common search indexing pipeline vocabulary. It intentionall","<|im_start|>system
+You are a helpful AI assistant named SmolLM, trained by Hugging Face<|im_end|>
+<|im_start|>user
+Drift-04 Search Indexer control packet. This request starts with a distinct tenant marker, dashboard route, owner alias, time"
+matched_unique_prefix_variant_out8_n8_rep00,matched_unique_prefix_variant,0,577,8,8,0,chat_template,333,309,09504896c52dfae0,"[1, 9690, 198, 2683, 359, 253, 5356, 5646, 11173, 3365, 3511, 308, 34519, 28, 7018, 411]","[48002, 1971, 4478, 388, 1708, 327, 451, 36977, 7717, 30, 2, 198, 1, 520, 9531, 198]","Atlas-01 Search Indexer control packet. This request starts with a distinct tenant marker, dashboard route, owner alias, timeline summary, and mitigation note before it reaches the common search indexing pipeline vocabulary. It intentionall","<|im_start|>system
+You are a helpful AI assistant named SmolLM, trained by Hugging Face<|im_end|>
+<|im_start|>user
+Atlas-01 Search Indexer control packet. This request starts with a distinct tenant marker, dashboard route, owner alias, time"
+matched_unique_prefix_variant_out8_n8_rep00,matched_unique_prefix_variant,0,577,8,8,1,chat_template,334,310,58177de140a72b3d,"[1, 9690, 198, 2683, 359, 253, 5356, 5646, 11173, 3365, 3511, 308, 34519, 28, 7018, 411]","[868, 1485, 585, 3018, 659, 70, 16828, 314, 2430, 30, 2, 198, 1, 520, 9531, 198]","Beacon-02 Search Indexer control packet. This request starts with a distinct tenant marker, dashboard route, owner alias, timeline summary, and mitigation note before it reaches the common search indexing pipeline vocabulary. It intentional","<|im_start|>system
+You are a helpful AI assistant named SmolLM, trained by Hugging Face<|im_end|>
+<|im_start|>user
+Beacon-02 Search Indexer control packet. This request starts with a distinct tenant marker, dashboard route, owner alias, tim"
+matched_unique_prefix_variant_out8_n8_rep00,matched_unique_prefix_variant,0,577,8,8,2,chat_template,332,308,4c0a05a235130660,"[1, 9690, 198, 2683, 359, 253, 5356, 5646, 11173, 3365, 3511, 308, 34519, 28, 7018, 411]","[4997, 5723, 585, 13842, 6703, 19494, 656, 451, 29278, 30, 2, 198, 1, 520, 9531, 198]","Cinder-03 Search Indexer control packet. This request starts with a distinct tenant marker, dashboard route, owner alias, timeline summary, and mitigation note before it reaches the common search indexing pipeline vocabulary. It intentional","<|im_start|>system
+You are a helpful AI assistant named SmolLM, trained by Hugging Face<|im_end|>
+<|im_start|>user
+Cinder-03 Search Indexer control packet. This request starts with a distinct tenant marker, dashboard route, owner alias, tim"
+matched_unique_prefix_variant_out8_n8_rep00,matched_unique_prefix_variant,0,577,8,8,3,chat_template,334,310,c1432edee0697753,"[1, 9690, 198, 2683, 359, 253, 5356, 5646, 11173, 3365, 3511, 308, 34519, 28, 7018, 411]","[418, 827, 28, 1876, 28, 284, 4475, 20468, 8649, 30, 2, 198, 1, 520, 9531, 198]","Drift-04 Search Indexer control packet. This request starts with a distinct tenant marker, dashboard route, owner alias, timeline summary, and mitigation note before it reaches the common search indexing pipeline vocabulary. It intentionall","<|im_start|>system
+You are a helpful AI assistant named SmolLM, trained by Hugging Face<|im_end|>
+<|im_start|>user
+Drift-04 Search Indexer control packet. This request starts with a distinct tenant marker, dashboard route, owner alias, time"
+matched_unique_prefix_variant_out8_n8_rep00,matched_unique_prefix_variant,0,577,8,8,4,chat_template,333,309,ded990b7ce4c950a,"[1, 9690, 198, 2683, 359, 253, 5356, 5646, 11173, 3365, 3511, 308, 34519, 28, 7018, 411]","[416, 19038, 990, 6514, 4478, 388, 746, 314, 12261, 30, 2, 198, 1, 520, 9531, 198]","Ember-05 Search Indexer control packet. This request starts with a distinct tenant marker, dashboard route, owner alias, timeline summary, and mitigation note before it reaches the common search indexing pipeline vocabulary. It intentionall","<|im_start|>system
+You are a helpful AI assistant named SmolLM, trained by Hugging Face<|im_end|>
+<|im_start|>user
+Ember-05 Search Indexer control packet. This request starts with a distinct tenant marker, dashboard route, owner alias, time"
+matched_unique_prefix_variant_out8_n8_rep00,matched_unique_prefix_variant,0,577,8,8,5,chat_template,334,310,1f20bb41789480cf,"[1, 9690, 198, 2683, 359, 253, 5356, 5646, 11173, 3365, 3511, 308, 34519, 28, 7018, 411]","[338, 868, 441, 325, 690, 11613, 429, 451, 1658, 30, 2, 198, 1, 520, 9531, 198]","Flux-06 Search Indexer control packet. This request starts with a distinct tenant marker, dashboard route, owner alias, timeline summary, and mitigation note before it reaches the common search indexing pipeline vocabulary. It intentionally","<|im_start|>system
+You are a helpful AI assistant named SmolLM, trained by Hugging Face<|im_end|>
+<|im_start|>user
+Flux-06 Search Indexer control packet. This request starts with a distinct tenant marker, dashboard route, owner alias, timel"
+matched_unique_prefix_variant_out8_n8_rep00,matched_unique_prefix_variant,0,577,8,8,6,chat_template,331,307,0687590dec15961f,"[1, 9690, 198, 2683, 359, 253, 5356, 5646, 11173, 3365, 3511, 308, 34519, 28, 7018, 411]","[253, 17272, 2116, 29, 12821, 1533, 13000, 260, 4446, 30, 2, 198, 1, 520, 9531, 198]","Graph-07 Search Indexer control packet. This request starts with a distinct tenant marker, dashboard route, owner alias, timeline summary, and mitigation note before it reaches the common search indexing pipeline vocabulary. It intentionall","<|im_start|>system
+You are a helpful AI assistant named SmolLM, trained by Hugging Face<|im_end|>
+<|im_start|>user
+Graph-07 Search Indexer control packet. This request starts with a distinct tenant marker, dashboard route, owner alias, time"
+matched_unique_prefix_variant_out8_n8_rep00,matched_unique_prefix_variant,0,577,8,8,7,chat_template,331,307,2dd6b60c9271b032,"[1, 9690, 198, 2683, 359, 253, 5356, 5646, 11173, 3365, 3511, 308, 34519, 28, 7018, 411]","[260, 1867, 26211, 8613, 288, 15063, 451, 13842, 4973, 30, 2, 198, 1, 520, 9531, 198]","Helix-08 Search Indexer control packet. This request starts with a distinct tenant marker, dashboard route, owner alias, timeline summary, and mitigation note before it reaches the common search indexing pipeline vocabulary. It intentionall","<|im_start|>system
+You are a helpful AI assistant named SmolLM, trained by Hugging Face<|im_end|>
+<|im_start|>user
+Helix-08 Search Indexer control packet. This request starts with a distinct tenant marker, dashboard route, owner alias, time"
+shared_prefix_long_variant_out8_n2_rep01,shared_prefix_long_variant,1,578,2,8,0,chat_template,324,22,d187d87cca24773c,"[1, 9690, 198, 2683, 359, 253, 5356, 5646, 11173, 3365, 3511, 308, 34519, 28, 7018, 411]","[1971, 4478, 388, 1708, 327, 451, 4462, 12755, 7717, 30, 2, 198, 1, 520, 9531, 198]","Telemetry Warehouse shared incident packet. Every request in this batch begins with the same telemetry warehouse ingestion service runbook, rollout timeline, model-serving envelope, and measurement checklist. The platform is testing whether","<|im_start|>system
+You are a helpful AI assistant named SmolLM, trained by Hugging Face<|im_end|>
+<|im_start|>user
+Telemetry Warehouse shared incident packet. Every request in this batch begins with the same telemetry warehouse ingestion se"
+shared_prefix_long_variant_out8_n2_rep01,shared_prefix_long_variant,1,578,2,8,1,chat_template,324,22,b26d24629131afe5,"[1, 9690, 198, 2683, 359, 253, 5356, 5646, 11173, 3365, 3511, 308, 34519, 28, 7018, 411]","[868, 1485, 585, 3018, 659, 70, 16828, 314, 2430, 30, 2, 198, 1, 520, 9531, 198]","Telemetry Warehouse shared incident packet. Every request in this batch begins with the same telemetry warehouse ingestion service runbook, rollout timeline, model-serving envelope, and measurement checklist. The platform is testing whether","<|im_start|>system
+You are a helpful AI assistant named SmolLM, trained by Hugging Face<|im_end|>
+<|im_start|>user
+Telemetry Warehouse shared incident packet. Every request in this batch begins with the same telemetry warehouse ingestion se"
+shared_prefix_long_variant_out8_n4_rep01,shared_prefix_long_variant,1,578,4,8,0,chat_template,324,22,d187d87cca24773c,"[1, 9690, 198, 2683, 359, 253, 5356, 5646, 11173, 3365, 3511, 308, 34519, 28, 7018, 411]","[1971, 4478, 388, 1708, 327, 451, 4462, 12755, 7717, 30, 2, 198, 1, 520, 9531, 198]","Telemetry Warehouse shared incident packet. Every request in this batch begins with the same telemetry warehouse ingestion service runbook, rollout timeline, model-serving envelope, and measurement checklist. The platform is testing whether","<|im_start|>system
+You are a helpful AI assistant named SmolLM, trained by Hugging Face<|im_end|>
+<|im_start|>user
+Telemetry Warehouse shared incident packet. Every request in this batch begins with the same telemetry warehouse ingestion se"
+shared_prefix_long_variant_out8_n4_rep01,shared_prefix_long_variant,1,578,4,8,1,chat_template,324,22,b26d24629131afe5,"[1, 9690, 198, 2683, 359, 253, 5356, 5646, 11173, 3365, 3511, 308, 34519, 28, 7018, 411]","[868, 1485, 585, 3018, 659, 70, 16828, 314, 2430, 30, 2, 198, 1, 520, 9531, 198]","Telemetry Warehouse shared incident packet. Every request in this batch begins with the same telemetry warehouse ingestion service runbook, rollout timeline, model-serving envelope, and measurement checklist. The platform is testing whether","<|im_start|>system
+You are a helpful AI assistant named SmolLM, trained by Hugging Face<|im_end|>
+<|im_start|>user
+Telemetry Warehouse shared incident packet. Every request in this batch begins with the same telemetry warehouse ingestion se"
+shared_prefix_long_variant_out8_n4_rep01,shared_prefix_long_variant,1,578,4,8,2,chat_template,322,20,8d423801c9203d04,"[1, 9690, 198, 2683, 359, 253, 5356, 5646, 11173, 3365, 3511, 308, 34519, 28, 7018, 411]","[4997, 5723, 585, 13842, 6703, 19494, 656, 451, 29278, 30, 2, 198, 1, 520, 9531, 198]","Telemetry Warehouse shared incident packet. Every request in this batch begins with the same telemetry warehouse ingestion service runbook, rollout timeline, model-serving envelope, and measurement checklist. The platform is testing whether","<|im_start|>system
+You are a helpful AI assistant named SmolLM, trained by Hugging Face<|im_end|>
+<|im_start|>user
+Telemetry Warehouse shared incident packet. Every request in this batch begins with the same telemetry warehouse ingestion se"
+shared_prefix_long_variant_out8_n4_rep01,shared_prefix_long_variant,1,578,4,8,3,chat_template,324,22,c1fcecbcb9da5bbd,"[1, 9690, 198, 2683, 359, 253, 5356, 5646, 11173, 3365, 3511, 308, 34519, 28, 7018, 411]","[418, 827, 28, 1876, 28, 284, 4475, 20468, 8649, 30, 2, 198, 1, 520, 9531, 198]","Telemetry Warehouse shared incident packet. Every request in this batch begins with the same telemetry warehouse ingestion service runbook, rollout timeline, model-serving envelope, and measurement checklist. The platform is testing whether","<|im_start|>system
+You are a helpful AI assistant named SmolLM, trained by Hugging Face<|im_end|>
+<|im_start|>user
+Telemetry Warehouse shared incident packet. Every request in this batch begins with the same telemetry warehouse ingestion se"
+shared_prefix_long_variant_out8_n8_rep01,shared_prefix_long_variant,1,578,8,8,0,chat_template,324,22,d187d87cca24773c,"[1, 9690, 198, 2683, 359, 253, 5356, 5646, 11173, 3365, 3511, 308, 34519, 28, 7018, 411]","[1971, 4478, 388, 1708, 327, 451, 4462, 12755, 7717, 30, 2, 198, 1, 520, 9531, 198]","Telemetry Warehouse shared incident packet. Every request in this batch begins with the same telemetry warehouse ingestion service runbook, rollout timeline, model-serving envelope, and measurement checklist. The platform is testing whether","<|im_start|>system
+You are a helpful AI assistant named SmolLM, trained by Hugging Face<|im_end|>
+<|im_start|>user
+Telemetry Warehouse shared incident packet. Every request in this batch begins with the same telemetry warehouse ingestion se"
+shared_prefix_long_variant_out8_n8_rep01,shared_prefix_long_variant,1,578,8,8,1,chat_template,324,22,b26d24629131afe5,"[1, 9690, 198, 2683, 359, 253, 5356, 5646, 11173, 3365, 3511, 308, 34519, 28, 7018, 411]","[868, 1485, 585, 3018, 659, 70, 16828, 314, 2430, 30, 2, 198, 1, 520, 9531, 198]","Telemetry Warehouse shared incident packet. Every request in this batch begins with the same telemetry warehouse ingestion service runbook, rollout timeline, model-serving envelope, and measurement checklist. The platform is testing whether","<|im_start|>system
+You are a helpful AI assistant named SmolLM, trained by Hugging Face<|im_end|>
+<|im_start|>user
+Telemetry Warehouse shared incident packet. Every request in this batch begins with the same telemetry warehouse ingestion se"
+shared_prefix_long_variant_out8_n8_rep01,shared_prefix_long_variant,1,578,8,8,2,chat_template,322,20,8d423801c9203d04,"[1, 9690, 198, 2683, 359, 253, 5356, 5646, 11173, 3365, 3511, 308, 34519, 28, 7018, 411]","[4997, 5723, 585, 13842, 6703, 19494, 656, 451, 29278, 30, 2, 198, 1, 520, 9531, 198]","Telemetry Warehouse shared incident packet. Every request in this batch begins with the same telemetry warehouse ingestion service runbook, rollout timeline, model-serving envelope, and measurement checklist. The platform is testing whether","<|im_start|>system
+You are a helpful AI assistant named SmolLM, trained by Hugging Face<|im_end|>
+<|im_start|>user
+Telemetry Warehouse shared incident packet. Every request in this batch begins with the same telemetry warehouse ingestion se"
+shared_prefix_long_variant_out8_n8_rep01,shared_prefix_long_variant,1,578,8,8,3,chat_template,324,22,c1fcecbcb9da5bbd,"[1, 9690, 198, 2683, 359, 253, 5356, 5646, 11173, 3365, 3511, 308, 34519, 28, 7018, 411]","[418, 827, 28, 1876, 28, 284, 4475, 20468, 8649, 30, 2, 198, 1, 520, 9531, 198]","Telemetry Warehouse shared incident packet. Every request in this batch begins with the same telemetry warehouse ingestion service runbook, rollout timeline, model-serving envelope, and measurement checklist. The platform is testing whether","<|im_start|>system
+You are a helpful AI assistant named SmolLM, trained by Hugging Face<|im_end|>
+<|im_start|>user
+Telemetry Warehouse shared incident packet. Every request in this batch begins with the same telemetry warehouse ingestion se"
+shared_prefix_long_variant_out8_n8_rep01,shared_prefix_long_variant,1,578,8,8,4,chat_template,323,21,be86462f62d1ee4d,"[1, 9690, 198, 2683, 359, 253, 5356, 5646, 11173, 3365, 3511, 308, 34519, 28, 7018, 411]","[416, 19038, 990, 6514, 4478, 388, 746, 314, 12261, 30, 2, 198, 1, 520, 9531, 198]","Telemetry Warehouse shared incident packet. Every request in this batch begins with the same telemetry warehouse ingestion service runbook, rollout timeline, model-serving envelope, and measurement checklist. The platform is testing whether","<|im_start|>system
+You are a helpful AI assistant named SmolLM, trained by Hugging Face<|im_end|>
+<|im_start|>user
+Telemetry Warehouse shared incident packet. Every request in this batch begins with the same telemetry warehouse ingestion se"
+shared_prefix_long_variant_out8_n8_rep01,shared_prefix_long_variant,1,578,8,8,5,chat_template,324,22,e9a14f652e5591fb,"[1, 9690, 198, 2683, 359, 253, 5356, 5646, 11173, 3365, 3511, 308, 34519, 28, 7018, 411]","[338, 868, 441, 325, 690, 11613, 429, 451, 1658, 30, 2, 198, 1, 520, 9531, 198]","Telemetry Warehouse shared incident packet. Every request in this batch begins with the same telemetry warehouse ingestion service runbook, rollout timeline, model-serving envelope, and measurement checklist. The platform is testing whether","<|im_start|>system
+You are a helpful AI assistant named SmolLM, trained by Hugging Face<|im_end|>
+<|im_start|>user
+Telemetry Warehouse shared incident packet. Every request in this batch begins with the same telemetry warehouse ingestion se"
+shared_prefix_long_variant_out8_n8_rep01,shared_prefix_long_variant,1,578,8,8,6,chat_template,322,20,5503310573c8e093,"[1, 9690, 198, 2683, 359, 253, 5356, 5646, 11173, 3365, 3511, 308, 34519, 28, 7018, 411]","[253, 17272, 2116, 29, 12821, 1533, 13000, 260, 4446, 30, 2, 198, 1, 520, 9531, 198]","Telemetry Warehouse shared incident packet. Every request in this batch begins with the same telemetry warehouse ingestion service runbook, rollout timeline, model-serving envelope, and measurement checklist. The platform is testing whether","<|im_start|>system
+You are a helpful AI assistant named SmolLM, trained by Hugging Face<|im_end|>
+<|im_start|>user
+Telemetry Warehouse shared incident packet. Every request in this batch begins with the same telemetry warehouse ingestion se"
+shared_prefix_long_variant_out8_n8_rep01,shared_prefix_long_variant,1,578,8,8,7,chat_template,321,19,6806f045e02be158,"[1, 9690, 198, 2683, 359, 253, 5356, 5646, 11173, 3365, 3511, 308, 34519, 28, 7018, 411]","[260, 1867, 26211, 8613, 288, 15063, 451, 13842, 4973, 30, 2, 198, 1, 520, 9531, 198]","Telemetry Warehouse shared incident packet. Every request in this batch begins with the same telemetry warehouse ingestion service runbook, rollout timeline, model-serving envelope, and measurement checklist. The platform is testing whether","<|im_start|>system
+You are a helpful AI assistant named SmolLM, trained by Hugging Face<|im_end|>
+<|im_start|>user
+Telemetry Warehouse shared incident packet. Every request in this batch begins with the same telemetry warehouse ingestion se"
+matched_unique_prefix_variant_out8_n2_rep01,matched_unique_prefix_variant,1,578,2,8,0,chat_template,333,309,f986f0637b8c7cd4,"[1, 9690, 198, 2683, 359, 253, 5356, 5646, 11173, 3365, 3511, 308, 34519, 28, 7018, 411]","[1971, 4478, 388, 1708, 327, 451, 4462, 12755, 7717, 30, 2, 198, 1, 520, 9531, 198]","Atlas-01 Telemetry Warehouse control packet. This request starts with a distinct tenant marker, dashboard route, owner alias, timeline summary, and mitigation note before it reaches the common telemetry warehouse ingestion service vocabular","<|im_start|>system
+You are a helpful AI assistant named SmolLM, trained by Hugging Face<|im_end|>
+<|im_start|>user
+Atlas-01 Telemetry Warehouse control packet. This request starts with a distinct tenant marker, dashboard route, owner alias,"
+matched_unique_prefix_variant_out8_n2_rep01,matched_unique_prefix_variant,1,578,2,8,1,chat_template,333,309,a912ca175ae56ac4,"[1, 9690, 198, 2683, 359, 253, 5356, 5646, 11173, 3365, 3511, 308, 34519, 28, 7018, 411]","[868, 1485, 585, 3018, 659, 70, 16828, 314, 2430, 30, 2, 198, 1, 520, 9531, 198]","Beacon-02 Telemetry Warehouse control packet. This request starts with a distinct tenant marker, dashboard route, owner alias, timeline summary, and mitigation note before it reaches the common telemetry warehouse ingestion service vocabula","<|im_start|>system
+You are a helpful AI assistant named SmolLM, trained by Hugging Face<|im_end|>
+<|im_start|>user
+Beacon-02 Telemetry Warehouse control packet. This request starts with a distinct tenant marker, dashboard route, owner alias"
+matched_unique_prefix_variant_out8_n4_rep01,matched_unique_prefix_variant,1,578,4,8,0,chat_template,333,309,f986f0637b8c7cd4,"[1, 9690, 198, 2683, 359, 253, 5356, 5646, 11173, 3365, 3511, 308, 34519, 28, 7018, 411]","[1971, 4478, 388, 1708, 327, 451, 4462, 12755, 7717, 30, 2, 198, 1, 520, 9531, 198]","Atlas-01 Telemetry Warehouse control packet. This request starts with a distinct tenant marker, dashboard route, owner alias, timeline summary, and mitigation note before it reaches the common telemetry warehouse ingestion service vocabular","<|im_start|>system
+You are a helpful AI assistant named SmolLM, trained by Hugging Face<|im_end|>
+<|im_start|>user
+Atlas-01 Telemetry Warehouse control packet. This request starts with a distinct tenant marker, dashboard route, owner alias,"
+matched_unique_prefix_variant_out8_n4_rep01,matched_unique_prefix_variant,1,578,4,8,1,chat_template,333,309,a912ca175ae56ac4,"[1, 9690, 198, 2683, 359, 253, 5356, 5646, 11173, 3365, 3511, 308, 34519, 28, 7018, 411]","[868, 1485, 585, 3018, 659, 70, 16828, 314, 2430, 30, 2, 198, 1, 520, 9531, 198]","Beacon-02 Telemetry Warehouse control packet. This request starts with a distinct tenant marker, dashboard route, owner alias, timeline summary, and mitigation note before it reaches the common telemetry warehouse ingestion service vocabula","<|im_start|>system
+You are a helpful AI assistant named SmolLM, trained by Hugging Face<|im_end|>
+<|im_start|>user
+Beacon-02 Telemetry Warehouse control packet. This request starts with a distinct tenant marker, dashboard route, owner alias"
+matched_unique_prefix_variant_out8_n4_rep01,matched_unique_prefix_variant,1,578,4,8,2,chat_template,331,307,56c4245a2caf71b7,"[1, 9690, 198, 2683, 359, 253, 5356, 5646, 11173, 3365, 3511, 308, 34519, 28, 7018, 411]","[4997, 5723, 585, 13842, 6703, 19494, 656, 451, 29278, 30, 2, 198, 1, 520, 9531, 198]","Cinder-03 Telemetry Warehouse control packet. This request starts with a distinct tenant marker, dashboard route, owner alias, timeline summary, and mitigation note before it reaches the common telemetry warehouse ingestion service vocabula","<|im_start|>system
+You are a helpful AI assistant named SmolLM, trained by Hugging Face<|im_end|>
+<|im_start|>user
+Cinder-03 Telemetry Warehouse control packet. This request starts with a distinct tenant marker, dashboard route, owner alias"
+matched_unique_prefix_variant_out8_n4_rep01,matched_unique_prefix_variant,1,578,4,8,3,chat_template,333,309,9359b2578c1bbc9d,"[1, 9690, 198, 2683, 359, 253, 5356, 5646, 11173, 3365, 3511, 308, 34519, 28, 7018, 411]","[418, 827, 28, 1876, 28, 284, 4475, 20468, 8649, 30, 2, 198, 1, 520, 9531, 198]","Drift-04 Telemetry Warehouse control packet. This request starts with a distinct tenant marker, dashboard route, owner alias, timeline summary, and mitigation note before it reaches the common telemetry warehouse ingestion service vocabular","<|im_start|>system
+You are a helpful AI assistant named SmolLM, trained by Hugging Face<|im_end|>
+<|im_start|>user
+Drift-04 Telemetry Warehouse control packet. This request starts with a distinct tenant marker, dashboard route, owner alias,"
+matched_unique_prefix_variant_out8_n8_rep01,matched_unique_prefix_variant,1,578,8,8,0,chat_template,333,309,f986f0637b8c7cd4,"[1, 9690, 198, 2683, 359, 253, 5356, 5646, 11173, 3365, 3511, 308, 34519, 28, 7018, 411]","[1971, 4478, 388, 1708, 327, 451, 4462, 12755, 7717, 30, 2, 198, 1, 520, 9531, 198]","Atlas-01 Telemetry Warehouse control packet. This request starts with a distinct tenant marker, dashboard route, owner alias, timeline summary, and mitigation note before it reaches the common telemetry warehouse ingestion service vocabular","<|im_start|>system
+You are a helpful AI assistant named SmolLM, trained by Hugging Face<|im_end|>
+<|im_start|>user
+Atlas-01 Telemetry Warehouse control packet. This request starts with a distinct tenant marker, dashboard route, owner alias,"
+matched_unique_prefix_variant_out8_n8_rep01,matched_unique_prefix_variant,1,578,8,8,1,chat_template,333,309,a912ca175ae56ac4,"[1, 9690, 198, 2683, 359, 253, 5356, 5646, 11173, 3365, 3511, 308, 34519, 28, 7018, 411]","[868, 1485, 585, 3018, 659, 70, 16828, 314, 2430, 30, 2, 198, 1, 520, 9531, 198]","Beacon-02 Telemetry Warehouse control packet. This request starts with a distinct tenant marker, dashboard route, owner alias, timeline summary, and mitigation note before it reaches the common telemetry warehouse ingestion service vocabula","<|im_start|>system
+You are a helpful AI assistant named SmolLM, trained by Hugging Face<|im_end|>
+<|im_start|>user
+Beacon-02 Telemetry Warehouse control packet. This request starts with a distinct tenant marker, dashboard route, owner alias"
+matched_unique_prefix_variant_out8_n8_rep01,matched_unique_prefix_variant,1,578,8,8,2,chat_template,331,307,56c4245a2caf71b7,"[1, 9690, 198, 2683, 359, 253, 5356, 5646, 11173, 3365, 3511, 308, 34519, 28, 7018, 411]","[4997, 5723, 585, 13842, 6703, 19494, 656, 451, 29278, 30, 2, 198, 1, 520, 9531, 198]","Cinder-03 Telemetry Warehouse control packet. This request starts with a distinct tenant marker, dashboard route, owner alias, timeline summary, and mitigation note before it reaches the common telemetry warehouse ingestion service vocabula","<|im_start|>system
+You are a helpful AI assistant named SmolLM, trained by Hugging Face<|im_end|>
+<|im_start|>user
+Cinder-03 Telemetry Warehouse control packet. This request starts with a distinct tenant marker, dashboard route, owner alias"
+matched_unique_prefix_variant_out8_n8_rep01,matched_unique_prefix_variant,1,578,8,8,3,chat_template,333,309,9359b2578c1bbc9d,"[1, 9690, 198, 2683, 359, 253, 5356, 5646, 11173, 3365, 3511, 308, 34519, 28, 7018, 411]","[418, 827, 28, 1876, 28, 284, 4475, 20468, 8649, 30, 2, 198, 1, 520, 9531, 198]","Drift-04 Telemetry Warehouse control packet. This request starts with a distinct tenant marker, dashboard route, owner alias, timeline summary, and mitigation note before it reaches the common telemetry warehouse ingestion service vocabular","<|im_start|>system
+You are a helpful AI assistant named SmolLM, trained by Hugging Face<|im_end|>
+<|im_start|>user
+Drift-04 Telemetry Warehouse control packet. This request starts with a distinct tenant marker, dashboard route, owner alias,"
+matched_unique_prefix_variant_out8_n8_rep01,matched_unique_prefix_variant,1,578,8,8,4,chat_template,332,308,3772bd3e007a2e35,"[1, 9690, 198, 2683, 359, 253, 5356, 5646, 11173, 3365, 3511, 308, 34519, 28, 7018, 411]","[416, 19038, 990, 6514, 4478, 388, 746, 314, 12261, 30, 2, 198, 1, 520, 9531, 198]","Ember-05 Telemetry Warehouse control packet. This request starts with a distinct tenant marker, dashboard route, owner alias, timeline summary, and mitigation note before it reaches the common telemetry warehouse ingestion service vocabular","<|im_start|>system
+You are a helpful AI assistant named SmolLM, trained by Hugging Face<|im_end|>
+<|im_start|>user
+Ember-05 Telemetry Warehouse control packet. This request starts with a distinct tenant marker, dashboard route, owner alias,"
+matched_unique_prefix_variant_out8_n8_rep01,matched_unique_prefix_variant,1,578,8,8,5,chat_template,333,309,1ee5738f72e131c2,"[1, 9690, 198, 2683, 359, 253, 5356, 5646, 11173, 3365, 3511, 308, 34519, 28, 7018, 411]","[338, 868, 441, 325, 690, 11613, 429, 451, 1658, 30, 2, 198, 1, 520, 9531, 198]","Flux-06 Telemetry Warehouse control packet. This request starts with a distinct tenant marker, dashboard route, owner alias, timeline summary, and mitigation note before it reaches the common telemetry warehouse ingestion service vocabulary","<|im_start|>system
+You are a helpful AI assistant named SmolLM, trained by Hugging Face<|im_end|>
+<|im_start|>user
+Flux-06 Telemetry Warehouse control packet. This request starts with a distinct tenant marker, dashboard route, owner alias, "
+matched_unique_prefix_variant_out8_n8_rep01,matched_unique_prefix_variant,1,578,8,8,6,chat_template,330,306,1897ca16d0b2471d,"[1, 9690, 198, 2683, 359, 253, 5356, 5646, 11173, 3365, 3511, 308, 34519, 28, 7018, 411]","[253, 17272, 2116, 29, 12821, 1533, 13000, 260, 4446, 30, 2, 198, 1, 520, 9531, 198]","Graph-07 Telemetry Warehouse control packet. This request starts with a distinct tenant marker, dashboard route, owner alias, timeline summary, and mitigation note before it reaches the common telemetry warehouse ingestion service vocabular","<|im_start|>system
+You are a helpful AI assistant named SmolLM, trained by Hugging Face<|im_end|>
+<|im_start|>user
+Graph-07 Telemetry Warehouse control packet. This request starts with a distinct tenant marker, dashboard route, owner alias,"
+matched_unique_prefix_variant_out8_n8_rep01,matched_unique_prefix_variant,1,578,8,8,7,chat_template,330,306,8d710edcf805658f,"[1, 9690, 198, 2683, 359, 253, 5356, 5646, 11173, 3365, 3511, 308, 34519, 28, 7018, 411]","[260, 1867, 26211, 8613, 288, 15063, 451, 13842, 4973, 30, 2, 198, 1, 520, 9531, 198]","Helix-08 Telemetry Warehouse control packet. This request starts with a distinct tenant marker, dashboard route, owner alias, timeline summary, and mitigation note before it reaches the common telemetry warehouse ingestion service vocabular","<|im_start|>system
+You are a helpful AI assistant named SmolLM, trained by Hugging Face<|im_end|>
+<|im_start|>user
+Helix-08 Telemetry Warehouse control packet. This request starts with a distinct tenant marker, dashboard route, owner alias,"
+shared_prefix_long_variant_out8_n2_rep02,shared_prefix_long_variant,2,579,2,8,0,chat_template,340,21,fe81dd35868c6fc8,"[1, 9690, 198, 2683, 359, 253, 5356, 5646, 11173, 3365, 3511, 308, 34519, 28, 7018, 411]","[48002, 1971, 4478, 388, 1708, 327, 451, 9599, 7717, 30, 2, 198, 1, 520, 9531, 198]","Payments Relay shared incident packet. Every request in this batch begins with the same payment authorization gateway runbook, rollout timeline, model-serving envelope, and measurement checklist. The platform is testing whether vLLM can reu","<|im_start|>system
+You are a helpful AI assistant named SmolLM, trained by Hugging Face<|im_end|>
+<|im_start|>user
+Payments Relay shared incident packet. Every request in this batch begins with the same payment authorization gateway runbook"
+shared_prefix_long_variant_out8_n2_rep02,shared_prefix_long_variant,2,579,2,8,1,chat_template,341,22,528af19cb0f937f0,"[1, 9690, 198, 2683, 359, 253, 5356, 5646, 11173, 3365, 3511, 308, 34519, 28, 7018, 411]","[868, 1485, 585, 3018, 659, 70, 16828, 314, 2430, 30, 2, 198, 1, 520, 9531, 198]","Payments Relay shared incident packet. Every request in this batch begins with the same payment authorization gateway runbook, rollout timeline, model-serving envelope, and measurement checklist. The platform is testing whether vLLM can reu","<|im_start|>system
+You are a helpful AI assistant named SmolLM, trained by Hugging Face<|im_end|>
+<|im_start|>user
+Payments Relay shared incident packet. Every request in this batch begins with the same payment authorization gateway runbook"
+shared_prefix_long_variant_out8_n4_rep02,shared_prefix_long_variant,2,579,4,8,0,chat_template,340,21,fe81dd35868c6fc8,"[1, 9690, 198, 2683, 359, 253, 5356, 5646, 11173, 3365, 3511, 308, 34519, 28, 7018, 411]","[48002, 1971, 4478, 388, 1708, 327, 451, 9599, 7717, 30, 2, 198, 1, 520, 9531, 198]","Payments Relay shared incident packet. Every request in this batch begins with the same payment authorization gateway runbook, rollout timeline, model-serving envelope, and measurement checklist. The platform is testing whether vLLM can reu","<|im_start|>system
+You are a helpful AI assistant named SmolLM, trained by Hugging Face<|im_end|>
+<|im_start|>user
+Payments Relay shared incident packet. Every request in this batch begins with the same payment authorization gateway runbook"
+shared_prefix_long_variant_out8_n4_rep02,shared_prefix_long_variant,2,579,4,8,1,chat_template,341,22,528af19cb0f937f0,"[1, 9690, 198, 2683, 359, 253, 5356, 5646, 11173, 3365, 3511, 308, 34519, 28, 7018, 411]","[868, 1485, 585, 3018, 659, 70, 16828, 314, 2430, 30, 2, 198, 1, 520, 9531, 198]","Payments Relay shared incident packet. Every request in this batch begins with the same payment authorization gateway runbook, rollout timeline, model-serving envelope, and measurement checklist. The platform is testing whether vLLM can reu","<|im_start|>system
+You are a helpful AI assistant named SmolLM, trained by Hugging Face<|im_end|>
+<|im_start|>user
+Payments Relay shared incident packet. Every request in this batch begins with the same payment authorization gateway runbook"
+shared_prefix_long_variant_out8_n4_rep02,shared_prefix_long_variant,2,579,4,8,2,chat_template,339,20,1433d9412b88979c,"[1, 9690, 198, 2683, 359, 253, 5356, 5646, 11173, 3365, 3511, 308, 34519, 28, 7018, 411]","[4997, 5723, 585, 13842, 6703, 19494, 656, 451, 29278, 30, 2, 198, 1, 520, 9531, 198]","Payments Relay shared incident packet. Every request in this batch begins with the same payment authorization gateway runbook, rollout timeline, model-serving envelope, and measurement checklist. The platform is testing whether vLLM can reu","<|im_start|>system
+You are a helpful AI assistant named SmolLM, trained by Hugging Face<|im_end|>
+<|im_start|>user
+Payments Relay shared incident packet. Every request in this batch begins with the same payment authorization gateway runbook"
+shared_prefix_long_variant_out8_n4_rep02,shared_prefix_long_variant,2,579,4,8,3,chat_template,341,22,b922af169f14c777,"[1, 9690, 198, 2683, 359, 253, 5356, 5646, 11173, 3365, 3511, 308, 34519, 28, 7018, 411]","[418, 827, 28, 1876, 28, 284, 4475, 20468, 8649, 30, 2, 198, 1, 520, 9531, 198]","Payments Relay shared incident packet. Every request in this batch begins with the same payment authorization gateway runbook, rollout timeline, model-serving envelope, and measurement checklist. The platform is testing whether vLLM can reu","<|im_start|>system
+You are a helpful AI assistant named SmolLM, trained by Hugging Face<|im_end|>
+<|im_start|>user
+Payments Relay shared incident packet. Every request in this batch begins with the same payment authorization gateway runbook"
+shared_prefix_long_variant_out8_n8_rep02,shared_prefix_long_variant,2,579,8,8,0,chat_template,340,21,fe81dd35868c6fc8,"[1, 9690, 198, 2683, 359, 253, 5356, 5646, 11173, 3365, 3511, 308, 34519, 28, 7018, 411]","[48002, 1971, 4478, 388, 1708, 327, 451, 9599, 7717, 30, 2, 198, 1, 520, 9531, 198]","Payments Relay shared incident packet. Every request in this batch begins with the same payment authorization gateway runbook, rollout timeline, model-serving envelope, and measurement checklist. The platform is testing whether vLLM can reu","<|im_start|>system
+You are a helpful AI assistant named SmolLM, trained by Hugging Face<|im_end|>
+<|im_start|>user
+Payments Relay shared incident packet. Every request in this batch begins with the same payment authorization gateway runbook"
+shared_prefix_long_variant_out8_n8_rep02,shared_prefix_long_variant,2,579,8,8,1,chat_template,341,22,528af19cb0f937f0,"[1, 9690, 198, 2683, 359, 253, 5356, 5646, 11173, 3365, 3511, 308, 34519, 28, 7018, 411]","[868, 1485, 585, 3018, 659, 70, 16828, 314, 2430, 30, 2, 198, 1, 520, 9531, 198]","Payments Relay shared incident packet. Every request in this batch begins with the same payment authorization gateway runbook, rollout timeline, model-serving envelope, and measurement checklist. The platform is testing whether vLLM can reu","<|im_start|>system
+You are a helpful AI assistant named SmolLM, trained by Hugging Face<|im_end|>
+<|im_start|>user
+Payments Relay shared incident packet. Every request in this batch begins with the same payment authorization gateway runbook"
+shared_prefix_long_variant_out8_n8_rep02,shared_prefix_long_variant,2,579,8,8,2,chat_template,339,20,1433d9412b88979c,"[1, 9690, 198, 2683, 359, 253, 5356, 5646, 11173, 3365, 3511, 308, 34519, 28, 7018, 411]","[4997, 5723, 585, 13842, 6703, 19494, 656, 451, 29278, 30, 2, 198, 1, 520, 9531, 198]","Payments Relay shared incident packet. Every request in this batch begins with the same payment authorization gateway runbook, rollout timeline, model-serving envelope, and measurement checklist. The platform is testing whether vLLM can reu","<|im_start|>system
+You are a helpful AI assistant named SmolLM, trained by Hugging Face<|im_end|>
+<|im_start|>user
+Payments Relay shared incident packet. Every request in this batch begins with the same payment authorization gateway runbook"
+shared_prefix_long_variant_out8_n8_rep02,shared_prefix_long_variant,2,579,8,8,3,chat_template,341,22,b922af169f14c777,"[1, 9690, 198, 2683, 359, 253, 5356, 5646, 11173, 3365, 3511, 308, 34519, 28, 7018, 411]","[418, 827, 28, 1876, 28, 284, 4475, 20468, 8649, 30, 2, 198, 1, 520, 9531, 198]","Payments Relay shared incident packet. Every request in this batch begins with the same payment authorization gateway runbook, rollout timeline, model-serving envelope, and measurement checklist. The platform is testing whether vLLM can reu","<|im_start|>system
+You are a helpful AI assistant named SmolLM, trained by Hugging Face<|im_end|>
+<|im_start|>user
+Payments Relay shared incident packet. Every request in this batch begins with the same payment authorization gateway runbook"
+shared_prefix_long_variant_out8_n8_rep02,shared_prefix_long_variant,2,579,8,8,4,chat_template,340,21,052621b01d77b426,"[1, 9690, 198, 2683, 359, 253, 5356, 5646, 11173, 3365, 3511, 308, 34519, 28, 7018, 411]","[416, 19038, 990, 6514, 4478, 388, 746, 314, 12261, 30, 2, 198, 1, 520, 9531, 198]","Payments Relay shared incident packet. Every request in this batch begins with the same payment authorization gateway runbook, rollout timeline, model-serving envelope, and measurement checklist. The platform is testing whether vLLM can reu","<|im_start|>system
+You are a helpful AI assistant named SmolLM, trained by Hugging Face<|im_end|>
+<|im_start|>user
+Payments Relay shared incident packet. Every request in this batch begins with the same payment authorization gateway runbook"
+shared_prefix_long_variant_out8_n8_rep02,shared_prefix_long_variant,2,579,8,8,5,chat_template,341,22,e2643b9f1650f37c,"[1, 9690, 198, 2683, 359, 253, 5356, 5646, 11173, 3365, 3511, 308, 34519, 28, 7018, 411]","[338, 868, 441, 325, 690, 11613, 429, 451, 1658, 30, 2, 198, 1, 520, 9531, 198]","Payments Relay shared incident packet. Every request in this batch begins with the same payment authorization gateway runbook, rollout timeline, model-serving envelope, and measurement checklist. The platform is testing whether vLLM can reu","<|im_start|>system
+You are a helpful AI assistant named SmolLM, trained by Hugging Face<|im_end|>
+<|im_start|>user
+Payments Relay shared incident packet. Every request in this batch begins with the same payment authorization gateway runbook"
+shared_prefix_long_variant_out8_n8_rep02,shared_prefix_long_variant,2,579,8,8,6,chat_template,339,20,7c27193fe331b7ad,"[1, 9690, 198, 2683, 359, 253, 5356, 5646, 11173, 3365, 3511, 308, 34519, 28, 7018, 411]","[253, 17272, 2116, 29, 12821, 1533, 13000, 260, 4446, 30, 2, 198, 1, 520, 9531, 198]","Payments Relay shared incident packet. Every request in this batch begins with the same payment authorization gateway runbook, rollout timeline, model-serving envelope, and measurement checklist. The platform is testing whether vLLM can reu","<|im_start|>system
+You are a helpful AI assistant named SmolLM, trained by Hugging Face<|im_end|>
+<|im_start|>user
+Payments Relay shared incident packet. Every request in this batch begins with the same payment authorization gateway runbook"
+shared_prefix_long_variant_out8_n8_rep02,shared_prefix_long_variant,2,579,8,8,7,chat_template,338,19,1054691916e83cb7,"[1, 9690, 198, 2683, 359, 253, 5356, 5646, 11173, 3365, 3511, 308, 34519, 28, 7018, 411]","[260, 1867, 26211, 8613, 288, 15063, 451, 13842, 4973, 30, 2, 198, 1, 520, 9531, 198]","Payments Relay shared incident packet. Every request in this batch begins with the same payment authorization gateway runbook, rollout timeline, model-serving envelope, and measurement checklist. The platform is testing whether vLLM can reu","<|im_start|>system
+You are a helpful AI assistant named SmolLM, trained by Hugging Face<|im_end|>
+<|im_start|>user
+Payments Relay shared incident packet. Every request in this batch begins with the same payment authorization gateway runbook"
+matched_unique_prefix_variant_out8_n2_rep02,matched_unique_prefix_variant,2,579,2,8,0,chat_template,349,325,898810ee1c4c061e,"[1, 9690, 198, 2683, 359, 253, 5356, 5646, 11173, 3365, 3511, 308, 34519, 28, 7018, 411]","[48002, 1971, 4478, 388, 1708, 327, 451, 9599, 7717, 30, 2, 198, 1, 520, 9531, 198]","Atlas-01 Payments Relay control packet. This request starts with a distinct tenant marker, dashboard route, owner alias, timeline summary, and mitigation note before it reaches the common payment authorization gateway vocabulary. It intenti","<|im_start|>system
+You are a helpful AI assistant named SmolLM, trained by Hugging Face<|im_end|>
+<|im_start|>user
+Atlas-01 Payments Relay control packet. This request starts with a distinct tenant marker, dashboard route, owner alias, time"
+matched_unique_prefix_variant_out8_n2_rep02,matched_unique_prefix_variant,2,579,2,8,1,chat_template,350,326,58be00af8046a89c,"[1, 9690, 198, 2683, 359, 253, 5356, 5646, 11173, 3365, 3511, 308, 34519, 28, 7018, 411]","[868, 1485, 585, 3018, 659, 70, 16828, 314, 2430, 30, 2, 198, 1, 520, 9531, 198]","Beacon-02 Payments Relay control packet. This request starts with a distinct tenant marker, dashboard route, owner alias, timeline summary, and mitigation note before it reaches the common payment authorization gateway vocabulary. It intent","<|im_start|>system
+You are a helpful AI assistant named SmolLM, trained by Hugging Face<|im_end|>
+<|im_start|>user
+Beacon-02 Payments Relay control packet. This request starts with a distinct tenant marker, dashboard route, owner alias, tim"
+matched_unique_prefix_variant_out8_n4_rep02,matched_unique_prefix_variant,2,579,4,8,0,chat_template,349,325,898810ee1c4c061e,"[1, 9690, 198, 2683, 359, 253, 5356, 5646, 11173, 3365, 3511, 308, 34519, 28, 7018, 411]","[48002, 1971, 4478, 388, 1708, 327, 451, 9599, 7717, 30, 2, 198, 1, 520, 9531, 198]","Atlas-01 Payments Relay control packet. This request starts with a distinct tenant marker, dashboard route, owner alias, timeline summary, and mitigation note before it reaches the common payment authorization gateway vocabulary. It intenti","<|im_start|>system
+You are a helpful AI assistant named SmolLM, trained by Hugging Face<|im_end|>
+<|im_start|>user
+Atlas-01 Payments Relay control packet. This request starts with a distinct tenant marker, dashboard route, owner alias, time"
+matched_unique_prefix_variant_out8_n4_rep02,matched_unique_prefix_variant,2,579,4,8,1,chat_template,350,326,58be00af8046a89c,"[1, 9690, 198, 2683, 359, 253, 5356, 5646, 11173, 3365, 3511, 308, 34519, 28, 7018, 411]","[868, 1485, 585, 3018, 659, 70, 16828, 314, 2430, 30, 2, 198, 1, 520, 9531, 198]","Beacon-02 Payments Relay control packet. This request starts with a distinct tenant marker, dashboard route, owner alias, timeline summary, and mitigation note before it reaches the common payment authorization gateway vocabulary. It intent","<|im_start|>system
+You are a helpful AI assistant named SmolLM, trained by Hugging Face<|im_end|>
+<|im_start|>user
+Beacon-02 Payments Relay control packet. This request starts with a distinct tenant marker, dashboard route, owner alias, tim"
+matched_unique_prefix_variant_out8_n4_rep02,matched_unique_prefix_variant,2,579,4,8,2,chat_template,348,324,a7e3045b7db9ccd4,"[1, 9690, 198, 2683, 359, 253, 5356, 5646, 11173, 3365, 3511, 308, 34519, 28, 7018, 411]","[4997, 5723, 585, 13842, 6703, 19494, 656, 451, 29278, 30, 2, 198, 1, 520, 9531, 198]","Cinder-03 Payments Relay control packet. This request starts with a distinct tenant marker, dashboard route, owner alias, timeline summary, and mitigation note before it reaches the common payment authorization gateway vocabulary. It intent","<|im_start|>system
+You are a helpful AI assistant named SmolLM, trained by Hugging Face<|im_end|>
+<|im_start|>user
+Cinder-03 Payments Relay control packet. This request starts with a distinct tenant marker, dashboard route, owner alias, tim"
+matched_unique_prefix_variant_out8_n4_rep02,matched_unique_prefix_variant,2,579,4,8,3,chat_template,350,326,80d41d93a8087bc5,"[1, 9690, 198, 2683, 359, 253, 5356, 5646, 11173, 3365, 3511, 308, 34519, 28, 7018, 411]","[418, 827, 28, 1876, 28, 284, 4475, 20468, 8649, 30, 2, 198, 1, 520, 9531, 198]","Drift-04 Payments Relay control packet. This request starts with a distinct tenant marker, dashboard route, owner alias, timeline summary, and mitigation note before it reaches the common payment authorization gateway vocabulary. It intenti","<|im_start|>system
+You are a helpful AI assistant named SmolLM, trained by Hugging Face<|im_end|>
+<|im_start|>user
+Drift-04 Payments Relay control packet. This request starts with a distinct tenant marker, dashboard route, owner alias, time"
+matched_unique_prefix_variant_out8_n8_rep02,matched_unique_prefix_variant,2,579,8,8,0,chat_template,349,325,898810ee1c4c061e,"[1, 9690, 198, 2683, 359, 253, 5356, 5646, 11173, 3365, 3511, 308, 34519, 28, 7018, 411]","[48002, 1971, 4478, 388, 1708, 327, 451, 9599, 7717, 30, 2, 198, 1, 520, 9531, 198]","Atlas-01 Payments Relay control packet. This request starts with a distinct tenant marker, dashboard route, owner alias, timeline summary, and mitigation note before it reaches the common payment authorization gateway vocabulary. It intenti","<|im_start|>system
+You are a helpful AI assistant named SmolLM, trained by Hugging Face<|im_end|>
+<|im_start|>user
+Atlas-01 Payments Relay control packet. This request starts with a distinct tenant marker, dashboard route, owner alias, time"
+matched_unique_prefix_variant_out8_n8_rep02,matched_unique_prefix_variant,2,579,8,8,1,chat_template,350,326,58be00af8046a89c,"[1, 9690, 198, 2683, 359, 253, 5356, 5646, 11173, 3365, 3511, 308, 34519, 28, 7018, 411]","[868, 1485, 585, 3018, 659, 70, 16828, 314, 2430, 30, 2, 198, 1, 520, 9531, 198]","Beacon-02 Payments Relay control packet. This request starts with a distinct tenant marker, dashboard route, owner alias, timeline summary, and mitigation note before it reaches the common payment authorization gateway vocabulary. It intent","<|im_start|>system
+You are a helpful AI assistant named SmolLM, trained by Hugging Face<|im_end|>
+<|im_start|>user
+Beacon-02 Payments Relay control packet. This request starts with a distinct tenant marker, dashboard route, owner alias, tim"
+matched_unique_prefix_variant_out8_n8_rep02,matched_unique_prefix_variant,2,579,8,8,2,chat_template,348,324,a7e3045b7db9ccd4,"[1, 9690, 198, 2683, 359, 253, 5356, 5646, 11173, 3365, 3511, 308, 34519, 28, 7018, 411]","[4997, 5723, 585, 13842, 6703, 19494, 656, 451, 29278, 30, 2, 198, 1, 520, 9531, 198]","Cinder-03 Payments Relay control packet. This request starts with a distinct tenant marker, dashboard route, owner alias, timeline summary, and mitigation note before it reaches the common payment authorization gateway vocabulary. It intent","<|im_start|>system
+You are a helpful AI assistant named SmolLM, trained by Hugging Face<|im_end|>
+<|im_start|>user
+Cinder-03 Payments Relay control packet. This request starts with a distinct tenant marker, dashboard route, owner alias, tim"
+matched_unique_prefix_variant_out8_n8_rep02,matched_unique_prefix_variant,2,579,8,8,3,chat_template,350,326,80d41d93a8087bc5,"[1, 9690, 198, 2683, 359, 253, 5356, 5646, 11173, 3365, 3511, 308, 34519, 28, 7018, 411]","[418, 827, 28, 1876, 28, 284, 4475, 20468, 8649, 30, 2, 198, 1, 520, 9531, 198]","Drift-04 Payments Relay control packet. This request starts with a distinct tenant marker, dashboard route, owner alias, timeline summary, and mitigation note before it reaches the common payment authorization gateway vocabulary. It intenti","<|im_start|>system
+You are a helpful AI assistant named SmolLM, trained by Hugging Face<|im_end|>
+<|im_start|>user
+Drift-04 Payments Relay control packet. This request starts with a distinct tenant marker, dashboard route, owner alias, time"
+matched_unique_prefix_variant_out8_n8_rep02,matched_unique_prefix_variant,2,579,8,8,4,chat_template,349,325,110ff588f5af1231,"[1, 9690, 198, 2683, 359, 253, 5356, 5646, 11173, 3365, 3511, 308, 34519, 28, 7018, 411]","[416, 19038, 990, 6514, 4478, 388, 746, 314, 12261, 30, 2, 198, 1, 520, 9531, 198]","Ember-05 Payments Relay control packet. This request starts with a distinct tenant marker, dashboard route, owner alias, timeline summary, and mitigation note before it reaches the common payment authorization gateway vocabulary. It intenti","<|im_start|>system
+You are a helpful AI assistant named SmolLM, trained by Hugging Face<|im_end|>
+<|im_start|>user
+Ember-05 Payments Relay control packet. This request starts with a distinct tenant marker, dashboard route, owner alias, time"
+matched_unique_prefix_variant_out8_n8_rep02,matched_unique_prefix_variant,2,579,8,8,5,chat_template,350,326,1beb62d6a9755e48,"[1, 9690, 198, 2683, 359, 253, 5356, 5646, 11173, 3365, 3511, 308, 34519, 28, 7018, 411]","[338, 868, 441, 325, 690, 11613, 429, 451, 1658, 30, 2, 198, 1, 520, 9531, 198]","Flux-06 Payments Relay control packet. This request starts with a distinct tenant marker, dashboard route, owner alias, timeline summary, and mitigation note before it reaches the common payment authorization gateway vocabulary. It intentio","<|im_start|>system
+You are a helpful AI assistant named SmolLM, trained by Hugging Face<|im_end|>
+<|im_start|>user
+Flux-06 Payments Relay control packet. This request starts with a distinct tenant marker, dashboard route, owner alias, timel"
+matched_unique_prefix_variant_out8_n8_rep02,matched_unique_prefix_variant,2,579,8,8,6,chat_template,347,323,adc29c464ec24d59,"[1, 9690, 198, 2683, 359, 253, 5356, 5646, 11173, 3365, 3511, 308, 34519, 28, 7018, 411]","[253, 17272, 2116, 29, 12821, 1533, 13000, 260, 4446, 30, 2, 198, 1, 520, 9531, 198]","Graph-07 Payments Relay control packet. This request starts with a distinct tenant marker, dashboard route, owner alias, timeline summary, and mitigation note before it reaches the common payment authorization gateway vocabulary. It intenti","<|im_start|>system
+You are a helpful AI assistant named SmolLM, trained by Hugging Face<|im_end|>
+<|im_start|>user
+Graph-07 Payments Relay control packet. This request starts with a distinct tenant marker, dashboard route, owner alias, time"
+matched_unique_prefix_variant_out8_n8_rep02,matched_unique_prefix_variant,2,579,8,8,7,chat_template,347,323,0e0fa9d6774bf0a0,"[1, 9690, 198, 2683, 359, 253, 5356, 5646, 11173, 3365, 3511, 308, 34519, 28, 7018, 411]","[260, 1867, 26211, 8613, 288, 15063, 451, 13842, 4973, 30, 2, 198, 1, 520, 9531, 198]","Helix-08 Payments Relay control packet. This request starts with a distinct tenant marker, dashboard route, owner alias, timeline summary, and mitigation note before it reaches the common payment authorization gateway vocabulary. It intenti","<|im_start|>system
+You are a helpful AI assistant named SmolLM, trained by Hugging Face<|im_end|>
+<|im_start|>user
+Helix-08 Payments Relay control packet. This request starts with a distinct tenant marker, dashboard route, owner alias, time"

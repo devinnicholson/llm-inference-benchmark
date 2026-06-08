@@ -1,0 +1,10 @@
+repeat_index,request_count,max_new_tokens,shared_profile,control_profile,shared_variant_index,control_variant_index,shared_common_prefix_tokens,control_common_prefix_tokens,shared_minus_control_common_prefix_tokens,shared_common_prefix_full_blocks,control_common_prefix_full_blocks,shared_minus_control_common_prefix_full_blocks,shared_estimated_reusable_block_tokens,control_estimated_reusable_block_tokens,shared_minus_control_estimated_reusable_block_tokens,shared_reusable_block_token_fraction,control_reusable_block_token_fraction,shared_minus_control_reusable_block_token_fraction
+0,2,8,shared_prefix_long_variant,matched_unique_prefix_variant,577,577,303,24,279,18,1,17,288,16,272,0.4437596302003082,0.0239880059970015,0.41977162420330666
+0,4,8,shared_prefix_long_variant,matched_unique_prefix_variant,577,577,303,24,279,18,1,17,864,48,816,0.6661526599845798,0.03600900225056264,0.6301436577340171
+0,8,8,shared_prefix_long_variant,matched_unique_prefix_variant,577,577,303,24,279,18,1,17,2016,112,1904,0.7780779621767657,0.042073628850488355,0.7360043333262773
+1,2,8,shared_prefix_long_variant,matched_unique_prefix_variant,578,578,302,24,278,18,1,17,288,16,272,0.4444444444444444,0.024024024024024024,0.4204204204204204
+1,4,8,shared_prefix_long_variant,matched_unique_prefix_variant,578,578,302,24,278,18,1,17,864,48,816,0.6676970633693973,0.03609022556390978,0.6316068378054875
+1,8,8,shared_prefix_long_variant,matched_unique_prefix_variant,578,578,302,24,278,18,1,17,2016,112,1904,0.7801857585139319,0.04218455743879473,0.7380012010751372
+2,2,8,shared_prefix_long_variant,matched_unique_prefix_variant,579,579,319,24,295,19,1,18,304,16,288,0.44640234948604995,0.022889842632331903,0.42351250685371805
+2,4,8,shared_prefix_long_variant,matched_unique_prefix_variant,579,579,319,24,295,19,1,18,912,48,864,0.6700955180014695,0.03435934144595562,0.6357361765555138
+2,8,8,shared_prefix_long_variant,matched_unique_prefix_variant,579,579,319,24,295,19,1,18,2128,112,2016,0.7826406767193821,0.04014336917562724,0.7424973075437549

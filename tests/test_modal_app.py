@@ -204,6 +204,51 @@ class ModalAppTests(unittest.TestCase):
             controls[1].split(" ", 1)[0],
         )
 
+    def test_common_prefix_token_count_stops_at_first_difference(self) -> None:
+        self.assertEqual(
+            modal_app._common_prefix_token_count(
+                [
+                    [1, 2, 3, 4],
+                    [1, 2, 5, 4],
+                    [1, 2, 3, 4],
+                ]
+            ),
+            2,
+        )
+        self.assertEqual(modal_app._common_prefix_token_count([]), 0)
+
+    def test_prompt_audit_reports_more_shared_reusable_blocks(self) -> None:
+        payload = modal_app._build_vllm_prefix_cache_prompt_audit_payload(
+            tokenizer=_WhitespaceTokenizer(),
+            hf_model="fake-model",
+            request_count_values=[4],
+            prompt_profile_values=[
+                "shared_prefix_long_variant",
+                "matched_unique_prefix_variant",
+            ],
+            output_token_values=[8],
+            repeats=2,
+            scenario_seed=577,
+            kv_cache_block_size=8,
+        )
+
+        self.assertEqual(payload["scenario_count"], 4)
+        self.assertEqual(payload["profile_control_row_count"], 2)
+        self.assertGreater(
+            payload["summary"]["shared_minus_control_common_prefix_blocks_mean"],
+            0,
+        )
+        for row in payload["profile_control_rows"]:
+            self.assertGreater(
+                row["shared_common_prefix_full_blocks"],
+                row["control_common_prefix_full_blocks"],
+            )
+            self.assertGreater(
+                row["shared_minus_control_estimated_reusable_block_tokens"],
+                0,
+            )
+        self.assertIn("Prefix-Cache Prompt Token Audit", payload["markdown"])
+
 
 def _window_source_payload() -> dict:
     return {
@@ -308,6 +353,27 @@ def _stability_run_rows(
             }
         )
     return rows
+
+
+class _WhitespaceTokenizer:
+    chat_template = None
+
+    def __init__(self) -> None:
+        self._token_to_id: dict[str, int] = {}
+        self._id_to_token: dict[int, str] = {}
+
+    def encode(self, text: str) -> list[int]:
+        ids = []
+        for token in text.split():
+            if token not in self._token_to_id:
+                token_id = len(self._token_to_id) + 1
+                self._token_to_id[token] = token_id
+                self._id_to_token[token_id] = token
+            ids.append(self._token_to_id[token])
+        return ids
+
+    def decode(self, ids: list[int]) -> str:
+        return " ".join(self._id_to_token.get(token_id, "?") for token_id in ids)
 
 
 if __name__ == "__main__":

@@ -1,0 +1,73 @@
+scenario_id,prompt_profile,repeat_index,variant_index,request_count,max_new_tokens,prompt_format,kv_cache_block_size,prompt_tokens_min,prompt_tokens_max,prompt_tokens_mean,total_prompt_tokens,common_prefix_tokens,common_prefix_full_blocks,common_prefix_block_tokens,common_prefix_remainder_tokens,suffix_after_common_tokens_min,suffix_after_common_tokens_max,suffix_after_common_tokens_mean,estimated_reusable_block_tokens,estimated_reusable_block_token_fraction_of_total_prompt,common_prefix_token_fraction_of_prompt_mean,common_prefix_text_preview
+shared_prefix_long_variant_out8_n2_rep00,shared_prefix_long_variant,0,577,2,8,chat_template,16,324,325,324.5,649,303,18,288,15,21,22,21.5,288,0.4437596302003082,0.9337442218798151,"<|im_start|>system
+You are a helpful AI assistant named SmolLM, trained by Hugging Face<|im_end|>
+<|im_start|>user
+Search Indexer shared incident packet. Every request in this batch begins with the same search indexing pipeline runbook, rol"
+shared_prefix_long_variant_out8_n4_rep00,shared_prefix_long_variant,0,577,4,8,chat_template,16,323,325,324.25,1297,303,18,288,15,20,22,21.25,864,0.6661526599845798,0.9344641480339244,"<|im_start|>system
+You are a helpful AI assistant named SmolLM, trained by Hugging Face<|im_end|>
+<|im_start|>user
+Search Indexer shared incident packet. Every request in this batch begins with the same search indexing pipeline runbook, rol"
+shared_prefix_long_variant_out8_n8_rep00,shared_prefix_long_variant,0,577,8,8,chat_template,16,322,325,323.875,2591,303,18,288,15,19,22,20.875,2016,0.7780779621767657,0.9355461211887303,"<|im_start|>system
+You are a helpful AI assistant named SmolLM, trained by Hugging Face<|im_end|>
+<|im_start|>user
+Search Indexer shared incident packet. Every request in this batch begins with the same search indexing pipeline runbook, rol"
+matched_unique_prefix_variant_out8_n2_rep00,matched_unique_prefix_variant,0,577,2,8,chat_template,16,333,334,333.5,667,24,1,16,8,309,310,309.5,16,0.0239880059970015,0.07196401799100449,"<|im_start|>system
+You are a helpful AI assistant named SmolLM, trained by Hugging Face<|im_end|>
+<|im_start|>user
+"
+matched_unique_prefix_variant_out8_n4_rep00,matched_unique_prefix_variant,0,577,4,8,chat_template,16,332,334,333.25,1333,24,1,16,8,308,310,309.25,48,0.03600900225056264,0.07201800450112528,"<|im_start|>system
+You are a helpful AI assistant named SmolLM, trained by Hugging Face<|im_end|>
+<|im_start|>user
+"
+matched_unique_prefix_variant_out8_n8_rep00,matched_unique_prefix_variant,0,577,8,8,chat_template,16,331,334,332.75,2662,24,1,16,8,307,310,308.75,112,0.042073628850488355,0.07212622088655146,"<|im_start|>system
+You are a helpful AI assistant named SmolLM, trained by Hugging Face<|im_end|>
+<|im_start|>user
+"
+shared_prefix_long_variant_out8_n2_rep01,shared_prefix_long_variant,1,578,2,8,chat_template,16,324,324,324.0,648,302,18,288,14,22,22,22.0,288,0.4444444444444444,0.9320987654320988,"<|im_start|>system
+You are a helpful AI assistant named SmolLM, trained by Hugging Face<|im_end|>
+<|im_start|>user
+Telemetry Warehouse shared incident packet. Every request in this batch begins with the same telemetry warehouse ingestion se"
+shared_prefix_long_variant_out8_n4_rep01,shared_prefix_long_variant,1,578,4,8,chat_template,16,322,324,323.5,1294,302,18,288,14,20,22,21.5,864,0.6676970633693973,0.9335394126738794,"<|im_start|>system
+You are a helpful AI assistant named SmolLM, trained by Hugging Face<|im_end|>
+<|im_start|>user
+Telemetry Warehouse shared incident packet. Every request in this batch begins with the same telemetry warehouse ingestion se"
+shared_prefix_long_variant_out8_n8_rep01,shared_prefix_long_variant,1,578,8,8,chat_template,16,321,324,323.0,2584,302,18,288,14,19,22,21.0,2016,0.7801857585139319,0.934984520123839,"<|im_start|>system
+You are a helpful AI assistant named SmolLM, trained by Hugging Face<|im_end|>
+<|im_start|>user
+Telemetry Warehouse shared incident packet. Every request in this batch begins with the same telemetry warehouse ingestion se"
+matched_unique_prefix_variant_out8_n2_rep01,matched_unique_prefix_variant,1,578,2,8,chat_template,16,333,333,333.0,666,24,1,16,8,309,309,309.0,16,0.024024024024024024,0.07207207207207207,"<|im_start|>system
+You are a helpful AI assistant named SmolLM, trained by Hugging Face<|im_end|>
+<|im_start|>user
+"
+matched_unique_prefix_variant_out8_n4_rep01,matched_unique_prefix_variant,1,578,4,8,chat_template,16,331,333,332.5,1330,24,1,16,8,307,309,308.5,48,0.03609022556390978,0.07218045112781955,"<|im_start|>system
+You are a helpful AI assistant named SmolLM, trained by Hugging Face<|im_end|>
+<|im_start|>user
+"
+matched_unique_prefix_variant_out8_n8_rep01,matched_unique_prefix_variant,1,578,8,8,chat_template,16,330,333,331.875,2655,24,1,16,8,306,309,307.875,112,0.04218455743879473,0.07231638418079096,"<|im_start|>system
+You are a helpful AI assistant named SmolLM, trained by Hugging Face<|im_end|>
+<|im_start|>user
+"
+shared_prefix_long_variant_out8_n2_rep02,shared_prefix_long_variant,2,579,2,8,chat_template,16,340,341,340.5,681,319,19,304,15,21,22,21.5,304,0.44640234948604995,0.9368575624082232,"<|im_start|>system
+You are a helpful AI assistant named SmolLM, trained by Hugging Face<|im_end|>
+<|im_start|>user
+Payments Relay shared incident packet. Every request in this batch begins with the same payment authorization gateway runbook"
+shared_prefix_long_variant_out8_n4_rep02,shared_prefix_long_variant,2,579,4,8,chat_template,16,339,341,340.25,1361,319,19,304,15,20,22,21.25,912,0.6700955180014695,0.9375459221160911,"<|im_start|>system
+You are a helpful AI assistant named SmolLM, trained by Hugging Face<|im_end|>
+<|im_start|>user
+Payments Relay shared incident packet. Every request in this batch begins with the same payment authorization gateway runbook"
+shared_prefix_long_variant_out8_n8_rep02,shared_prefix_long_variant,2,579,8,8,chat_template,16,338,341,339.875,2719,319,19,304,15,19,22,20.875,2128,0.7826406767193821,0.9385803604266274,"<|im_start|>system
+You are a helpful AI assistant named SmolLM, trained by Hugging Face<|im_end|>
+<|im_start|>user
+Payments Relay shared incident packet. Every request in this batch begins with the same payment authorization gateway runbook"
+matched_unique_prefix_variant_out8_n2_rep02,matched_unique_prefix_variant,2,579,2,8,chat_template,16,349,350,349.5,699,24,1,16,8,325,326,325.5,16,0.022889842632331903,0.06866952789699571,"<|im_start|>system
+You are a helpful AI assistant named SmolLM, trained by Hugging Face<|im_end|>
+<|im_start|>user
+"
+matched_unique_prefix_variant_out8_n4_rep02,matched_unique_prefix_variant,2,579,4,8,chat_template,16,348,350,349.25,1397,24,1,16,8,324,326,325.25,48,0.03435934144595562,0.06871868289191124,"<|im_start|>system
+You are a helpful AI assistant named SmolLM, trained by Hugging Face<|im_end|>
+<|im_start|>user
+"
+matched_unique_prefix_variant_out8_n8_rep02,matched_unique_prefix_variant,2,579,8,8,chat_template,16,347,350,348.75,2790,24,1,16,8,323,326,324.75,112,0.04014336917562724,0.06881720430107527,"<|im_start|>system
+You are a helpful AI assistant named SmolLM, trained by Hugging Face<|im_end|>
+<|im_start|>user
+"

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import csv
+import hashlib
 import json
 import statistics
 import time
@@ -83,6 +84,9 @@ DEFAULT_VLLM_PREFIX_CACHE_ISOLATED_STABILITY_OUTPUT = (
 )
 DEFAULT_VLLM_PREFIX_CACHE_ISOLATED_WINDOW_OUTPUT = (
     "results/modal-vllm-prefix-cache-isolated-window-summary"
+)
+DEFAULT_VLLM_PREFIX_CACHE_PROMPT_AUDIT_OUTPUT = (
+    "results/modal-vllm-prefix-cache-prompt-audit"
 )
 DEFAULT_VLLM_SWEEP_REQUEST_COUNTS = "1,2,4,8"
 DEFAULT_VLLM_SWEEP_PROMPT_PROFILES = "short,long"
@@ -349,6 +353,54 @@ def run_tiny_inference_remote(
         "output_tokens_per_second": generated_tokens / max(total_generation_ms / 1000, 1e-9),
         "peak_memory_allocated_mib": peak_memory_allocated_mib,
     }
+
+
+@app.function(
+    image=inference_image,
+    timeout=900,
+    volumes={HF_CACHE_PATH: hf_cache_volume},
+)
+def run_vllm_prefix_cache_prompt_audit_remote(
+    hf_model: str = DEFAULT_HF_MODEL,
+    request_counts: str = DEFAULT_VLLM_SWEEP_REQUEST_COUNTS,
+    prompt_profiles: str = DEFAULT_VLLM_SWEEP_PROMPT_PROFILES,
+    output_tokens: str = DEFAULT_VLLM_SWEEP_OUTPUT_TOKENS,
+    repeats: int = DEFAULT_VLLM_SWEEP_REPEATS,
+    scenario_seed: int = DEFAULT_VLLM_SWEEP_SEED,
+    kv_cache_block_size: int = 16,
+) -> dict[str, Any]:
+    from transformers import AutoTokenizer
+
+    request_count_values = _split_positive_int_csv(request_counts, "request_counts")
+    prompt_profile_values = [
+        profile.lower().replace("-", "_")
+        for profile in _split_csv(prompt_profiles)
+    ]
+    output_token_values = _split_positive_int_csv(output_tokens, "output_tokens")
+    if repeats <= 0:
+        raise ValueError("repeats must be positive")
+    if kv_cache_block_size <= 0:
+        raise ValueError("kv_cache_block_size must be positive")
+    _validate_vllm_prompt_profiles(prompt_profile_values)
+
+    started = time.perf_counter()
+    tokenizer = AutoTokenizer.from_pretrained(hf_model)
+    tokenizer_load_ms = (time.perf_counter() - started) * 1000
+    hf_cache_volume.commit()
+
+    payload = _build_vllm_prefix_cache_prompt_audit_payload(
+        tokenizer=tokenizer,
+        hf_model=hf_model,
+        request_count_values=request_count_values,
+        prompt_profile_values=prompt_profile_values,
+        output_token_values=output_token_values,
+        repeats=repeats,
+        scenario_seed=scenario_seed,
+        kv_cache_block_size=kv_cache_block_size,
+    )
+    payload["execution"] = "modal"
+    payload["tokenizer_load_ms"] = tokenizer_load_ms
+    return payload
 
 
 @app.function(
@@ -3991,6 +4043,7 @@ def main(
     prefix_caching: str = "off",
     cache_metrics: str = "off",
     kv_cache_metrics_sample: float = 1.0,
+    kv_cache_block_size: int = 16,
     cold_sweep_dir: str = DEFAULT_VLLM_SWEEP_OUTPUT,
     prefix_sweep_dir: str = DEFAULT_VLLM_PREFIX_CACHE_SWEEP_OUTPUT,
     async_sweep_dir: str = DEFAULT_VLLM_SWEEP_OUTPUT,
@@ -4057,6 +4110,62 @@ def main(
         print(f"ttft_ms: {payload['ttft_ms']:.3f}")
         print(f"tpot_ms: {payload['tpot_ms']:.3f}")
         print(f"json: {json_path}")
+        return
+
+    if mode == "vllm-prefix-cache-prompt-audit":
+        payload = run_vllm_prefix_cache_prompt_audit_remote.remote(
+            hf_model=hf_model,
+            request_counts=request_counts,
+            prompt_profiles=prompt_profiles,
+            output_tokens=output_tokens,
+            repeats=repeats,
+            scenario_seed=scenario_seed,
+            kv_cache_block_size=kv_cache_block_size,
+        )
+        output_path = Path(output_dir or DEFAULT_VLLM_PREFIX_CACHE_PROMPT_AUDIT_OUTPUT)
+        output_path.mkdir(parents=True, exist_ok=True)
+        json_path = output_path / "prefix-cache-prompt-audit.json"
+        scenario_csv_path = output_path / "prefix-cache-prompt-audit-scenarios.csv"
+        prompt_csv_path = output_path / "prefix-cache-prompt-audit-prompts.csv"
+        profile_csv_path = output_path / "prefix-cache-prompt-audit-profile-control.csv"
+        markdown_path = output_path / "prefix-cache-prompt-audit.md"
+        json_path.write_text(
+            json.dumps(payload, indent=2, sort_keys=True) + "\n",
+            encoding="utf-8",
+        )
+        _write_records_csv(scenario_csv_path, payload["scenario_rows"])
+        _write_records_csv(prompt_csv_path, payload["prompt_rows"])
+        _write_records_csv(profile_csv_path, payload["profile_control_rows"])
+        markdown_path.write_text(payload["markdown"], encoding="utf-8")
+
+        print(f"scenarios: {payload['scenario_count']}")
+        print(f"prompts: {payload['prompt_count']}")
+        print(f"block_size: {payload['kv_cache_block_size']}")
+        shared_blocks = payload["summary"].get("shared_common_prefix_full_blocks_mean")
+        control_blocks = payload["summary"].get("control_common_prefix_full_blocks_mean")
+        reusable_delta = payload["summary"].get(
+            "shared_minus_control_reusable_block_tokens_mean"
+        )
+        shared_blocks_text = (
+            f"{shared_blocks:.3f}" if shared_blocks is not None else "n/a"
+        )
+        control_blocks_text = (
+            f"{control_blocks:.3f}" if control_blocks is not None else "n/a"
+        )
+        reusable_delta_text = (
+            f"{reusable_delta:.3f}" if reusable_delta is not None else "n/a"
+        )
+        print(f"mean_shared_common_prefix_full_blocks: {shared_blocks_text}")
+        print(f"mean_control_common_prefix_full_blocks: {control_blocks_text}")
+        print(
+            "mean_shared_minus_control_reusable_block_tokens: "
+            f"{reusable_delta_text}"
+        )
+        print(f"json: {json_path}")
+        print(f"scenario_csv: {scenario_csv_path}")
+        print(f"prompt_csv: {prompt_csv_path}")
+        print(f"profile_csv: {profile_csv_path}")
+        print(f"markdown: {markdown_path}")
         return
 
     if mode == "vllm-cache-metrics-probe":
@@ -4997,6 +5106,7 @@ def main(
             "'vllm-server-async-workload-compare', 'vllm-sweep', or "
             "'vllm-prefix-cache-isolated-window-summary', "
             "'vllm-prefix-cache-isolated-stability-summary', "
+            "'vllm-prefix-cache-prompt-audit', "
             "'vllm-prefix-cache-isolated-neutral-warmup', "
             "'vllm-prefix-cache-isolated-warm-window', "
             "'vllm-prefix-cache-isolated-metrics', "
@@ -8319,6 +8429,433 @@ def _write_records_csv(path: Path, records: list[dict[str, Any]]) -> None:
         )
         writer.writeheader()
         writer.writerows(records)
+
+
+def _build_vllm_prefix_cache_prompt_audit_payload(
+    *,
+    tokenizer: Any,
+    hf_model: str,
+    request_count_values: list[int],
+    prompt_profile_values: list[str],
+    output_token_values: list[int],
+    repeats: int,
+    scenario_seed: int,
+    kv_cache_block_size: int,
+) -> dict[str, Any]:
+    scenario_rows: list[dict[str, Any]] = []
+    prompt_rows: list[dict[str, Any]] = []
+
+    for repeat_index in range(repeats):
+        variant_index = scenario_seed + repeat_index
+        for prompt_profile in prompt_profile_values:
+            for max_new_tokens in output_token_values:
+                for request_count in request_count_values:
+                    prompts = _select_sweep_prompts(
+                        request_count,
+                        prompt_profile,
+                        variant_index=variant_index,
+                    )
+                    internal_prompt_rows = []
+                    for prompt_index, prompt in enumerate(prompts):
+                        formatted_prompt, prompt_format = _format_prompt_for_generation(
+                            tokenizer,
+                            prompt,
+                        )
+                        token_ids = list(tokenizer.encode(formatted_prompt))
+                        internal_prompt_rows.append(
+                            {
+                                "prompt_index": prompt_index,
+                                "prompt": prompt,
+                                "formatted_prompt": formatted_prompt,
+                                "prompt_format": prompt_format,
+                                "token_ids": token_ids,
+                                "prompt_tokens": len(token_ids),
+                            }
+                        )
+
+                    token_id_rows = [
+                        row["token_ids"] for row in internal_prompt_rows
+                    ]
+                    common_prefix_tokens = _common_prefix_token_count(token_id_rows)
+                    common_prefix_full_blocks = _token_block_count(
+                        common_prefix_tokens,
+                        kv_cache_block_size,
+                    )
+                    common_prefix_block_tokens = (
+                        common_prefix_full_blocks * kv_cache_block_size
+                    )
+                    prompt_token_counts = [
+                        row["prompt_tokens"] for row in internal_prompt_rows
+                    ]
+                    suffix_after_common_tokens = [
+                        max(count - common_prefix_tokens, 0)
+                        for count in prompt_token_counts
+                    ]
+                    total_prompt_tokens = sum(prompt_token_counts)
+                    estimated_reusable_block_tokens = (
+                        common_prefix_block_tokens * max(request_count - 1, 0)
+                    )
+                    scenario_id = (
+                        f"{prompt_profile}_out{max_new_tokens}_n{request_count}"
+                        f"_rep{repeat_index:02d}"
+                    )
+                    common_prefix_text_preview = ""
+                    if token_id_rows and hasattr(tokenizer, "decode"):
+                        common_token_ids = token_id_rows[0][:common_prefix_tokens]
+                        common_prefix_text_preview = str(
+                            tokenizer.decode(common_token_ids)
+                        )[:240]
+
+                    scenario_row = {
+                        "scenario_id": scenario_id,
+                        "prompt_profile": prompt_profile,
+                        "repeat_index": repeat_index,
+                        "variant_index": variant_index,
+                        "request_count": request_count,
+                        "max_new_tokens": max_new_tokens,
+                        "prompt_format": internal_prompt_rows[0]["prompt_format"],
+                        "kv_cache_block_size": kv_cache_block_size,
+                        "prompt_tokens_min": min(prompt_token_counts),
+                        "prompt_tokens_max": max(prompt_token_counts),
+                        "prompt_tokens_mean": _mean_present(prompt_token_counts),
+                        "total_prompt_tokens": total_prompt_tokens,
+                        "common_prefix_tokens": common_prefix_tokens,
+                        "common_prefix_full_blocks": common_prefix_full_blocks,
+                        "common_prefix_block_tokens": common_prefix_block_tokens,
+                        "common_prefix_remainder_tokens": (
+                            common_prefix_tokens % kv_cache_block_size
+                        ),
+                        "suffix_after_common_tokens_min": min(
+                            suffix_after_common_tokens
+                        ),
+                        "suffix_after_common_tokens_max": max(
+                            suffix_after_common_tokens
+                        ),
+                        "suffix_after_common_tokens_mean": _mean_present(
+                            suffix_after_common_tokens
+                        ),
+                        "estimated_reusable_block_tokens": estimated_reusable_block_tokens,
+                        "estimated_reusable_block_token_fraction_of_total_prompt": (
+                            estimated_reusable_block_tokens / total_prompt_tokens
+                            if total_prompt_tokens
+                            else None
+                        ),
+                        "common_prefix_token_fraction_of_prompt_mean": (
+                            common_prefix_tokens
+                            / max(_mean_present(prompt_token_counts) or 1, 1e-9)
+                        ),
+                        "common_prefix_text_preview": common_prefix_text_preview,
+                    }
+                    scenario_rows.append(scenario_row)
+
+                    for row in internal_prompt_rows:
+                        formatted_prompt = row["formatted_prompt"]
+                        token_ids = row["token_ids"]
+                        prompt_rows.append(
+                            {
+                                "scenario_id": scenario_id,
+                                "prompt_profile": prompt_profile,
+                                "repeat_index": repeat_index,
+                                "variant_index": variant_index,
+                                "request_count": request_count,
+                                "max_new_tokens": max_new_tokens,
+                                "prompt_index": row["prompt_index"],
+                                "prompt_format": row["prompt_format"],
+                                "prompt_tokens": row["prompt_tokens"],
+                                "suffix_after_common_tokens": max(
+                                    row["prompt_tokens"] - common_prefix_tokens,
+                                    0,
+                                ),
+                                "formatted_prompt_sha256_16": hashlib.sha256(
+                                    formatted_prompt.encode("utf-8")
+                                ).hexdigest()[:16],
+                                "token_ids_head": json.dumps(token_ids[:16]),
+                                "token_ids_tail": json.dumps(token_ids[-16:]),
+                                "prompt_preview": row["prompt"][:240],
+                                "formatted_prompt_preview": formatted_prompt[:240],
+                            }
+                        )
+
+    profile_control_rows = _vllm_prefix_cache_prompt_audit_profile_control_rows(
+        scenario_rows
+    )
+    summary = _vllm_prefix_cache_prompt_audit_summary(
+        scenario_rows,
+        profile_control_rows,
+    )
+    payload = {
+        "schema_version": 1,
+        "execution": "local",
+        "mode": "vllm-prefix-cache-prompt-audit",
+        "model_id": hf_model,
+        "request_counts": request_count_values,
+        "prompt_profiles": prompt_profile_values,
+        "output_tokens": output_token_values,
+        "repeats": int(repeats),
+        "scenario_seed": int(scenario_seed),
+        "kv_cache_block_size": int(kv_cache_block_size),
+        "scenario_count": len(scenario_rows),
+        "prompt_count": len(prompt_rows),
+        "profile_control_row_count": len(profile_control_rows),
+        "summary": summary,
+        "scenario_rows": scenario_rows,
+        "prompt_rows": prompt_rows,
+        "profile_control_rows": profile_control_rows,
+        "note": (
+            "This tokenizer audit estimates reusable full KV-cache blocks from "
+            "exact leading token overlap. It does not execute vLLM; it explains "
+            "the prompt shape behind the measured prefix-cache counter results."
+        ),
+    }
+    payload["markdown"] = _format_vllm_prefix_cache_prompt_audit_markdown(payload)
+    return payload
+
+
+def _common_prefix_token_count(token_rows: list[list[int]]) -> int:
+    if not token_rows:
+        return 0
+    shortest = min(len(row) for row in token_rows)
+    count = 0
+    for index in range(shortest):
+        token = token_rows[0][index]
+        if any(row[index] != token for row in token_rows[1:]):
+            break
+        count += 1
+    return count
+
+
+def _token_block_count(token_count: int, block_size: int) -> int:
+    if block_size <= 0:
+        raise ValueError("block_size must be positive")
+    return max(token_count, 0) // block_size
+
+
+def _vllm_prefix_cache_prompt_audit_profile_control_rows(
+    scenario_rows: list[dict[str, Any]],
+    shared_profile: str = "shared_prefix_long_variant",
+    control_profile: str = "matched_unique_prefix_variant",
+) -> list[dict[str, Any]]:
+    by_key: dict[tuple[int, int, int], dict[str, dict[str, Any]]] = {}
+    for row in scenario_rows:
+        key = (
+            int(row["repeat_index"]),
+            int(row["request_count"]),
+            int(row["max_new_tokens"]),
+        )
+        by_key.setdefault(key, {})[str(row["prompt_profile"])] = row
+
+    profile_control_rows = []
+    for key in sorted(by_key):
+        repeat_index, request_count, max_new_tokens = key
+        rows = by_key[key]
+        shared = rows.get(shared_profile)
+        control = rows.get(control_profile)
+        if shared is None or control is None:
+            continue
+        profile_control_rows.append(
+            {
+                "repeat_index": repeat_index,
+                "request_count": request_count,
+                "max_new_tokens": max_new_tokens,
+                "shared_profile": shared_profile,
+                "control_profile": control_profile,
+                "shared_variant_index": shared["variant_index"],
+                "control_variant_index": control["variant_index"],
+                "shared_common_prefix_tokens": shared["common_prefix_tokens"],
+                "control_common_prefix_tokens": control["common_prefix_tokens"],
+                "shared_minus_control_common_prefix_tokens": _delta(
+                    shared["common_prefix_tokens"],
+                    control["common_prefix_tokens"],
+                ),
+                "shared_common_prefix_full_blocks": shared[
+                    "common_prefix_full_blocks"
+                ],
+                "control_common_prefix_full_blocks": control[
+                    "common_prefix_full_blocks"
+                ],
+                "shared_minus_control_common_prefix_full_blocks": _delta(
+                    shared["common_prefix_full_blocks"],
+                    control["common_prefix_full_blocks"],
+                ),
+                "shared_estimated_reusable_block_tokens": shared[
+                    "estimated_reusable_block_tokens"
+                ],
+                "control_estimated_reusable_block_tokens": control[
+                    "estimated_reusable_block_tokens"
+                ],
+                "shared_minus_control_estimated_reusable_block_tokens": _delta(
+                    shared["estimated_reusable_block_tokens"],
+                    control["estimated_reusable_block_tokens"],
+                ),
+                "shared_reusable_block_token_fraction": shared[
+                    "estimated_reusable_block_token_fraction_of_total_prompt"
+                ],
+                "control_reusable_block_token_fraction": control[
+                    "estimated_reusable_block_token_fraction_of_total_prompt"
+                ],
+                "shared_minus_control_reusable_block_token_fraction": _delta(
+                    shared[
+                        "estimated_reusable_block_token_fraction_of_total_prompt"
+                    ],
+                    control[
+                        "estimated_reusable_block_token_fraction_of_total_prompt"
+                    ],
+                ),
+            }
+        )
+    return profile_control_rows
+
+
+def _vllm_prefix_cache_prompt_audit_summary(
+    scenario_rows: list[dict[str, Any]],
+    profile_control_rows: list[dict[str, Any]],
+) -> dict[str, Any]:
+    shared_rows = [
+        row
+        for row in scenario_rows
+        if row["prompt_profile"] == "shared_prefix_long_variant"
+    ]
+    control_rows = [
+        row
+        for row in scenario_rows
+        if row["prompt_profile"] == "matched_unique_prefix_variant"
+    ]
+    return {
+        "scenario_count": len(scenario_rows),
+        "profile_control_row_count": len(profile_control_rows),
+        "shared_common_prefix_tokens_mean": _mean_present(
+            row["common_prefix_tokens"] for row in shared_rows
+        ),
+        "control_common_prefix_tokens_mean": _mean_present(
+            row["common_prefix_tokens"] for row in control_rows
+        ),
+        "shared_common_prefix_full_blocks_mean": _mean_present(
+            row["common_prefix_full_blocks"] for row in shared_rows
+        ),
+        "control_common_prefix_full_blocks_mean": _mean_present(
+            row["common_prefix_full_blocks"] for row in control_rows
+        ),
+        "shared_estimated_reusable_block_tokens_mean": _mean_present(
+            row["estimated_reusable_block_tokens"] for row in shared_rows
+        ),
+        "control_estimated_reusable_block_tokens_mean": _mean_present(
+            row["estimated_reusable_block_tokens"] for row in control_rows
+        ),
+        "shared_minus_control_common_prefix_blocks_mean": _mean_present(
+            row["shared_minus_control_common_prefix_full_blocks"]
+            for row in profile_control_rows
+        ),
+        "shared_minus_control_reusable_block_tokens_mean": _mean_present(
+            row["shared_minus_control_estimated_reusable_block_tokens"]
+            for row in profile_control_rows
+        ),
+        "shared_minus_control_reusable_block_fraction_mean": _mean_present(
+            row["shared_minus_control_reusable_block_token_fraction"]
+            for row in profile_control_rows
+        ),
+    }
+
+
+def _format_vllm_prefix_cache_prompt_audit_markdown(
+    payload: dict[str, Any],
+) -> str:
+    def fmt(value: Any, suffix: str = "") -> str:
+        if value is None:
+            return "n/a"
+        if isinstance(value, float):
+            return f"{value:.3f}{suffix}"
+        return f"{value}{suffix}"
+
+    summary = payload["summary"]
+    lines = [
+        "# Prefix-Cache Prompt Token Audit",
+        "",
+        f"Model: `{payload['model_id']}`",
+        f"Profiles: `{','.join(payload['prompt_profiles'])}`",
+        f"Request counts: `{','.join(str(v) for v in payload['request_counts'])}`",
+        f"Repeats: `{payload['repeats']}`",
+        f"Scenario seed: `{payload['scenario_seed']}`",
+        f"KV cache block size: `{payload['kv_cache_block_size']}`",
+        "",
+        "## Summary",
+        "",
+        "| Metric | Value |",
+        "| --- | ---: |",
+        (
+            "| Mean shared common-prefix full blocks | "
+            f"{fmt(summary['shared_common_prefix_full_blocks_mean'])} |"
+        ),
+        (
+            "| Mean control common-prefix full blocks | "
+            f"{fmt(summary['control_common_prefix_full_blocks_mean'])} |"
+        ),
+        (
+            "| Mean shared-minus-control common-prefix blocks | "
+            f"{fmt(summary['shared_minus_control_common_prefix_blocks_mean'])} |"
+        ),
+        (
+            "| Mean shared-minus-control reusable block tokens | "
+            f"{fmt(summary['shared_minus_control_reusable_block_tokens_mean'])} |"
+        ),
+        (
+            "| Mean shared-minus-control reusable block fraction | "
+            f"{fmt(summary['shared_minus_control_reusable_block_fraction_mean'])} |"
+        ),
+        "",
+        "## Scenario Audit",
+        "",
+        (
+            "| Profile | Repeat | Requests | Common Prefix Tokens | Full Blocks | "
+            "Reusable Block Tokens | Reusable Fraction |"
+        ),
+        "| --- | ---: | ---: | ---: | ---: | ---: | ---: |",
+    ]
+    for row in payload["scenario_rows"]:
+        lines.append(
+            f"| `{row['prompt_profile']}` | "
+            f"{row['repeat_index']} | "
+            f"{row['request_count']} | "
+            f"{row['common_prefix_tokens']} | "
+            f"{row['common_prefix_full_blocks']} | "
+            f"{row['estimated_reusable_block_tokens']} | "
+            f"{fmt(row['estimated_reusable_block_token_fraction_of_total_prompt'])} |"
+        )
+
+    lines.extend(
+        [
+            "",
+            "## Shared Vs Control",
+            "",
+            (
+                "| Repeat | Requests | Shared Blocks | Control Blocks | "
+                "Block Delta | Reusable Token Delta |"
+            ),
+            "| ---: | ---: | ---: | ---: | ---: | ---: |",
+        ]
+    )
+    for row in payload["profile_control_rows"]:
+        lines.append(
+            f"| {row['repeat_index']} | "
+            f"{row['request_count']} | "
+            f"{row['shared_common_prefix_full_blocks']} | "
+            f"{row['control_common_prefix_full_blocks']} | "
+            f"{fmt(row['shared_minus_control_common_prefix_full_blocks'])} | "
+            f"{fmt(row['shared_minus_control_estimated_reusable_block_tokens'])} |"
+        )
+
+    lines.extend(
+        [
+            "",
+            (
+                "Reusable block tokens estimate how many full leading-token "
+                "blocks could be reused by requests after the first request in "
+                "a batch. This is a tokenizer/block audit, not a vLLM timing "
+                "measurement."
+            ),
+            "",
+        ]
+    )
+    return "\n".join(lines)
 
 
 def _tokenize_prompt(tokenizer: Any, prompt: str) -> tuple[dict[str, Any], str]:

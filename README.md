@@ -592,6 +592,19 @@ modal run modal_app.py --mode vllm-prefix-cache-isolated-stability-summary \
   --output-dir results/modal-vllm-prefix-cache-variant-stability-summary
 ```
 
+Audit prompt token and cache-block alignment for the variant grid:
+
+```bash
+modal run modal_app.py --mode vllm-prefix-cache-prompt-audit \
+  --prompt-profiles shared_prefix_long_variant,matched_unique_prefix_variant \
+  --output-tokens 8 \
+  --request-counts 2,4,8 \
+  --repeats 3 \
+  --scenario-seed 577 \
+  --kv-cache-block-size 16 \
+  --output-dir results/modal-vllm-prefix-cache-prompt-audit-variant-stability
+```
+
 Modal training is documented in
 [`docs/modal-training.md`](docs/modal-training.md).
 
