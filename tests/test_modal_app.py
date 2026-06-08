@@ -236,6 +236,72 @@ class ModalAppTests(unittest.TestCase):
         self.assertEqual(payload["shared_profile"], "shared_prefix_long_variant")
         self.assertEqual(payload["control_profile"], "matched_unique_prefix_variant")
 
+    def test_isolated_metrics_merge_reindexes_chunk_repeats(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source_dirs = []
+            for chunk_index, partial in enumerate((False, True)):
+                metrics_dir = root / f"chunk-{chunk_index}"
+                metrics_dir.mkdir()
+                suffix = ".partial" if partial else ""
+                (metrics_dir / f"prefix-cache-isolated-metrics{suffix}.json").write_text(
+                    json.dumps(
+                        {
+                            "mode": "vllm-prefix-cache-isolated-neutral-warmup",
+                            "model_id": "fake-model",
+                            "warmup_runs": 1,
+                            "warmup_prompt_profile": "neutral_long",
+                            "repeats": 2,
+                            "scenario_seed": 577 + chunk_index,
+                            "phase_order": "cold_first",
+                            "checkpoint_complete": not partial,
+                            "scenario_count": 2,
+                            "paired_run_count": 4,
+                            "remote_call_count": 4,
+                            "planned_remote_call_count": 4,
+                        }
+                    ),
+                    encoding="utf-8",
+                )
+                modal_app._write_records_csv(
+                    metrics_dir / f"prefix-cache-isolated-metrics-runs{suffix}.csv",
+                    _stability_run_rows(),
+                )
+                source_dirs.append(metrics_dir)
+
+            merged = modal_app._merge_vllm_prefix_cache_isolated_metrics(source_dirs)
+            merged_dir = root / "merged"
+            merged_dir.mkdir()
+            (merged_dir / "prefix-cache-isolated-metrics.json").write_text(
+                json.dumps(merged),
+                encoding="utf-8",
+            )
+            modal_app._write_records_csv(
+                merged_dir / "prefix-cache-isolated-metrics-runs.csv",
+                merged["paired_runs"],
+            )
+
+            summary = modal_app._summarize_vllm_prefix_cache_isolated_stability(
+                merged_dir,
+            )
+
+        self.assertEqual(merged["mode"], "vllm-prefix-cache-isolated-merge")
+        self.assertEqual(merged["source_chunk_count"], 2)
+        self.assertEqual(merged["paired_run_count"], 8)
+        self.assertEqual(merged["repeats"], 4)
+        self.assertFalse(merged["checkpoint_complete"])
+        self.assertEqual(
+            sorted({row["repeat_index"] for row in merged["paired_runs"]}),
+            [0, 1, 2, 3],
+        )
+        comparison = summary["profile_control_rows"][0]
+        self.assertEqual(
+            comparison[
+                "shared_minus_control_cache_counter_hit_rate_pct_paired_observation_count"
+            ],
+            4,
+        )
+
     def test_variant_prompt_profiles_change_family_by_seed(self) -> None:
         first_family = modal_app._select_sweep_prompts(
             2,

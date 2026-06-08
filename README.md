@@ -741,6 +741,22 @@ modal run modal_app.py --mode vllm-prefix-cache-isolated-stability-summary \
   --output-dir results/modal-vllm-prefix-cache-no-repeat-n16-stability-r8-summary-ttft
 ```
 
+Merge smaller isolated metrics chunks into a single stability source:
+
+```bash
+modal run modal_app.py --mode vllm-prefix-cache-isolated-merge \
+  --prefix-cache-isolated-merge-dirs results/modal-vllm-prefix-cache-extra-long-no-repeat-n16-smoke-r3,results/modal-vllm-prefix-cache-extra-long-no-repeat-n16-chunk-r3-seed680 \
+  --prefix-cache-shared-profile shared_prefix_extra_long_no_repeat_variant \
+  --prefix-cache-control-profile matched_unique_prefix_extra_long_no_repeat_variant \
+  --output-dir results/modal-vllm-prefix-cache-extra-long-no-repeat-n16-merged
+
+modal run modal_app.py --mode vllm-prefix-cache-isolated-stability-summary \
+  --prefix-cache-isolated-metrics-dir results/modal-vllm-prefix-cache-extra-long-no-repeat-n16-merged \
+  --prefix-cache-shared-profile shared_prefix_extra_long_no_repeat_variant \
+  --prefix-cache-control-profile matched_unique_prefix_extra_long_no_repeat_variant \
+  --output-dir results/modal-vllm-prefix-cache-extra-long-no-repeat-n16-merged-summary
+```
+
 Modal training is documented in
 [`docs/modal-training.md`](docs/modal-training.md).
 

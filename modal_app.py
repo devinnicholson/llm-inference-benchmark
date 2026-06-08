@@ -73,6 +73,9 @@ DEFAULT_VLLM_PREFIX_CACHE_PROFILE_MULTITRIAL_OUTPUT = (
 DEFAULT_VLLM_PREFIX_CACHE_ISOLATED_METRICS_OUTPUT = (
     "results/modal-vllm-prefix-cache-isolated-metrics"
 )
+DEFAULT_VLLM_PREFIX_CACHE_ISOLATED_MERGE_OUTPUT = (
+    "results/modal-vllm-prefix-cache-isolated-merged-metrics"
+)
 DEFAULT_VLLM_PREFIX_CACHE_ISOLATED_WARM_WINDOW_OUTPUT = (
     "results/modal-vllm-prefix-cache-isolated-warm-window"
 )
@@ -4064,6 +4067,7 @@ def main(
     prefix_cache_phase_order_compare_dir: str = DEFAULT_VLLM_PREFIX_CACHE_PHASE_ORDER_COMPARE_OUTPUT,
     prefix_cache_profile_control_dirs: str = DEFAULT_VLLM_PREFIX_CACHE_PROFILE_CONTROL_DIRS,
     prefix_cache_isolated_metrics_dir: str = DEFAULT_VLLM_PREFIX_CACHE_ISOLATED_METRICS_OUTPUT,
+    prefix_cache_isolated_merge_dirs: str = "",
     prefix_cache_shared_profile: str = "shared_prefix_long",
     prefix_cache_control_profile: str = "matched_unique_prefix",
     output_dir: str = "",
@@ -4634,6 +4638,44 @@ def main(
         print(f"markdown: {markdown_path}")
         return
 
+    if mode == "vllm-prefix-cache-isolated-merge":
+        shared_profile, control_profile = normalized_prefix_cache_control_profiles()
+        payload = _merge_vllm_prefix_cache_isolated_metrics(
+            source_dirs=[
+                Path(path)
+                for path in _split_csv(prefix_cache_isolated_merge_dirs)
+            ],
+            shared_profile=shared_profile,
+            control_profile=control_profile,
+        )
+        output_path = Path(output_dir or DEFAULT_VLLM_PREFIX_CACHE_ISOLATED_MERGE_OUTPUT)
+        output_path.mkdir(parents=True, exist_ok=True)
+        json_path = output_path / "prefix-cache-isolated-metrics.json"
+        summary_csv_path = output_path / "prefix-cache-isolated-metrics-summary.csv"
+        runs_csv_path = output_path / "prefix-cache-isolated-metrics-runs.csv"
+        profile_csv_path = output_path / "prefix-cache-isolated-profile-control.csv"
+        chunks_csv_path = output_path / "prefix-cache-isolated-merge-sources.csv"
+        json_path.write_text(
+            json.dumps(payload, indent=2, sort_keys=True) + "\n",
+            encoding="utf-8",
+        )
+        _write_records_csv(summary_csv_path, payload["summary"])
+        _write_records_csv(runs_csv_path, payload["paired_runs"])
+        _write_records_csv(profile_csv_path, payload["profile_control"]["rows"])
+        _write_records_csv(chunks_csv_path, payload["source_chunks"])
+
+        print(f"source_chunks: {payload['source_chunk_count']}")
+        print(f"scenarios: {payload['scenario_count']}")
+        print(f"paired_runs: {payload['paired_run_count']}")
+        print(f"remote_calls: {payload['remote_call_count']}")
+        print(f"checkpoint_complete: {payload['checkpoint_complete']}")
+        print(f"json: {json_path}")
+        print(f"summary_csv: {summary_csv_path}")
+        print(f"runs_csv: {runs_csv_path}")
+        print(f"profile_csv: {profile_csv_path}")
+        print(f"sources_csv: {chunks_csv_path}")
+        return
+
     if mode in {
         "vllm-prefix-cache-isolated-metrics",
         "vllm-prefix-cache-isolated-warm-window",
@@ -5166,6 +5208,7 @@ def main(
             "'vllm-prefix-cache-isolated-window-summary', "
             "'vllm-prefix-cache-isolated-stability-summary', "
             "'vllm-prefix-cache-prompt-audit', "
+            "'vllm-prefix-cache-isolated-merge', "
             "'vllm-prefix-cache-isolated-neutral-warmup', "
             "'vllm-prefix-cache-isolated-warm-window', "
             "'vllm-prefix-cache-isolated-metrics', "
@@ -7234,10 +7277,18 @@ def _vllm_prefix_cache_isolated_profile_control_summary(
         for field in profile_control_rows[0]
         if field.startswith("shared_minus_control_")
     ]
-    summary = {
-        f"mean_{field}": _mean_present(row[field] for row in profile_control_rows)
-        for field in summary_fields
-    }
+    summary = {}
+    for field in summary_fields:
+        values = [
+            row[field]
+            for row in profile_control_rows
+            if row.get(field) is not None
+        ]
+        summary[f"mean_{field}"] = (
+            sum(float(value) for value in values) / len(values)
+            if values
+            else None
+        )
     summary["mean_shared_to_control_prompt_tokens_mean_ratio"] = _mean_present(
         row["shared_to_control_prompt_tokens_mean_ratio"]
         for row in profile_control_rows
@@ -7291,6 +7342,264 @@ def _prefix_cache_isolated_metrics_source_paths(
     if final_json.exists() or not partial_json.exists():
         return final_json, final_runs_csv
     return partial_json, partial_runs_csv
+
+
+def _coerce_csv_scalar(value: str) -> Any:
+    if value == "":
+        return None
+    try:
+        return int(value)
+    except ValueError:
+        pass
+    try:
+        return float(value)
+    except ValueError:
+        return value
+
+
+def _read_isolated_metric_run_rows(
+    source_payload: dict[str, Any],
+    source_runs_csv: Path,
+) -> list[dict[str, Any]]:
+    if source_runs_csv.exists():
+        with source_runs_csv.open("r", encoding="utf-8", newline="") as handle:
+            return [
+                {
+                    field: _coerce_csv_scalar(value)
+                    for field, value in row.items()
+                }
+                for row in csv.DictReader(handle)
+            ]
+    return [dict(row) for row in source_payload.get("paired_runs", [])]
+
+
+def _ordered_unique(values: Any) -> list[Any]:
+    unique = []
+    for value in values:
+        if value not in unique:
+            unique.append(value)
+    return unique
+
+
+def _same_value_or_list(values: Any) -> Any:
+    unique = _ordered_unique(values)
+    if not unique:
+        return None
+    return unique[0] if len(unique) == 1 else unique
+
+
+def _merge_vllm_prefix_cache_isolated_metrics(
+    source_dirs: list[Path],
+    shared_profile: str = "shared_prefix_long",
+    control_profile: str = "matched_unique_prefix",
+) -> dict[str, Any]:
+    if not source_dirs:
+        raise ValueError("At least one isolated metrics source directory is required")
+
+    paired_runs: list[dict[str, Any]] = []
+    remote_call_summaries: list[dict[str, Any]] = []
+    source_chunks: list[dict[str, Any]] = []
+    source_payloads: list[dict[str, Any]] = []
+    next_repeat_index = 0
+    next_call_index = 0
+    planned_remote_call_count = 0
+
+    for chunk_index, source_dir in enumerate(source_dirs):
+        source_json, source_runs_csv = _prefix_cache_isolated_metrics_source_paths(
+            source_dir
+        )
+        source_payload = json.loads(source_json.read_text(encoding="utf-8"))
+        source_rows = _read_isolated_metric_run_rows(source_payload, source_runs_csv)
+        if not source_rows:
+            raise ValueError(f"No isolated metric rows found in {source_dir}")
+
+        source_payloads.append(source_payload)
+        source_repeat_values = sorted(
+            {
+                int(row.get("repeat_index") or 0)
+                for row in source_rows
+            }
+        )
+        repeat_index_map = {
+            source_repeat: next_repeat_index + offset
+            for offset, source_repeat in enumerate(source_repeat_values)
+        }
+
+        source_call_index_map: dict[Any, int] = {}
+        source_remote_calls = source_payload.get("remote_call_summaries") or []
+        for call_ordinal, call in enumerate(source_remote_calls):
+            source_call_index = int(call.get("isolation_call_index", call_ordinal))
+            global_call_index = next_call_index
+            next_call_index += 1
+            source_call_index_map[source_call_index] = global_call_index
+
+            merged_call = dict(call)
+            merged_call["source_chunk_index"] = chunk_index
+            merged_call["source_dir"] = str(source_dir)
+            merged_call["source_isolation_call_index"] = source_call_index
+            merged_call["isolation_call_index"] = global_call_index
+            remote_call_summaries.append(merged_call)
+
+        for row_ordinal, row in enumerate(source_rows):
+            source_repeat_index = int(row.get("repeat_index") or 0)
+            global_repeat_index = repeat_index_map[source_repeat_index]
+            source_call_value = row.get("isolation_call_index")
+            source_call_key: Any
+            if source_call_value is None:
+                source_call_key = f"row:{row_ordinal}"
+                source_call_index = None
+            else:
+                source_call_index = int(source_call_value)
+                source_call_key = source_call_index
+
+            if source_call_key not in source_call_index_map:
+                source_call_index_map[source_call_key] = next_call_index
+                remote_call_summaries.append(
+                    {
+                        "isolation_call_index": next_call_index,
+                        "source_chunk_index": chunk_index,
+                        "source_dir": str(source_dir),
+                        "source_isolation_call_index": source_call_index,
+                        "source_row_ordinal": row_ordinal,
+                        "synthetic": True,
+                    }
+                )
+                next_call_index += 1
+            global_call_index = source_call_index_map[source_call_key]
+
+            merged_row = dict(row)
+            merged_row["source_chunk_index"] = chunk_index
+            merged_row["source_dir"] = str(source_dir)
+            merged_row["source_json"] = str(source_json)
+            merged_row["source_runs_csv"] = str(source_runs_csv)
+            merged_row["source_repeat_index"] = source_repeat_index
+            merged_row["source_isolation_call_index"] = source_call_index
+            merged_row["repeat_index"] = global_repeat_index
+            merged_row["isolation_call_index"] = global_call_index
+            merged_row["pair_id"] = (
+                f"{merged_row['scenario_id']}_merged_rep{global_repeat_index:02d}"
+            )
+            paired_runs.append(merged_row)
+
+        chunk_complete = source_payload.get("checkpoint_complete")
+        if chunk_complete is None:
+            chunk_complete = source_json.name == "prefix-cache-isolated-metrics.json"
+        source_chunks.append(
+            {
+                "source_chunk_index": chunk_index,
+                "source_dir": str(source_dir),
+                "source_json": str(source_json),
+                "source_runs_csv": str(source_runs_csv),
+                "source_mode": source_payload.get("mode"),
+                "source_checkpoint_complete": chunk_complete,
+                "source_repeats": source_payload.get("repeats"),
+                "source_repeat_count": len(source_repeat_values),
+                "global_repeat_start": min(repeat_index_map.values()),
+                "global_repeat_end": max(repeat_index_map.values()),
+                "source_paired_run_count": len(source_rows),
+                "source_remote_call_count": len(source_remote_calls),
+            }
+        )
+        planned_remote_call_count += int(
+            source_payload.get("planned_remote_call_count") or len(source_rows)
+        )
+        next_repeat_index += len(source_repeat_values)
+
+    paired_scenarios = _aggregate_vllm_prefix_cache_paired_scenarios(paired_runs)
+    summary_rows = _vllm_prefix_cache_paired_summary_rows(paired_scenarios)
+    profile_control_rows = _vllm_prefix_cache_isolated_profile_control_rows(
+        paired_scenarios,
+        shared_profile=shared_profile,
+        control_profile=control_profile,
+    )
+
+    request_count_values = sorted(
+        {int(row["request_count"]) for row in paired_runs}
+    )
+    prompt_profile_values = _ordered_unique(row["prompt_profile"] for row in paired_runs)
+    output_token_values = sorted(
+        {int(row["max_new_tokens"]) for row in paired_runs}
+    )
+    checkpoint_complete = all(
+        bool(row["source_checkpoint_complete"]) for row in source_chunks
+    )
+    return {
+        "schema_version": 1,
+        "execution": "local",
+        "mode": "vllm-prefix-cache-isolated-merge",
+        "backend": "vllm-paired-prefix-cache",
+        "model_id": _same_value_or_list(
+            payload.get("model_id") for payload in source_payloads
+        ),
+        "source_chunk_count": len(source_chunks),
+        "source_chunks": source_chunks,
+        "source_modes": _ordered_unique(
+            payload.get("mode") for payload in source_payloads
+        ),
+        "source_dirs": [str(path) for path in source_dirs],
+        "source_checkpoint_complete": checkpoint_complete,
+        "request_counts": request_count_values,
+        "prompt_profiles": prompt_profile_values,
+        "output_tokens": output_token_values,
+        "repeats": next_repeat_index,
+        "scenario_seed": _same_value_or_list(
+            payload.get("scenario_seed") for payload in source_payloads
+        ),
+        "phase_order": _same_value_or_list(
+            payload.get("phase_order") for payload in source_payloads
+        ),
+        "warmup_runs": _same_value_or_list(
+            payload.get("warmup_runs") for payload in source_payloads
+        ),
+        "warmup_prompt_profile": _same_value_or_list(
+            payload.get("warmup_prompt_profile") for payload in source_payloads
+        ),
+        "collect_cache_metrics": _same_value_or_list(
+            payload.get("collect_cache_metrics") for payload in source_payloads
+        ),
+        "kv_cache_metrics_sample": _same_value_or_list(
+            payload.get("kv_cache_metrics_sample") for payload in source_payloads
+        ),
+        "checkpoint_complete": checkpoint_complete,
+        "planned_remote_call_count": planned_remote_call_count,
+        "remote_call_count": len(remote_call_summaries),
+        "scenario_count": len(paired_scenarios),
+        "paired_run_count": len(paired_runs),
+        "summary": summary_rows,
+        "paired_runs": paired_runs,
+        "paired_scenarios": paired_scenarios,
+        "profile_control": {
+            "shared_profile": shared_profile,
+            "control_profile": control_profile,
+            "row_count": len(profile_control_rows),
+            "summary": _vllm_prefix_cache_isolated_profile_control_summary(
+                profile_control_rows
+            ),
+            "rows": profile_control_rows,
+        },
+        "remote_call_summaries": remote_call_summaries,
+        "mean_cache_to_cold_throughput_ratio": _mean_present(
+            row["cache_to_cold_output_tokens_per_second_ratio"]
+            for row in paired_runs
+        ),
+        "mean_cache_to_cold_first_event_ratio": _mean_present(
+            row["cache_to_cold_p95_first_event_ms_ratio"]
+            for row in paired_runs
+        ),
+        "mean_cache_to_cold_latency_ratio": _mean_present(
+            row["cache_to_cold_p95_latency_ms_ratio"] for row in paired_runs
+        ),
+        "mean_cache_to_cold_tpot_ratio": _mean_present(
+            row["cache_to_cold_p95_stream_tpot_ms_ratio"]
+            for row in paired_runs
+        ),
+        "note": (
+            "Merged isolated metrics artifact. Source chunks may be final or "
+            "partial checkpoint directories; repeat_index and isolation_call_index "
+            "are reindexed globally so stability summaries can pair observations "
+            "across chunks."
+        ),
+    }
 
 
 def _summarize_vllm_prefix_cache_isolated_window(

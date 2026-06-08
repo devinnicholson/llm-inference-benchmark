@@ -5295,3 +5295,65 @@ partial checkpoint files when the final JSON is missing.
 Retry the extra-long stability pass in smaller chunks or move the whole r8
 orchestration into a Modal remote function so the local client lifecycle cannot
 cancel accumulated work.
+
+# Training 053: Isolated Metrics Chunk Merge
+
+Training 053 adds `vllm-prefix-cache-isolated-merge`, a local artifact combiner
+for isolated prefix-cache metrics directories.
+
+## Goal
+
+Make longer stability runs less dependent on one long `modal run` client
+lifecycle. Instead of requiring a single r8 run to finish, we can run smaller
+chunks, preserve partial checkpoints, and merge completed chunks into the same
+file layout that `vllm-prefix-cache-isolated-stability-summary` already reads.
+
+## Result
+
+The merge mode reads final artifacts when present and falls back to checkpoint
+artifacts otherwise:
+
+```text
+prefix-cache-isolated-metrics.json
+prefix-cache-isolated-metrics-runs.csv
+prefix-cache-isolated-metrics.partial.json
+prefix-cache-isolated-metrics-runs.partial.csv
+```
+
+It writes a normal isolated metrics artifact:
+
+```text
+prefix-cache-isolated-metrics.json
+prefix-cache-isolated-metrics-summary.csv
+prefix-cache-isolated-metrics-runs.csv
+prefix-cache-isolated-profile-control.csv
+prefix-cache-isolated-merge-sources.csv
+```
+
+The important implementation detail is repeat reindexing. Every source chunk
+starts its local repeats at zero, so the merge assigns global repeat indices
+before writing the merged runs CSV. That lets the existing stability summary
+keep pairing shared/control observations by repeat without overwriting chunked
+observations.
+
+## Reproduce
+
+```bash
+modal run modal_app.py --mode vllm-prefix-cache-isolated-merge \
+  --prefix-cache-isolated-merge-dirs results/modal-vllm-prefix-cache-extra-long-no-repeat-n16-smoke-r3,results/modal-vllm-prefix-cache-extra-long-no-repeat-n16-chunk-r3-seed680 \
+  --prefix-cache-shared-profile shared_prefix_extra_long_no_repeat_variant \
+  --prefix-cache-control-profile matched_unique_prefix_extra_long_no_repeat_variant \
+  --output-dir results/modal-vllm-prefix-cache-extra-long-no-repeat-n16-merged
+
+modal run modal_app.py --mode vllm-prefix-cache-isolated-stability-summary \
+  --prefix-cache-isolated-metrics-dir results/modal-vllm-prefix-cache-extra-long-no-repeat-n16-merged \
+  --prefix-cache-shared-profile shared_prefix_extra_long_no_repeat_variant \
+  --prefix-cache-control-profile matched_unique_prefix_extra_long_no_repeat_variant \
+  --output-dir results/modal-vllm-prefix-cache-extra-long-no-repeat-n16-merged-summary
+```
+
+## Next Step
+
+Run the next extra-long chunk with a new scenario seed, merge it with the r3
+smoke, and check whether the broader timing intervals still stay on the
+favorable side of zero.

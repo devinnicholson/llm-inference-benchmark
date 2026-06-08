@@ -106,6 +106,9 @@ results/prefix-cache-study-extra-long-smoke-r3/intervals.md
 In that smoke, direct counter reuse, p95 first-event/TTFT, throughput,
 end-to-end p95 latency, and stream TPOT all move in the expected direction. A
 longer stability pass is still needed before promoting the broader timing claim.
+Training 053 adds a chunk merge mode for that next pass, so additional r2/r3
+chunks can be merged with the existing r3 smoke before generating a new
+stability summary.
 
 ## Reproduce
 
