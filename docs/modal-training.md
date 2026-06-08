@@ -2836,3 +2836,110 @@ phase orders with at least the compact grid from Training 028 first, then expand
 back to repeats and request counts if the metric fields remain stable. The
 phase-order and profile-control comparison artifacts should also carry cache hit
 rate deltas forward, not only timing ratios.
+
+# Training 029: Metrics-Aware Phase-Order and Profile-Control Smoke
+
+Training 029 extends the comparison artifacts so cache metrics survive beyond
+the raw paired rows.
+
+## Goal
+
+Carry direct cache-hit fields through:
+
+- `vllm-prefix-cache-phase-order-compare`
+- `vllm-prefix-cache-profile-control`
+
+This lets later artifacts compare timing and cache behavior in the same table.
+
+## Commands
+
+```bash
+modal run modal_app.py --mode vllm-prefix-cache-paired \
+  --prompt-profiles shared_prefix_long,matched_unique_prefix \
+  --output-tokens 8 \
+  --request-counts 4 \
+  --repeats 1 \
+  --warmup-runs 1 \
+  --scenario-seed 570 \
+  --phase-order cache_first \
+  --cache-metrics on \
+  --kv-cache-metrics-sample 1.0 \
+  --output-dir results/modal-vllm-prefix-cache-metrics-paired-smoke-cache-first
+```
+
+```bash
+modal run modal_app.py --mode vllm-prefix-cache-phase-order-compare \
+  --prefix-cache-cold-first-paired-dir results/modal-vllm-prefix-cache-metrics-paired-smoke \
+  --prefix-cache-cache-first-paired-dir results/modal-vllm-prefix-cache-metrics-paired-smoke-cache-first \
+  --output-dir results/modal-vllm-prefix-cache-metrics-phase-order-smoke
+```
+
+```bash
+modal run modal_app.py --mode vllm-prefix-cache-profile-control \
+  --prefix-cache-phase-order-compare-dir results/modal-vllm-prefix-cache-metrics-phase-order-smoke \
+  --output-dir results/modal-vllm-prefix-cache-metrics-profile-control-smoke
+```
+
+## Artifacts
+
+```text
+results/modal-vllm-prefix-cache-metrics-paired-smoke-cache-first/paired-prefix-cache.json
+results/modal-vllm-prefix-cache-metrics-paired-smoke-cache-first/paired-prefix-cache-summary.csv
+results/modal-vllm-prefix-cache-metrics-paired-smoke-cache-first/paired-prefix-cache-runs.csv
+results/modal-vllm-prefix-cache-metrics-phase-order-smoke/prefix-cache-phase-order-compare.json
+results/modal-vllm-prefix-cache-metrics-phase-order-smoke/prefix-cache-phase-order-compare.csv
+results/modal-vllm-prefix-cache-metrics-profile-control-smoke/prefix-cache-profile-control.json
+results/modal-vllm-prefix-cache-metrics-profile-control-smoke/prefix-cache-profile-control.csv
+```
+
+## Result
+
+This is still the compact smoke grid from Training 028: request count `4`,
+output tokens `8`, one repeat, and both long-control prompt profiles.
+
+Phase-order timing and hit-rate rows:
+
+| Profile | Cold-first throughput | Cache-first throughput | Cold-first p95 latency | Cache-first p95 latency | Cache hit rate |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| `matched_unique_prefix` | 1.631 | 0.593 | 0.613 | 1.687 | 58.0% |
+| `shared_prefix_long` | 1.122 | 1.024 | 0.892 | 0.976 | 68.1% |
+
+Profile-control deltas compare `shared_prefix_long` against
+`matched_unique_prefix`:
+
+| Phase order | Throughput delta | p95 latency delta | Cache-hit-rate delta |
+| --- | ---: | ---: | ---: |
+| `cold_first` | -0.509 | 0.279 | 10.1 pp |
+| `cache_first` | 0.431 | -0.711 | 10.1 pp |
+
+The metrics-aware comparison artifacts now carry:
+
+- `cold_first_cache_prefix_cache_hit_rate_pct`
+- `cache_first_cache_prefix_cache_hit_rate_pct`
+- `cold_first_prefix_cache_hit_rate_pct_delta`
+- `cache_first_prefix_cache_hit_rate_pct_delta`
+- shared-minus-control variants of those fields in profile-control output
+
+## Interpretation
+
+This is the first end-to-end artifact chain where cache hit rate survives from
+vLLM logs into paired rows, phase-order rows, and shared-vs-control rows.
+
+The cache metric is stable across phase orders in this compact smoke:
+`matched_unique_prefix` reports `58.0%`, while `shared_prefix_long` reports
+`68.1%`. The shared profile therefore has a direct cache-hit advantage of about
+`10.1` percentage points.
+
+The timing result still depends heavily on phase order. In `cold_first`, the
+matched control has the larger throughput win even though it has lower cache hit
+rate. In `cache_first`, the shared profile is better on both throughput ratio
+and p95 latency ratio. That reinforces the current research position: cache-hit
+rate is necessary evidence, but it does not by itself explain end-to-end
+latency on this small T4/SmolLM2 harness.
+
+## Next Step
+
+Training 030 should promote this from smoke to a small repeated metric trial:
+request counts `2,4,8`, both phase orders, `repeats=2`, and metrics enabled.
+The target artifact should answer whether the `~10 pp` shared-prefix hit-rate
+advantage is stable and whether any timing metric correlates with that advantage.

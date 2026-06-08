@@ -356,6 +356,27 @@ modal run modal_app.py --mode vllm-prefix-cache-paired \
   --cache-metrics on \
   --kv-cache-metrics-sample 1.0 \
   --output-dir results/modal-vllm-prefix-cache-metrics-paired-smoke
+
+modal run modal_app.py --mode vllm-prefix-cache-paired \
+  --prompt-profiles shared_prefix_long,matched_unique_prefix \
+  --output-tokens 8 \
+  --request-counts 4 \
+  --repeats 1 \
+  --warmup-runs 1 \
+  --scenario-seed 570 \
+  --phase-order cache_first \
+  --cache-metrics on \
+  --kv-cache-metrics-sample 1.0 \
+  --output-dir results/modal-vllm-prefix-cache-metrics-paired-smoke-cache-first
+
+modal run modal_app.py --mode vllm-prefix-cache-phase-order-compare \
+  --prefix-cache-cold-first-paired-dir results/modal-vllm-prefix-cache-metrics-paired-smoke \
+  --prefix-cache-cache-first-paired-dir results/modal-vllm-prefix-cache-metrics-paired-smoke-cache-first \
+  --output-dir results/modal-vllm-prefix-cache-metrics-phase-order-smoke
+
+modal run modal_app.py --mode vllm-prefix-cache-profile-control \
+  --prefix-cache-phase-order-compare-dir results/modal-vllm-prefix-cache-metrics-phase-order-smoke \
+  --output-dir results/modal-vllm-prefix-cache-metrics-profile-control-smoke
 ```
 
 Modal training is documented in

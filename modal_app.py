@@ -5862,6 +5862,12 @@ def _compare_vllm_prefix_cache_phase_orders(
         "cache_to_cold_p95_latency_ms_ratio_median",
         "cache_to_cold_p95_stream_tpot_ms_ratio_median",
         "cache_to_cold_batch_wall_ms_ratio_median",
+        "cold_prefix_cache_hit_rate_pct_median",
+        "cache_prefix_cache_hit_rate_pct_median",
+        "cache_to_cold_prefix_cache_hit_rate_pct_delta_median",
+        "cold_gpu_kv_cache_usage_pct_median",
+        "cache_gpu_kv_cache_usage_pct_median",
+        "cache_to_cold_gpu_kv_cache_usage_pct_delta_median",
     )
     rows = []
     for scenario_id in scenario_ids:
@@ -5878,7 +5884,9 @@ def _compare_vllm_prefix_cache_phase_orders(
         for field in ratio_fields:
             cold_first_value = _float_field(cold_first, field)
             cache_first_value = _float_field(cache_first, field)
-            short_field = field.removeprefix("cache_to_cold_").removesuffix("_median")
+            short_field = field.removesuffix("_median")
+            if short_field.startswith("cache_to_cold_"):
+                short_field = short_field.removeprefix("cache_to_cold_")
             row[f"cold_first_{short_field}"] = cold_first_value
             row[f"cache_first_{short_field}"] = cache_first_value
             row[f"cache_first_minus_cold_first_{short_field}"] = _delta(
@@ -5978,6 +5986,12 @@ def _compare_vllm_prefix_cache_profile_controls(
         "p95_latency_ms_ratio",
         "p95_stream_tpot_ms_ratio",
         "batch_wall_ms_ratio",
+        "cold_prefix_cache_hit_rate_pct",
+        "cache_prefix_cache_hit_rate_pct",
+        "prefix_cache_hit_rate_pct_delta",
+        "cold_gpu_kv_cache_usage_pct",
+        "cache_gpu_kv_cache_usage_pct",
+        "gpu_kv_cache_usage_pct_delta",
     )
     phase_labels = ("cold_first", "cache_first")
     comparison_rows = []
