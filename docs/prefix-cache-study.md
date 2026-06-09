@@ -370,6 +370,29 @@ p95 stream TPOT-ratio delta moves from `-0.675` in the default n32 r2 smoke to
 (`-0.957` to `-0.961`). This is still a smoke result, but it supports the
 capacity-control hypothesis strongly enough to promote to r5/r8 next.
 
+Training 076 promotes the `max_num_batched_tokens=60640` scheduler-control axis
+to r5:
+
+```text
+results/modal-vllm-prefix-cache-mega-long-qwen15b-l4-n32-batched-tokens60640-chunk-r3-seed2901/prefix-cache-isolated-metrics.json
+results/modal-vllm-prefix-cache-mega-long-qwen15b-l4-n32-batched-tokens60640-merged-r5/prefix-cache-isolated-metrics.json
+results/modal-vllm-prefix-cache-mega-long-qwen15b-l4-n32-batched-tokens60640-merged-r5-summary/prefix-cache-isolated-stability-summary.md
+results/prefix-cache-study-mega-long-qwen15b-l4-n32-batched-tokens60640-merged-r5/key-results.md
+results/prefix-cache-study-mega-long-qwen15b-l4-n32-batched-tokens60640-merged-r5/intervals.md
+```
+
+The r5 result has `10` scenario-level cold/cache paired runs, or `5`
+shared/control comparisons. It keeps the direct-cache effect stable with a
+`95.830 pp` direct counter delta and favorable timing intervals: p95
+first-event/TTFT ratio delta `-0.949`, throughput-ratio delta `8.343`, p95
+latency-ratio delta `-0.909`, and p95 stream TPOT-ratio delta `-0.931`. The
+important comparison is not that every metric improves versus the default n32
+r5 artifact: throughput is lower (`8.343` versus `9.711`) and p95 latency is
+slightly weaker (`-0.909` versus `-0.922`). The key systems finding is decode:
+the default n32 r5 TPOT delta was `-0.735`, while the controlled-budget r5 TPOT
+delta is `-0.931`. That points directly at the scheduler/KV-capacity budget as
+a driver of the n32 decode behavior.
+
 ## Reproduce
 
 Run the no-repeat n=16 fixed-shape stability pass:
@@ -530,11 +553,27 @@ results/modal-vllm-prefix-cache-mega-long-qwen15b-l4-n32-batched-tokens60640-smo
 results/prefix-cache-study-mega-long-qwen15b-l4-n32-batched-tokens60640-smoke-r2/key-results.md
 results/prefix-cache-study-mega-long-qwen15b-l4-n32-batched-tokens60640-smoke-r2/key-results.csv
 results/prefix-cache-study-mega-long-qwen15b-l4-n32-batched-tokens60640-smoke-r2/intervals.md
+results/modal-vllm-prefix-cache-mega-long-qwen15b-l4-n32-batched-tokens60640-chunk-r3-seed2901/prefix-cache-isolated-metrics.json
+results/modal-vllm-prefix-cache-mega-long-qwen15b-l4-n32-batched-tokens60640-chunk-r3-seed2901/prefix-cache-isolated-metrics-summary.csv
+results/modal-vllm-prefix-cache-mega-long-qwen15b-l4-n32-batched-tokens60640-chunk-r3-seed2901/prefix-cache-isolated-metrics-runs.csv
+results/modal-vllm-prefix-cache-mega-long-qwen15b-l4-n32-batched-tokens60640-chunk-r3-seed2901/prefix-cache-isolated-profile-control.csv
+results/modal-vllm-prefix-cache-mega-long-qwen15b-l4-n32-batched-tokens60640-merged-r5/prefix-cache-isolated-metrics.json
+results/modal-vllm-prefix-cache-mega-long-qwen15b-l4-n32-batched-tokens60640-merged-r5/prefix-cache-isolated-metrics-summary.csv
+results/modal-vllm-prefix-cache-mega-long-qwen15b-l4-n32-batched-tokens60640-merged-r5/prefix-cache-isolated-metrics-runs.csv
+results/modal-vllm-prefix-cache-mega-long-qwen15b-l4-n32-batched-tokens60640-merged-r5/prefix-cache-isolated-profile-control.csv
+results/modal-vllm-prefix-cache-mega-long-qwen15b-l4-n32-batched-tokens60640-merged-r5/prefix-cache-isolated-merge-sources.csv
+results/modal-vllm-prefix-cache-mega-long-qwen15b-l4-n32-batched-tokens60640-merged-r5-summary/prefix-cache-isolated-stability-summary.md
+results/modal-vllm-prefix-cache-mega-long-qwen15b-l4-n32-batched-tokens60640-merged-r5-summary/prefix-cache-isolated-stability-summary.json
+results/modal-vllm-prefix-cache-mega-long-qwen15b-l4-n32-batched-tokens60640-merged-r5-summary/prefix-cache-isolated-stability-summary.csv
+results/modal-vllm-prefix-cache-mega-long-qwen15b-l4-n32-batched-tokens60640-merged-r5-summary/prefix-cache-isolated-stability-profile-control.csv
+results/prefix-cache-study-mega-long-qwen15b-l4-n32-batched-tokens60640-merged-r5/key-results.md
+results/prefix-cache-study-mega-long-qwen15b-l4-n32-batched-tokens60640-merged-r5/key-results.csv
+results/prefix-cache-study-mega-long-qwen15b-l4-n32-batched-tokens60640-merged-r5/intervals.md
 ```
 
 ## Next Step
 
-Promote the `max_num_batched_tokens=60640` n32 scheduler-control smoke to r5,
-then r8 if the TPOT recovery remains stable. That gives the backend comparison
-a repeat-count-matched scheduler-control baseline instead of a request-count
-confound.
+Promote the `max_num_batched_tokens=60640` scheduler-control axis to r8. If the
+TPOT recovery remains stable at repeat-count parity with the default n32 and
+n16 artifacts, the next backend comparison can use this as the controlled vLLM
+baseline.
