@@ -4442,6 +4442,41 @@ def _run_vllm_server_async_paired_payload(
                 "usage": usage,
             }
 
+        async def snapshot_server_metrics(
+            client: httpx.AsyncClient,
+            label: str,
+        ) -> dict[str, Any]:
+            started = time.perf_counter()
+            try:
+                response = await client.get(f"{base_url}/metrics")
+                parsed = _parse_vllm_server_prometheus_metrics(response.text)
+                return {
+                    "label": label,
+                    "ok": response.status_code == 200,
+                    "status_code": response.status_code,
+                    "elapsed_ms": (time.perf_counter() - started) * 1000,
+                    **parsed,
+                }
+            except Exception as error:  # pragma: no cover - remote server probe
+                return {
+                    "label": label,
+                    "ok": False,
+                    "status_code": None,
+                    "elapsed_ms": (time.perf_counter() - started) * 1000,
+                    "error_type": type(error).__name__,
+                    "error": str(error)[:500],
+                    "sample_count": 0,
+                    "prefix_related_sample_count": 0,
+                    "prefix_related_samples": [],
+                    "total_requests": None,
+                    "total_queries": None,
+                    "total_hits": None,
+                    "hit_rate_pct": None,
+                    "selected_request_metric": None,
+                    "selected_query_metric": None,
+                    "selected_hit_metric": None,
+                }
+
         async def run_scenario(
             spec: dict[str, Any],
             repeat_index: int,
@@ -4450,8 +4485,12 @@ def _run_vllm_server_async_paired_payload(
         ) -> dict[str, Any]:
             max_tokens = max_tokens_override or spec["max_new_tokens"]
             run_id = f"rep{repeat_index:02d}-run{run_order:03d}"
-            batch_started = time.perf_counter()
             async with httpx.AsyncClient(timeout=None) as client:
+                metrics_before = await snapshot_server_metrics(
+                    client,
+                    f"{run_id}-before",
+                )
+                batch_started = time.perf_counter()
                 request_results = await asyncio.gather(
                     *(
                         stream_one(
@@ -4463,7 +4502,15 @@ def _run_vllm_server_async_paired_payload(
                         for record in spec["prompt_records"]
                     )
                 )
-            batch_wall_ms = (time.perf_counter() - batch_started) * 1000
+                batch_wall_ms = (time.perf_counter() - batch_started) * 1000
+                metrics_after = await snapshot_server_metrics(
+                    client,
+                    f"{run_id}-after",
+                )
+            counter_delta = _prefix_cache_counter_delta(
+                metrics_before,
+                metrics_after,
+            )
             summary = _summarize_server_stream_requests(request_results, batch_wall_ms)
             return {
                 "run_id": run_id,
@@ -4482,6 +4529,29 @@ def _run_vllm_server_async_paired_payload(
                     request["total_sequence_tokens"] for request in request_results
                 ),
                 **summary,
+                "server_metrics_before": metrics_before,
+                "server_metrics_after": metrics_after,
+                "server_prefix_cache_counter_delta": counter_delta,
+                "server_prefix_cache_counter_requests": counter_delta["requests"],
+                "server_prefix_cache_counter_queries": counter_delta["queries"],
+                "server_prefix_cache_counter_hits": counter_delta["hits"],
+                "server_prefix_cache_counter_hit_rate_pct": counter_delta[
+                    "hit_rate_pct"
+                ],
+                "server_metrics_before_ok": metrics_before["ok"],
+                "server_metrics_after_ok": metrics_after["ok"],
+                "server_metrics_before_prefix_related_sample_count": metrics_before[
+                    "prefix_related_sample_count"
+                ],
+                "server_metrics_after_prefix_related_sample_count": metrics_after[
+                    "prefix_related_sample_count"
+                ],
+                "server_metrics_selected_query_metric": metrics_after[
+                    "selected_query_metric"
+                ],
+                "server_metrics_selected_hit_metric": metrics_after[
+                    "selected_hit_metric"
+                ],
                 "requests": request_results,
             }
 
@@ -7439,6 +7509,98 @@ def _strip_trailing_whitespace_lines(text: str) -> str:
     return stripped + ("\n" if text.endswith("\n") else "")
 
 
+def _parse_prometheus_text_samples(text: str) -> list[dict[str, Any]]:
+    samples = []
+    for raw_line in text.splitlines():
+        line = raw_line.strip()
+        if not line or line.startswith("#"):
+            continue
+        match = re.match(
+            r"^([A-Za-z_:][A-Za-z0-9_:]*)(\{[^}]*\})?\s+([-+0-9.eE]+)",
+            line,
+        )
+        if not match:
+            continue
+        name, labels, value = match.groups()
+        try:
+            numeric_value = float(value)
+        except ValueError:
+            continue
+        samples.append(
+            {
+                "name": name,
+                "labels": labels or "",
+                "value": numeric_value,
+            }
+        )
+    return samples
+
+
+def _select_prometheus_metric_sum(
+    samples: list[dict[str, Any]],
+    required_terms: tuple[str, ...],
+    excluded_terms: tuple[str, ...] = (),
+) -> dict[str, Any]:
+    grouped: dict[str, float] = {}
+    for sample in samples:
+        name = str(sample["name"])
+        lowered = name.lower()
+        if not all(term in lowered for term in required_terms):
+            continue
+        if any(term in lowered for term in excluded_terms):
+            continue
+        grouped[name] = grouped.get(name, 0.0) + float(sample["value"])
+    if not grouped:
+        return {"name": None, "value": None}
+
+    def rank(item: tuple[str, float]) -> tuple[int, int, str]:
+        name = item[0].lower()
+        total_rank = 0 if name.endswith("_total") or "total" in name else 1
+        return (total_rank, len(name), item[0])
+
+    selected_name, selected_value = sorted(grouped.items(), key=rank)[0]
+    return {"name": selected_name, "value": selected_value}
+
+
+def _parse_vllm_server_prometheus_metrics(text: str) -> dict[str, Any]:
+    samples = _parse_prometheus_text_samples(text)
+    prefix_samples = [
+        sample
+        for sample in samples
+        if "prefix" in str(sample["name"]).lower()
+    ]
+    requests = _select_prometheus_metric_sum(
+        prefix_samples,
+        ("prefix", "cache", "request"),
+        excluded_terms=("created", "rate", "percent", "percentage"),
+    )
+    queries = _select_prometheus_metric_sum(
+        prefix_samples,
+        ("prefix", "cache", "quer"),
+        excluded_terms=("created", "rate", "percent", "percentage"),
+    )
+    hits = _select_prometheus_metric_sum(
+        prefix_samples,
+        ("prefix", "cache", "hit"),
+        excluded_terms=("created", "rate", "percent", "percentage"),
+    )
+    return {
+        "sample_count": len(samples),
+        "prefix_related_sample_count": len(prefix_samples),
+        "prefix_related_samples": prefix_samples[:80],
+        "total_requests": requests["value"],
+        "total_queries": queries["value"],
+        "total_hits": hits["value"],
+        "hit_rate_pct": _prefix_cache_counter_hit_rate_pct(
+            hits["value"],
+            queries["value"],
+        ),
+        "selected_request_metric": requests["name"],
+        "selected_query_metric": queries["name"],
+        "selected_hit_metric": hits["name"],
+    }
+
+
 def _parse_vllm_server_log_metrics(log_lines: list[str] | None) -> dict[str, Any]:
     lines = [str(line) for line in (log_lines or [])]
     text = "\n".join(lines)
@@ -8711,6 +8873,9 @@ def _make_vllm_server_async_paired_rows(
         server_tpot = server_run.get("p95_stream_tpot_ms")
         async_batch_wall = async_run.get("batch_wall_ms")
         server_batch_wall = server_run.get("batch_wall_ms")
+        server_counter_hit_rate = server_run.get(
+            "server_prefix_cache_counter_hit_rate_pct"
+        )
         paired_rows.append(
             {
                 "pair_id": f"{scenario_id}_rep{repeat_index:02d}",
@@ -8778,6 +8943,34 @@ def _make_vllm_server_async_paired_rows(
                     server_batch_wall,
                     async_batch_wall,
                 ),
+                "server_prefix_cache_counter_requests": server_run.get(
+                    "server_prefix_cache_counter_requests"
+                ),
+                "server_prefix_cache_counter_queries": server_run.get(
+                    "server_prefix_cache_counter_queries"
+                ),
+                "server_prefix_cache_counter_hits": server_run.get(
+                    "server_prefix_cache_counter_hits"
+                ),
+                "server_prefix_cache_counter_hit_rate_pct": server_counter_hit_rate,
+                "server_metrics_before_ok": server_run.get(
+                    "server_metrics_before_ok"
+                ),
+                "server_metrics_after_ok": server_run.get(
+                    "server_metrics_after_ok"
+                ),
+                "server_metrics_before_prefix_related_sample_count": server_run.get(
+                    "server_metrics_before_prefix_related_sample_count"
+                ),
+                "server_metrics_after_prefix_related_sample_count": server_run.get(
+                    "server_metrics_after_prefix_related_sample_count"
+                ),
+                "server_metrics_selected_query_metric": server_run.get(
+                    "server_metrics_selected_query_metric"
+                ),
+                "server_metrics_selected_hit_metric": server_run.get(
+                    "server_metrics_selected_hit_metric"
+                ),
             }
         )
     return paired_rows
@@ -8820,6 +9013,12 @@ def _aggregate_vllm_server_async_paired_scenarios(
             "server_p95_latency_ms",
             "async_p95_stream_tpot_ms",
             "server_p95_stream_tpot_ms",
+            "server_prefix_cache_counter_requests",
+            "server_prefix_cache_counter_queries",
+            "server_prefix_cache_counter_hits",
+            "server_prefix_cache_counter_hit_rate_pct",
+            "server_metrics_before_prefix_related_sample_count",
+            "server_metrics_after_prefix_related_sample_count",
         ):
             scenario.update(_metric_distribution(pairs, field))
         scenarios.append(scenario)
@@ -8854,6 +9053,12 @@ def _vllm_server_async_paired_summary_rows(
         "server_p95_latency_ms_median",
         "async_p95_stream_tpot_ms_median",
         "server_p95_stream_tpot_ms_median",
+        "server_prefix_cache_counter_requests_median",
+        "server_prefix_cache_counter_queries_median",
+        "server_prefix_cache_counter_hits_median",
+        "server_prefix_cache_counter_hit_rate_pct_median",
+        "server_metrics_before_prefix_related_sample_count_median",
+        "server_metrics_after_prefix_related_sample_count_median",
     )
     return [
         {field: scenario.get(field) for field in row_fields}

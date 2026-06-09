@@ -135,6 +135,35 @@ class ModalAppTests(unittest.TestCase):
         self.assertEqual(metrics["latest_prefix_cache_hit_rate_pct"], 65.5)
         self.assertEqual(metrics["runtime_metric_count"], 1)
 
+    def test_parses_vllm_server_prometheus_prefix_counters(self) -> None:
+        metrics = modal_app._parse_vllm_server_prometheus_metrics(
+            "\n".join(
+                [
+                    "# HELP vllm:prefix_cache_queries_total Prefix queries",
+                    "vllm:prefix_cache_queries_total{model=\"fake\"} 120",
+                    "vllm:prefix_cache_hits_total{model=\"fake\"} 90",
+                    "vllm:prefix_cache_requests_total{model=\"fake\"} 6",
+                    "vllm:gpu_cache_usage_perc{model=\"fake\"} 0.2",
+                    "vllm:prefix_cache_hit_rate{model=\"fake\"} 75",
+                ]
+            )
+        )
+
+        self.assertEqual(metrics["sample_count"], 5)
+        self.assertEqual(metrics["prefix_related_sample_count"], 4)
+        self.assertEqual(metrics["total_requests"], 6.0)
+        self.assertEqual(metrics["total_queries"], 120.0)
+        self.assertEqual(metrics["total_hits"], 90.0)
+        self.assertEqual(metrics["hit_rate_pct"], 75.0)
+        self.assertEqual(
+            metrics["selected_query_metric"],
+            "vllm:prefix_cache_queries_total",
+        )
+        self.assertEqual(
+            metrics["selected_hit_metric"],
+            "vllm:prefix_cache_hits_total",
+        )
+
     def test_summarizes_server_async_cache_control_modes(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -636,6 +665,49 @@ class ModalAppTests(unittest.TestCase):
         self.assertEqual(row["cache_engine_gpu_kv_cache_size_tokens"], 18854)
         self.assertEqual(row["cold_engine_max_num_batched_tokens"], 121280)
         self.assertEqual(row["cache_engine_max_concurrency_for_request"], 4.97)
+
+    def test_server_async_paired_rows_carry_prefix_counter_fields(self) -> None:
+        async_run = _server_async_run("async")
+        server_run = _server_async_run(
+            "server",
+            server_prefix_cache_counter_queries=200,
+            server_prefix_cache_counter_hits=150,
+            server_prefix_cache_counter_hit_rate_pct=75.0,
+            server_metrics_before_prefix_related_sample_count=3,
+            server_metrics_after_prefix_related_sample_count=3,
+            server_metrics_selected_query_metric="vllm:prefix_cache_queries_total",
+            server_metrics_selected_hit_metric="vllm:prefix_cache_hits_total",
+        )
+
+        paired = modal_app._make_vllm_server_async_paired_rows(
+            [async_run],
+            [server_run],
+        )
+        scenarios = modal_app._aggregate_vllm_server_async_paired_scenarios(
+            paired,
+        )
+        summary_rows = modal_app._vllm_server_async_paired_summary_rows(
+            scenarios,
+        )
+
+        row = paired[0]
+        self.assertEqual(row["server_prefix_cache_counter_queries"], 200)
+        self.assertEqual(row["server_prefix_cache_counter_hits"], 150)
+        self.assertEqual(row["server_prefix_cache_counter_hit_rate_pct"], 75.0)
+        self.assertEqual(
+            row["server_metrics_selected_query_metric"],
+            "vllm:prefix_cache_queries_total",
+        )
+        self.assertEqual(
+            summary_rows[0]["server_prefix_cache_counter_hit_rate_pct_median"],
+            75.0,
+        )
+        self.assertEqual(
+            summary_rows[0][
+                "server_metrics_after_prefix_related_sample_count_median"
+            ],
+            3.0,
+        )
 
     def test_isolated_window_summary_estimates_measured_cache_hit_rate(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -1817,6 +1889,35 @@ def _paired_capacity_run(phase: str, gpu_tokens: int) -> dict:
         "engine_max_concurrency_request_tokens": 3790,
         "engine_derived_gpu_kv_cache_size_tokens": gpu_tokens,
     }
+
+
+def _server_async_run(phase: str, **overrides: object) -> dict:
+    run = {
+        "scenario_id": "neutral_mega_long_out8_n32",
+        "prompt_profile": "neutral_mega_long",
+        "request_count": 32,
+        "max_new_tokens": 8,
+        "repeat_index": 0,
+        "run_order": 0 if phase == "async" else 1,
+        "prompt_tokens_mean": 3600.0,
+        "estimated_peak_sequence_tokens": 115200,
+        "aggregate_output_tokens_per_second": 100.0,
+        "p95_first_chunk_ms": 10.0,
+        "p95_first_content_ms": 12.0,
+        "p95_latency_ms": 20.0,
+        "p95_stream_tpot_ms": 2.0,
+        "batch_wall_ms": 50.0,
+        "server_prefix_cache_counter_requests": None,
+        "server_prefix_cache_counter_queries": None,
+        "server_prefix_cache_counter_hits": None,
+        "server_prefix_cache_counter_hit_rate_pct": None,
+        "server_metrics_before_prefix_related_sample_count": None,
+        "server_metrics_after_prefix_related_sample_count": None,
+        "server_metrics_selected_query_metric": None,
+        "server_metrics_selected_hit_metric": None,
+    }
+    run.update(overrides)
+    return run
 
 
 class _WhitespaceTokenizer:

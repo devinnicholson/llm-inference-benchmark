@@ -8475,3 +8475,167 @@ Move from profile-level isolation to a minimal server-only control. The next
 checkpoint should run a smaller matrix that varies prompt reuse inside a single
 profile family, ideally including random or shuffled long prompts, while also
 capturing vLLM runtime cache counters around the measured request window.
+
+# Training 086 - Server Metrics Neutral Warmup Control
+
+## Goal
+
+Add direct vLLM server `/metrics` snapshots around each measured
+OpenAI-compatible server scenario and run a neutral long-prompt control. The
+neutral control uses `neutral_mega_long`, which is long enough to match the
+prefill pressure of the cache experiments but is not part of the shared-prefix
+claim.
+
+This checkpoint tests whether the large cache-on/cache-off server effect is
+still present when the measured prompt family is neutral. It also checks whether
+the server exposes cumulative prefix-cache counters that can be differenced
+around the measured request window.
+
+## Code Change
+
+The server paired harness now calls `/metrics` immediately before and after each
+server scenario. It parses Prometheus text generically, stores prefix-related
+raw samples, selects likely prefix-cache query and hit counters, and writes
+measured-window deltas into `paired-server-async.json`,
+`paired-server-async-runs.csv`, and the compact scenario summary CSV.
+
+The new paired-run fields include:
+
+```text
+server_prefix_cache_counter_queries
+server_prefix_cache_counter_hits
+server_prefix_cache_counter_hit_rate_pct
+server_metrics_before_prefix_related_sample_count
+server_metrics_after_prefix_related_sample_count
+server_metrics_selected_query_metric
+server_metrics_selected_hit_metric
+```
+
+## Commands
+
+```bash
+modal run modal_app.py --mode vllm-server-async-paired \
+  --modal-gpu L4 \
+  --hf-model Qwen/Qwen2.5-1.5B-Instruct \
+  --prompt-profiles neutral_mega_long \
+  --output-tokens 8 \
+  --request-counts 32 \
+  --repeats 1 \
+  --scenario-seed 3401 \
+  --warmup-runs 1 \
+  --phase-order async_first \
+  --server-async-max-num-batched-tokens 60640 \
+  --server-async-prefix-caching off \
+  --output-dir results/modal-vllm-server-async-qwen15b-l4-n32-batched-tokens60640-neutral-mega-cache-off-r1
+
+modal run modal_app.py --mode vllm-server-async-paired \
+  --modal-gpu L4 \
+  --hf-model Qwen/Qwen2.5-1.5B-Instruct \
+  --prompt-profiles neutral_mega_long \
+  --output-tokens 8 \
+  --request-counts 32 \
+  --repeats 1 \
+  --scenario-seed 3401 \
+  --warmup-runs 1 \
+  --phase-order async_first \
+  --server-async-max-num-batched-tokens 60640 \
+  --server-async-prefix-caching on \
+  --output-dir results/modal-vllm-server-async-qwen15b-l4-n32-batched-tokens60640-neutral-mega-cache-on-r1
+
+modal run modal_app.py --mode vllm-server-async-cache-control-compare \
+  --server-async-cache-control-dirs results/modal-vllm-server-async-qwen15b-l4-n32-batched-tokens60640-neutral-mega-cache-off-r1,results/modal-vllm-server-async-qwen15b-l4-n32-batched-tokens60640-neutral-mega-cache-on-r1 \
+  --output-dir results/modal-vllm-server-async-qwen15b-l4-n32-batched-tokens60640-neutral-mega-cache-control-r1
+
+modal run modal_app.py --mode vllm-server-async-cache-control-server-absolute \
+  --server-async-cache-control-server-absolute-compare-dirs results/modal-vllm-server-async-qwen15b-l4-n32-batched-tokens60640-neutral-mega-cache-control-r1 \
+  --output-dir results/modal-vllm-server-async-qwen15b-l4-n32-batched-tokens60640-neutral-mega-server-cache-control-r1
+
+modal run modal_app.py --mode vllm-server-async-cache-control-server-absolute \
+  --server-async-cache-control-server-absolute-compare-dirs results/modal-vllm-server-async-qwen15b-l4-n32-batched-tokens60640-single-profile-matched-unique-cache-control-r1,results/modal-vllm-server-async-qwen15b-l4-n32-batched-tokens60640-single-profile-shared-prefix-cache-control-r1,results/modal-vllm-server-async-qwen15b-l4-n32-batched-tokens60640-neutral-mega-cache-control-r1 \
+  --output-dir results/modal-vllm-server-async-qwen15b-l4-n32-batched-tokens60640-single-profile-plus-neutral-server-cache-control-r1
+```
+
+## Result
+
+The neutral profile shows the same large cache-on effect:
+
+```text
+neutral cache-off server/async throughput ratio: 0.934x
+neutral cache-on server/async throughput ratio: 11.855x
+neutral cache-on/cache-off server/async ratio: 12.698x
+
+neutral raw server cache-on/cache-off output tokens/s ratio: 11.913x
+neutral raw server cache-on/cache-off p95 latency ratio: 0.083x
+neutral raw server cache-on/cache-off p95 first-content ratio: 0.068x
+neutral raw server cache-on/cache-off p95 stream TPOT ratio: 0.070x
+```
+
+The new `/metrics` snapshots identify the server counter names:
+
+```text
+query counter: vllm:prefix_cache_queries_total
+hit counter: vllm:prefix_cache_hits_total
+prefix-related samples before measured run: 8
+prefix-related samples after measured run: 8
+```
+
+Measured-window counter deltas:
+
+```text
+cache-off neutral:
+  prefix-cache queries: 0
+  prefix-cache hits: 0
+  hit rate: 0.000%
+
+cache-on neutral:
+  prefix-cache queries: 119,574
+  prefix-cache hits: 119,296
+  hit rate: 99.768%
+```
+
+Combined with Training 085, raw server cache-on/cache-off throughput ratios are:
+
+```text
+matched-unique: 8.594x
+shared-prefix: 10.463x
+neutral: 11.913x
+```
+
+## Interpretation
+
+This identifies the dominant confound in the previous server cache-control
+runs. The server paired harness uses `warmup_runs=1`, and the warmup currently
+runs the same scenario prompts as the measured pass with `max_tokens=1`. With
+server prefix caching enabled, that warmup can populate exact prompt prefix
+blocks. The measured pass then sees a very high prefix-cache hit rate even for
+the neutral profile.
+
+The direct counter evidence changes the claim boundary again:
+
+```text
+The large server cache-on/cache-off timing win is real, but in the current
+server paired harness it is primarily measuring reuse from the same-prompt
+warmup pass into the measured pass. It should not be interpreted as isolated
+cross-request shared-prefix reuse until the warmup is removed or replaced by a
+disjoint warmup profile.
+```
+
+This is a useful result, not a failure: the new server `/metrics` snapshot is
+now precise enough to explain the timing anomaly rather than just observing it.
+
+Generated artifacts:
+
+```text
+results/modal-vllm-server-async-qwen15b-l4-n32-batched-tokens60640-neutral-mega-cache-off-r1/paired-server-async.json
+results/modal-vllm-server-async-qwen15b-l4-n32-batched-tokens60640-neutral-mega-cache-on-r1/paired-server-async.json
+results/modal-vllm-server-async-qwen15b-l4-n32-batched-tokens60640-neutral-mega-cache-control-r1/cache-control-phase-order-compare.json
+results/modal-vllm-server-async-qwen15b-l4-n32-batched-tokens60640-neutral-mega-server-cache-control-r1/server-cache-control-absolute.json
+results/modal-vllm-server-async-qwen15b-l4-n32-batched-tokens60640-single-profile-plus-neutral-server-cache-control-r1/server-cache-control-absolute.json
+```
+
+## Next Step
+
+Rerun the server cache-control cells with `--warmup-runs 0`. The minimal next
+matrix should start with `neutral_mega_long` cache-off/cache-on, then repeat
+matched-unique and shared-prefix only if the no-warmup neutral result removes
+the high measured-window prefix-cache hit rate.

@@ -70,6 +70,9 @@ Latest prompt-overlap vs server cache-control check:
 Latest single-profile server cache-control isolation:
 [`results/modal-vllm-server-async-qwen15b-l4-n32-batched-tokens60640-single-profile-server-cache-control-r1/server-cache-control-absolute.json`](results/modal-vllm-server-async-qwen15b-l4-n32-batched-tokens60640-single-profile-server-cache-control-r1/server-cache-control-absolute.json)
 
+Latest server `/metrics` neutral control:
+[`results/modal-vllm-server-async-qwen15b-l4-n32-batched-tokens60640-single-profile-plus-neutral-server-cache-control-r1/server-cache-control-absolute.json`](results/modal-vllm-server-async-qwen15b-l4-n32-batched-tokens60640-single-profile-plus-neutral-server-cache-control-r1/server-cache-control-absolute.json)
+
 Latest vLLM server CLI evidence:
 [`results/modal-vllm-server-cli-help-v021/vllm-server-cli-help.json`](results/modal-vllm-server-cli-help-v021/vllm-server-cli-help.json)
 
