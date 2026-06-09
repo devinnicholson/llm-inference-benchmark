@@ -61,8 +61,18 @@ Latest L4 serving-path cache-control phase-order matrix:
 Latest L4 serving-path cache-control multitrial aggregate:
 [`results/modal-vllm-server-async-qwen15b-l4-n32-batched-tokens60640-server-cache-control-multitrial-r2/cache-control-multitrial.json`](results/modal-vllm-server-async-qwen15b-l4-n32-batched-tokens60640-server-cache-control-multitrial-r2/cache-control-multitrial.json)
 
+Latest L4 serving-path server-only cache-control comparison:
+[`results/modal-vllm-server-async-qwen15b-l4-n32-batched-tokens60640-server-cache-control-server-absolute-r2/server-cache-control-absolute.json`](results/modal-vllm-server-async-qwen15b-l4-n32-batched-tokens60640-server-cache-control-server-absolute-r2/server-cache-control-absolute.json)
+
 Latest vLLM server CLI evidence:
 [`results/modal-vllm-server-cli-help-v021/vllm-server-cli-help.json`](results/modal-vllm-server-cli-help-v021/vllm-server-cli-help.json)
+
+## Future TODO
+
+- Build a static benchmark explorer UI for GitHub Pages that loads generated
+  JSON/CSV artifacts and compares runs by model, GPU, prompt profile, request
+  count, cache mode, phase order, throughput, latency, TPOT/TTFT, and observed
+  prefix-cache hit rate.
 
 ## Project Track
 

@@ -316,6 +316,112 @@ class ModalAppTests(unittest.TestCase):
             2,
         )
 
+    def test_compares_server_async_cache_control_server_absolute(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            compare_dirs = []
+            for trial_index, async_on_throughput, server_on_throughput in (
+                (1, 40.0, 100.0),
+                (2, 60.0, 120.0),
+            ):
+                dirs = []
+                for name, phase_order, mode, observed, throughput, latency in (
+                    ("off-async", "async_first", "off", False, 10.0, 100.0),
+                    (
+                        "on-async",
+                        "async_first",
+                        "on",
+                        True,
+                        async_on_throughput,
+                        20.0,
+                    ),
+                    ("off-server", "server_first", "off", False, 20.0, 90.0),
+                    (
+                        "on-server",
+                        "server_first",
+                        "on",
+                        True,
+                        server_on_throughput,
+                        10.0,
+                    ),
+                ):
+                    path = root / f"trial-{trial_index}-{name}"
+                    path.mkdir()
+                    command_flag = (
+                        "--enable-prefix-caching"
+                        if mode == "on"
+                        else "--no-enable-prefix-caching"
+                    )
+                    _write_paired_server_async_payload(
+                        path,
+                        configured_mode=mode,
+                        command_flag=command_flag,
+                        observed_cache=observed,
+                        hit_rate_pct=50.0 if observed else 0.0,
+                        phase_order=phase_order,
+                        server_output_tokens_per_second=throughput,
+                        server_p95_latency_ms=latency,
+                    )
+                    dirs.append(path)
+
+                compare_dir = root / f"compare-{trial_index}"
+                compare_dir.mkdir()
+                compare_payload = (
+                    modal_app._compare_vllm_server_async_cache_control_matrix(dirs)
+                )
+                compare_dir.joinpath(
+                    "cache-control-phase-order-compare.json"
+                ).write_text(
+                    json.dumps(compare_payload),
+                    encoding="utf-8",
+                )
+                compare_dirs.append(compare_dir)
+
+            payload = (
+                modal_app._compare_vllm_server_async_cache_control_server_absolute(
+                    compare_dirs
+                )
+            )
+
+        self.assertEqual(payload["trial_count"], 2)
+        self.assertEqual(payload["contrast_count"], 4)
+        self.assertTrue(payload["all_off_server_disable_observed"])
+        self.assertTrue(payload["all_on_server_enable_observed"])
+        summary = {
+            (row["phase_order"], row["prompt_profile"], row["metric"]): row
+            for row in payload["summary"]
+        }
+        self.assertEqual(
+            summary[
+                (
+                    "async_first",
+                    "shared_prefix",
+                    "cache_on_div_off_server_output_tokens_per_second",
+                )
+            ]["mean"],
+            5.0,
+        )
+        self.assertEqual(
+            summary[
+                (
+                    "server_first",
+                    "shared_prefix",
+                    "cache_on_div_off_server_output_tokens_per_second",
+                )
+            ]["mean"],
+            5.5,
+        )
+        self.assertLess(
+            summary[
+                (
+                    "server_first",
+                    "shared_prefix",
+                    "cache_on_div_off_server_p95_latency_ms",
+                )
+            ]["mean"],
+            1.0,
+        )
+
     def test_parses_vllm_server_cli_help_prefix_flags(self) -> None:
         parsed = modal_app._parse_vllm_server_cli_help(
             "  --enable-prefix-caching\n"
@@ -1300,6 +1406,12 @@ def _write_paired_server_async_payload(
     throughput_ratio: float = 1.0,
     latency_ratio: float = 1.0,
     tpot_ratio: float = 1.0,
+    prompt_profile: str = "shared_prefix",
+    server_output_tokens_per_second: float = 100.0,
+    server_p95_latency_ms: float = 100.0,
+    server_p95_first_content_ms: float = 80.0,
+    server_p95_stream_tpot_ms: float = 5.0,
+    server_batch_wall_ms: float = 100.0,
 ) -> None:
     directory.joinpath("paired-server-async.json").write_text(
         json.dumps(
@@ -1337,6 +1449,27 @@ def _write_paired_server_async_payload(
                 "mean_server_to_async_throughput_ratio": throughput_ratio,
                 "mean_server_to_async_latency_ratio": latency_ratio,
                 "mean_server_to_async_tpot_ratio": tpot_ratio,
+                "paired_runs": [
+                    {
+                        "pair_id": f"{prompt_profile}_out8_n32_rep00",
+                        "scenario_id": f"{prompt_profile}_out8_n32",
+                        "prompt_profile": prompt_profile,
+                        "request_count": 32,
+                        "max_new_tokens": 8,
+                        "repeat_index": 0,
+                        "server_run_order": 0,
+                        "prompt_tokens_mean": 1024.0,
+                        "server_output_tokens_per_second": (
+                            server_output_tokens_per_second
+                        ),
+                        "server_p95_latency_ms": server_p95_latency_ms,
+                        "server_p95_first_content_ms": (
+                            server_p95_first_content_ms
+                        ),
+                        "server_p95_stream_tpot_ms": server_p95_stream_tpot_ms,
+                        "server_batch_wall_ms": server_batch_wall_ms,
+                    }
+                ],
             }
         ),
         encoding="utf-8",

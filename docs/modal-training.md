@@ -8034,3 +8034,127 @@ results/modal-vllm-server-async-qwen15b-l4-n32-batched-tokens60640-server-cache-
 When work resumes, promote this to r4 or r8 and decide whether to keep the
 current paired server-vs-async framing or shift to a server-only cache-off vs
 cache-on throughput study with tighter repeated measurements.
+
+# Training 083 - Server-Only Cache-Control Comparison
+
+## Goal
+
+Derive a direct server cache-on versus cache-off comparison from the existing
+Training 081 and Training 082 paired artifacts. Training 082 compared
+server/AsyncLLM ratios by cache mode. This checkpoint keeps the same r1/r2
+trials but compares the raw server metrics directly, grouped by phase order and
+prompt profile.
+
+This is a better claim surface for cache-control behavior because it asks:
+
+```text
+Under the same server path, same model, same GPU, same request shape, and same
+phase order, how much does explicit server prefix caching change throughput and
+latency?
+```
+
+## Command
+
+```bash
+modal run modal_app.py --mode vllm-server-async-cache-control-server-absolute \
+  --server-async-cache-control-server-absolute-compare-dirs results/modal-vllm-server-async-qwen15b-l4-n32-batched-tokens60640-server-cache-control-phase-order-r1,results/modal-vllm-server-async-qwen15b-l4-n32-batched-tokens60640-server-cache-control-phase-order-r2 \
+  --output-dir results/modal-vllm-server-async-qwen15b-l4-n32-batched-tokens60640-server-cache-control-server-absolute-r2
+```
+
+The mode reads each `cache-control-phase-order-compare.json`, resolves the
+underlying `paired-server-async.json` files, extracts `paired_runs`, and emits
+direct server cache-on/off contrasts.
+
+## Result
+
+The artifact contains two trials, sixteen server run rows, and eight direct
+cache-on/off contrasts:
+
+- two trials: r1 seed 3201 and r2 seed 3301
+- two phase orders: `async_first` and `server_first`
+- two prompt profiles:
+  `matched_unique_prefix_mega_long_no_repeat_variant` and
+  `shared_prefix_mega_long_no_repeat_variant`
+- both cache-off rows observed `enable_prefix_caching=False`
+- both cache-on rows observed `enable_prefix_caching=True`
+
+Server cache-on divided by cache-off throughput:
+
+```text
+async_first / matched_unique:
+  mean: 10.821x
+  bootstrap p05/p95: 8.724x / 12.918x
+
+async_first / shared_prefix:
+  mean: 11.308x
+  bootstrap p05/p95: 11.222x / 11.394x
+
+server_first / matched_unique:
+  mean: 12.091x
+  bootstrap p05/p95: 11.032x / 13.150x
+
+server_first / shared_prefix:
+  mean: 13.841x
+  bootstrap p05/p95: 12.305x / 15.377x
+```
+
+Server cache-on divided by cache-off p95 latency:
+
+```text
+async_first / matched_unique:
+  mean: 0.096x
+  bootstrap p05/p95: 0.077x / 0.114x
+
+async_first / shared_prefix:
+  mean: 0.088x
+  bootstrap p05/p95: 0.087x / 0.088x
+
+server_first / matched_unique:
+  mean: 0.083x
+  bootstrap p05/p95: 0.076x / 0.090x
+
+server_first / shared_prefix:
+  mean: 0.073x
+  bootstrap p05/p95: 0.065x / 0.081x
+```
+
+Server cache-on divided by cache-off p95 first-content latency:
+
+```text
+async_first / matched_unique: 0.078x mean
+async_first / shared_prefix: 0.076x mean
+server_first / matched_unique: 0.064x mean
+server_first / shared_prefix: 0.061x mean
+```
+
+Server cache-on divided by cache-off p95 stream TPOT:
+
+```text
+async_first / matched_unique: 0.045x mean
+async_first / shared_prefix: 0.031x mean
+server_first / matched_unique: 0.048x mean
+server_first / shared_prefix: 0.030x mean
+```
+
+This strengthens the interpretation from Training 082. The order-of-magnitude
+cache-on effect is visible directly inside the vLLM server path, not only after
+normalizing the server against `AsyncLLM`. The matched-unique profile also
+benefits strongly, so the next analysis should inspect which prompt segments
+are actually shared or reusable under the chat/template/request construction
+before making a narrower claim about only explicit user-visible shared prefixes.
+
+Generated artifacts:
+
+```text
+results/modal-vllm-server-async-qwen15b-l4-n32-batched-tokens60640-server-cache-control-server-absolute-r2/server-cache-control-absolute.json
+results/modal-vllm-server-async-qwen15b-l4-n32-batched-tokens60640-server-cache-control-server-absolute-r2/server-cache-control-absolute-trials.csv
+results/modal-vllm-server-async-qwen15b-l4-n32-batched-tokens60640-server-cache-control-server-absolute-r2/server-cache-control-absolute-summary.csv
+```
+
+## Next Step
+
+Inspect tokenized prompt overlap for the matched-unique and shared-prefix
+profiles under the exact server prompt construction. The server-only result is
+strong, but the matched-unique improvement means we need to separate
+application-level shared text from tokenizer/template/system-prompt reuse before
+writing the final cache-control claim.
