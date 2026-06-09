@@ -49,6 +49,9 @@ Latest L4 scheduler-control follow-up:
 Latest L4 serving-path scheduler-control smoke:
 [`results/modal-vllm-server-async-qwen15b-l4-n32-batched-tokens60640-phase-order-smoke-r1/phase-order-compare.csv`](results/modal-vllm-server-async-qwen15b-l4-n32-batched-tokens60640-phase-order-smoke-r1/phase-order-compare.csv)
 
+Latest L4 serving-path log summary:
+[`results/modal-vllm-server-async-qwen15b-l4-n32-batched-tokens60640-log-summary-r1/server-async-log-summary.csv`](results/modal-vllm-server-async-qwen15b-l4-n32-batched-tokens60640-log-summary-r1/server-async-log-summary.csv)
+
 ## Course Track
 
 This repo starts with the 568 path:

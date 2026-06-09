@@ -616,9 +616,13 @@ the same Qwen 1.5B n32 shape:
 
 ```text
 results/modal-vllm-server-async-qwen15b-l4-n32-batched-tokens60640-phase-order-smoke-r1/phase-order-compare.csv
+results/modal-vllm-server-async-qwen15b-l4-n32-batched-tokens60640-log-summary-r1/server-async-log-summary.csv
 ```
 
-Use that as the serving-path harness smoke, then add server-side prefix-cache
-instrumentation. The specific next question is whether the OpenAI-compatible
-server path preserves the same direct-cache and TPOT effects when prefix
-caching is enabled and the KV-capacity budget is known.
+The serving-path smoke exposed an important default mismatch: server logs show
+`enable_prefix_caching=True` and a latest `65.5%` prefix-cache hit rate, while
+the in-process `AsyncLLM` side was configured with prefix caching disabled. Use
+the log-summary artifact as the serving-path harness correction. The next
+question is an explicit server prefix-cache paired mode: control the server
+prefix-cache flag directly, then compare server-side direct-cache and TPOT
+effects under the known KV-capacity budget.

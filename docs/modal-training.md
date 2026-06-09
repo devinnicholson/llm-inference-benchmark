@@ -7404,15 +7404,16 @@ keeps the direct-cache and TPOT effects when the KV-capacity budget is known.
 # Training 078: Qwen 1.5B L4 n32 Serving-Path Scheduler-Control Smoke
 
 Training 078 extends the same-worker server-vs-`AsyncLLM` benchmark so it can
-run on L4 and accept an explicit scheduler token-budget override. This is a
-serving-path harness checkpoint: it does not enable server-side prefix caching
-yet, but it proves the OpenAI-compatible server path can run the Qwen 1.5B n32
-mega-long shape under the restored `60,640` scheduler budget.
+run on L4 and accept an explicit scheduler token-budget override. It also adds
+a server-log summary parser after the smoke exposed an important serving-path
+semantic: the OpenAI-compatible vLLM server initialized with prefix caching
+enabled by default, while the in-process `AsyncLLM` side was explicitly
+configured with prefix caching disabled.
 
 ## Goal
 
 Prepare the backend/serving comparison path for the controlled KV-capacity
-baseline from Training 077.
+baseline from Training 077, and make server prefix-cache defaults observable.
 
 ## Code Change
 
@@ -7423,6 +7424,14 @@ accepts `--server-async-max-num-batched-tokens`. Artifacts record:
 - `max_num_batched_tokens`
 - `default_max_num_batched_tokens`
 - `max_num_batched_tokens_source`
+
+Training 078 also adds `vllm-server-async-log-summary`, which parses captured
+server logs for:
+
+- observed `enable_prefix_caching`
+- latest prefix-cache hit rate
+- server-side GPU KV-cache capacity
+- observed scheduler token budget
 
 ## Commands
 
@@ -7457,6 +7466,10 @@ modal run modal_app.py --mode vllm-server-async-phase-order-compare \
   --async-first-paired-dir results/modal-vllm-server-async-qwen15b-l4-n32-batched-tokens60640-smoke-r1 \
   --server-first-paired-dir results/modal-vllm-server-async-qwen15b-l4-n32-batched-tokens60640-server-first-smoke-r1 \
   --output-dir results/modal-vllm-server-async-qwen15b-l4-n32-batched-tokens60640-phase-order-smoke-r1
+
+modal run modal_app.py --mode vllm-server-async-log-summary \
+  --server-async-log-summary-dirs results/modal-vllm-server-async-qwen15b-l4-n32-batched-tokens60640-smoke-r1,results/modal-vllm-server-async-qwen15b-l4-n32-batched-tokens60640-server-first-smoke-r1 \
+  --output-dir results/modal-vllm-server-async-qwen15b-l4-n32-batched-tokens60640-log-summary-r1
 ```
 
 ## Capacity Check
@@ -7468,6 +7481,14 @@ Both phase orders record `modal_gpu=L4`, `max_model_len=3648`,
 ```text
 GPU KV cache size: 158,624 tokens
 Maximum concurrency for 3,648 tokens per request: 43.48x
+```
+
+The log summary also shows the server-side prefix-cache default:
+
+```text
+all_server_enable_prefix_caching_observed: True
+any_server_command_has_explicit_prefix_cache_flag: False
+mean_server_latest_prefix_cache_hit_rate_pct: 65.5
 ```
 
 ## Result
@@ -7483,9 +7504,10 @@ server-vs-`AsyncLLM` rows per order.
 - server-first mean server/async p95 stream TPOT ratio: `0.020`
 
 The two phase orders agree closely at smoke scale. The result should stay a
-harness claim, not a backend superiority claim: this mode has prefix caching
-disabled, runs only one repeat per order, and compares client-visible streaming
-through the OpenAI-compatible endpoint against in-process `AsyncLLM`.
+harness and semantics claim, not a backend superiority claim: the server side
+had prefix caching enabled by default, the `AsyncLLM` side had prefix caching
+disabled, the command had no explicit server prefix-cache flag, and the run has
+only one repeat per order.
 
 Generated artifacts:
 
@@ -7498,10 +7520,13 @@ results/modal-vllm-server-async-qwen15b-l4-n32-batched-tokens60640-server-first-
 results/modal-vllm-server-async-qwen15b-l4-n32-batched-tokens60640-server-first-smoke-r1/paired-server-async-runs.csv
 results/modal-vllm-server-async-qwen15b-l4-n32-batched-tokens60640-phase-order-smoke-r1/phase-order-compare.json
 results/modal-vllm-server-async-qwen15b-l4-n32-batched-tokens60640-phase-order-smoke-r1/phase-order-compare.csv
+results/modal-vllm-server-async-qwen15b-l4-n32-batched-tokens60640-log-summary-r1/server-async-log-summary.json
+results/modal-vllm-server-async-qwen15b-l4-n32-batched-tokens60640-log-summary-r1/server-async-log-summary.csv
 ```
 
 ## Next Step
 
-Add a server-side prefix-cache paired mode or server metrics parser so the
-OpenAI-compatible path can be compared against the Training 077 direct-cache
-claim, not only against in-process `AsyncLLM` serving overhead.
+Add an explicit server-side prefix-cache paired mode. The next run should set
+the server prefix-cache behavior directly, rather than relying on defaults, so
+the OpenAI-compatible path can be compared against the Training 077 direct-cache
+claim under the same scheduler budget.

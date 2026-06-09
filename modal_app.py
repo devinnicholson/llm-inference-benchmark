@@ -54,6 +54,13 @@ DEFAULT_VLLM_SERVER_ASYNC_LONG_PHASE_ORDER_COMPARE_OUTPUT = (
 DEFAULT_VLLM_SERVER_ASYNC_WORKLOAD_COMPARE_OUTPUT = (
     "results/modal-vllm-server-async-workload-compare"
 )
+DEFAULT_VLLM_SERVER_ASYNC_LOG_SUMMARY_OUTPUT = (
+    "results/modal-vllm-server-async-log-summary"
+)
+DEFAULT_VLLM_SERVER_ASYNC_LOG_SUMMARY_DIRS = (
+    f"{DEFAULT_VLLM_SERVER_ASYNC_PAIRED_OUTPUT},"
+    f"{DEFAULT_VLLM_SERVER_ASYNC_PAIRED_SERVER_FIRST_OUTPUT}"
+)
 DEFAULT_VLLM_PREFIX_CACHE_SWEEP_OUTPUT = "results/modal-vllm-prefix-cache-sweep"
 DEFAULT_VLLM_PREFIX_CACHE_COMPARE_OUTPUT = "results/modal-vllm-prefix-cache-compare"
 DEFAULT_VLLM_PREFIX_CACHE_PAIRED_OUTPUT = "results/modal-vllm-prefix-cache-paired"
@@ -4677,6 +4684,7 @@ def main(
     async_first_paired_dir: str = DEFAULT_VLLM_SERVER_ASYNC_PAIRED_OUTPUT,
     server_first_paired_dir: str = DEFAULT_VLLM_SERVER_ASYNC_PAIRED_SERVER_FIRST_OUTPUT,
     phase_order_compare_dirs: str = DEFAULT_VLLM_SERVER_ASYNC_PHASE_ORDER_COMPARE_DIRS,
+    server_async_log_summary_dirs: str = DEFAULT_VLLM_SERVER_ASYNC_LOG_SUMMARY_DIRS,
     short_multitrial_dir: str = DEFAULT_VLLM_SERVER_ASYNC_MULTITRIAL_OUTPUT,
     long_phase_order_compare_dir: str = DEFAULT_VLLM_SERVER_ASYNC_LONG_PHASE_ORDER_COMPARE_OUTPUT,
     prefix_cache_cold_first_paired_dir: str = DEFAULT_VLLM_PREFIX_CACHE_PAIRED_OUTPUT,
@@ -5112,6 +5120,30 @@ def main(
         print(f"json: {json_path}")
         print(f"summary_csv: {summary_csv_path}")
         print(f"runs_csv: {run_csv_path}")
+        return
+
+    if mode == "vllm-server-async-log-summary":
+        payload = _summarize_vllm_server_async_log_metrics(
+            [Path(path) for path in _split_csv(server_async_log_summary_dirs)]
+        )
+        output_path = Path(output_dir or DEFAULT_VLLM_SERVER_ASYNC_LOG_SUMMARY_OUTPUT)
+        output_path.mkdir(parents=True, exist_ok=True)
+        json_path = output_path / "server-async-log-summary.json"
+        csv_path = output_path / "server-async-log-summary.csv"
+        json_path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+        _write_records_csv(csv_path, payload["rows"])
+
+        print(f"rows: {payload['row_count']}")
+        print(
+            "all_server_enable_prefix_caching_observed: "
+            f"{payload['all_server_enable_prefix_caching_observed']}"
+        )
+        print(
+            "mean_server_latest_prefix_cache_hit_rate_pct: "
+            f"{payload['mean_server_latest_prefix_cache_hit_rate_pct']:.3f}"
+        )
+        print(f"json: {json_path}")
+        print(f"csv: {csv_path}")
         return
 
     if mode == "vllm-server-async-phase-order-compare":
@@ -5918,6 +5950,7 @@ def main(
             "'vllm-server-streaming', 'vllm-server-concurrent', "
             "'vllm-server-sweep', 'vllm-server-sweep-compare', "
             "'vllm-server-async-paired', "
+            "'vllm-server-async-log-summary', "
             "'vllm-server-async-phase-order-compare', "
             "'vllm-server-async-multitrial-aggregate', "
             "'vllm-server-async-workload-compare', 'vllm-sweep', or "
@@ -7050,6 +7083,172 @@ def _metric_distribution(
         f"{field}_median": _percentile(values, 50),
         f"{field}_p95": _percentile(values, 95),
         f"{field}_cv": stddev / abs(mean_value) if mean_value else None,
+    }
+
+
+def _parse_vllm_server_log_metrics(log_lines: list[str] | None) -> dict[str, Any]:
+    lines = [str(line) for line in (log_lines or [])]
+    text = "\n".join(lines)
+
+    def number(pattern: str) -> float | None:
+        match = re.search(pattern, text)
+        if not match:
+            return None
+        return float(match.group(1).replace(",", ""))
+
+    def bool_value(pattern: str) -> bool | None:
+        match = re.search(pattern, text)
+        if not match:
+            return None
+        return match.group(1).lower() == "true"
+
+    capacity = _parse_vllm_engine_capacity_log_metrics(
+        {"captured_logs": lines, "stdout": "", "stderr": ""}
+    )
+    runtime_matches = list(
+        re.finditer(
+            r"Avg prompt throughput:\s*([0-9.]+)\s*tokens/s, "
+            r"Avg generation throughput:\s*([0-9.]+)\s*tokens/s, .*?"
+            r"GPU KV cache usage:\s*([0-9.]+)%, "
+            r"Prefix cache hit rate:\s*([0-9.]+)%",
+            text,
+        )
+    )
+    latest_runtime = runtime_matches[-1] if runtime_matches else None
+    return {
+        **capacity,
+        "enable_prefix_caching": bool_value(r"enable_prefix_caching=(True|False)"),
+        "max_num_batched_tokens": (
+            int(value)
+            if (value := number(r"max_num_batched_tokens['\"]?:?\s*=?\s*([0-9,]+)"))
+            is not None
+            else None
+        ),
+        "runtime_metric_count": len(runtime_matches),
+        "latest_avg_prompt_throughput_tokens_per_s": (
+            float(latest_runtime.group(1)) if latest_runtime else None
+        ),
+        "latest_avg_generation_throughput_tokens_per_s": (
+            float(latest_runtime.group(2)) if latest_runtime else None
+        ),
+        "latest_gpu_kv_cache_usage_pct": (
+            float(latest_runtime.group(3)) if latest_runtime else None
+        ),
+        "latest_prefix_cache_hit_rate_pct": (
+            float(latest_runtime.group(4)) if latest_runtime else None
+        ),
+    }
+
+
+def _summarize_vllm_server_async_log_metrics(
+    paired_dirs: list[Path],
+) -> dict[str, Any]:
+    rows = []
+    for paired_dir in paired_dirs:
+        json_path = paired_dir / "paired-server-async.json"
+        if not json_path.exists():
+            raise FileNotFoundError(f"Missing paired-server-async.json: {json_path}")
+        payload = json.loads(json_path.read_text(encoding="utf-8"))
+        server_logs = (payload.get("server_logs_head") or []) + (
+            payload.get("server_logs_tail") or []
+        )
+        metrics = _parse_vllm_server_log_metrics(server_logs)
+        server_command = payload.get("server_command") or []
+        rows.append(
+            {
+                "source_dir": str(paired_dir),
+                "phase_order": payload.get("phase_order"),
+                "model_id": payload.get("model_id"),
+                "modal_gpu": payload.get("modal_gpu"),
+                "request_counts": ",".join(
+                    str(value) for value in payload.get("request_counts", [])
+                ),
+                "prompt_profiles": ",".join(payload.get("prompt_profiles", [])),
+                "output_tokens": ",".join(
+                    str(value) for value in payload.get("output_tokens", [])
+                ),
+                "repeats": payload.get("repeats"),
+                "max_model_len": payload.get("max_model_len"),
+                "max_num_batched_tokens": payload.get("max_num_batched_tokens"),
+                "default_max_num_batched_tokens": payload.get(
+                    "default_max_num_batched_tokens"
+                ),
+                "max_num_batched_tokens_source": payload.get(
+                    "max_num_batched_tokens_source"
+                ),
+                "async_enable_prefix_caching_configured": False,
+                "server_enable_prefix_caching_observed": metrics.get(
+                    "enable_prefix_caching"
+                ),
+                "server_command_has_enable_prefix_caching_flag": (
+                    "--enable-prefix-caching" in server_command
+                ),
+                "server_command_has_disable_prefix_caching_flag": any(
+                    flag in server_command
+                    for flag in (
+                        "--no-enable-prefix-caching",
+                        "--disable-prefix-caching",
+                    )
+                ),
+                "server_log_max_num_batched_tokens": metrics.get(
+                    "max_num_batched_tokens"
+                ),
+                "server_gpu_kv_cache_size_tokens": metrics.get(
+                    "gpu_kv_cache_size_tokens"
+                ),
+                "server_available_kv_cache_memory_gib": metrics.get(
+                    "available_kv_cache_memory_gib"
+                ),
+                "server_max_concurrency_request_tokens": metrics.get(
+                    "max_concurrency_request_tokens"
+                ),
+                "server_max_concurrency_for_request": metrics.get(
+                    "max_concurrency_for_request"
+                ),
+                "server_runtime_metric_count": metrics.get("runtime_metric_count"),
+                "server_latest_prefix_cache_hit_rate_pct": metrics.get(
+                    "latest_prefix_cache_hit_rate_pct"
+                ),
+                "server_latest_gpu_kv_cache_usage_pct": metrics.get(
+                    "latest_gpu_kv_cache_usage_pct"
+                ),
+                "server_latest_avg_prompt_throughput_tokens_per_s": metrics.get(
+                    "latest_avg_prompt_throughput_tokens_per_s"
+                ),
+                "server_latest_avg_generation_throughput_tokens_per_s": metrics.get(
+                    "latest_avg_generation_throughput_tokens_per_s"
+                ),
+                "mean_server_to_async_throughput_ratio": payload.get(
+                    "mean_server_to_async_throughput_ratio"
+                ),
+                "mean_server_to_async_latency_ratio": payload.get(
+                    "mean_server_to_async_latency_ratio"
+                ),
+                "mean_server_to_async_tpot_ratio": payload.get(
+                    "mean_server_to_async_tpot_ratio"
+                ),
+            }
+        )
+
+    return {
+        "schema_version": 1,
+        "mode": "vllm-server-async-log-summary",
+        "source_dirs": [str(path) for path in paired_dirs],
+        "row_count": len(rows),
+        "rows": rows,
+        "mean_server_latest_prefix_cache_hit_rate_pct": _mean_present(
+            row["server_latest_prefix_cache_hit_rate_pct"] for row in rows
+        ),
+        "all_server_enable_prefix_caching_observed": (
+            all(row["server_enable_prefix_caching_observed"] is True for row in rows)
+            if rows
+            else None
+        ),
+        "any_server_command_has_explicit_prefix_cache_flag": any(
+            row["server_command_has_enable_prefix_caching_flag"]
+            or row["server_command_has_disable_prefix_caching_flag"]
+            for row in rows
+        ),
     }
 
 

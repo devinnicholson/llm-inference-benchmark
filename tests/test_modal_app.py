@@ -89,6 +89,32 @@ class ModalAppTests(unittest.TestCase):
         self.assertEqual(metrics["max_concurrency_for_request"], 4.97)
         self.assertEqual(metrics["available_kv_cache_memory_gib"], 0.5)
 
+    def test_parses_vllm_server_log_metrics(self) -> None:
+        metrics = modal_app._parse_vllm_server_log_metrics(
+            [
+                "INFO non-default args: {'max_num_batched_tokens': 60640}",
+                "INFO GPU KV cache size: 158,624 tokens",
+                "INFO Maximum concurrency for 3,648 tokens per request: 43.48x",
+                "INFO Available KV cache memory: 4.24 GiB",
+                "INFO config: enable_prefix_caching=True, enable_chunked_prefill=True",
+                (
+                    "INFO Engine 000: Avg prompt throughput: 10464.5 tokens/s, "
+                    "Avg generation throughput: 28.1 tokens/s, Running: 0 reqs, "
+                    "Waiting: 0 reqs, GPU KV cache usage: 0.0%, "
+                    "Prefix cache hit rate: 65.5%"
+                ),
+            ]
+        )
+
+        self.assertTrue(metrics["enable_prefix_caching"])
+        self.assertEqual(metrics["max_num_batched_tokens"], 60640)
+        self.assertEqual(metrics["gpu_kv_cache_size_tokens"], 158624)
+        self.assertEqual(metrics["max_concurrency_request_tokens"], 3648)
+        self.assertEqual(metrics["max_concurrency_for_request"], 43.48)
+        self.assertEqual(metrics["available_kv_cache_memory_gib"], 4.24)
+        self.assertEqual(metrics["latest_prefix_cache_hit_rate_pct"], 65.5)
+        self.assertEqual(metrics["runtime_metric_count"], 1)
+
     def test_formats_vllm_capacity_diagnostic_markdown(self) -> None:
         markdown = modal_app._format_vllm_capacity_diagnostic_markdown(
             {
