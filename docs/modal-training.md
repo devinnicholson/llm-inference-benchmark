@@ -8305,3 +8305,173 @@ Run single-profile server cache-control cells. The next test should run
 cache-off/cache-on with only the matched-unique profile, then only the
 shared-prefix profile, so scenario ordering and cross-profile cache state cannot
 explain the result.
+
+# Training 085 - Single-Profile Server Cache-Control Isolation
+
+## Goal
+
+Isolate the Training 084 question by removing cross-profile cache state and
+scenario ordering from the server process. This checkpoint runs cache-off and
+cache-on cells with only the matched-unique profile, then only the shared-prefix
+profile, under the same Qwen 1.5B/L4/n32/batched-tokens60640 serving shape.
+
+## Commands
+
+```bash
+modal run modal_app.py --mode vllm-server-async-paired \
+  --modal-gpu L4 \
+  --hf-model Qwen/Qwen2.5-1.5B-Instruct \
+  --prompt-profiles matched_unique_prefix_mega_long_no_repeat_variant \
+  --output-tokens 8 \
+  --request-counts 32 \
+  --repeats 1 \
+  --scenario-seed 3401 \
+  --warmup-runs 1 \
+  --phase-order async_first \
+  --server-async-max-num-batched-tokens 60640 \
+  --server-async-prefix-caching off \
+  --output-dir results/modal-vllm-server-async-qwen15b-l4-n32-batched-tokens60640-single-profile-matched-unique-cache-off-r1
+
+modal run modal_app.py --mode vllm-server-async-paired \
+  --modal-gpu L4 \
+  --hf-model Qwen/Qwen2.5-1.5B-Instruct \
+  --prompt-profiles matched_unique_prefix_mega_long_no_repeat_variant \
+  --output-tokens 8 \
+  --request-counts 32 \
+  --repeats 1 \
+  --scenario-seed 3401 \
+  --warmup-runs 1 \
+  --phase-order async_first \
+  --server-async-max-num-batched-tokens 60640 \
+  --server-async-prefix-caching on \
+  --output-dir results/modal-vllm-server-async-qwen15b-l4-n32-batched-tokens60640-single-profile-matched-unique-cache-on-r1
+
+modal run modal_app.py --mode vllm-server-async-paired \
+  --modal-gpu L4 \
+  --hf-model Qwen/Qwen2.5-1.5B-Instruct \
+  --prompt-profiles shared_prefix_mega_long_no_repeat_variant \
+  --output-tokens 8 \
+  --request-counts 32 \
+  --repeats 1 \
+  --scenario-seed 3401 \
+  --warmup-runs 1 \
+  --phase-order async_first \
+  --server-async-max-num-batched-tokens 60640 \
+  --server-async-prefix-caching off \
+  --output-dir results/modal-vllm-server-async-qwen15b-l4-n32-batched-tokens60640-single-profile-shared-prefix-cache-off-r1
+
+modal run modal_app.py --mode vllm-server-async-paired \
+  --modal-gpu L4 \
+  --hf-model Qwen/Qwen2.5-1.5B-Instruct \
+  --prompt-profiles shared_prefix_mega_long_no_repeat_variant \
+  --output-tokens 8 \
+  --request-counts 32 \
+  --repeats 1 \
+  --scenario-seed 3401 \
+  --warmup-runs 1 \
+  --phase-order async_first \
+  --server-async-max-num-batched-tokens 60640 \
+  --server-async-prefix-caching on \
+  --output-dir results/modal-vllm-server-async-qwen15b-l4-n32-batched-tokens60640-single-profile-shared-prefix-cache-on-r1
+
+modal run modal_app.py --mode vllm-server-async-cache-control-compare \
+  --server-async-cache-control-dirs results/modal-vllm-server-async-qwen15b-l4-n32-batched-tokens60640-single-profile-matched-unique-cache-off-r1,results/modal-vllm-server-async-qwen15b-l4-n32-batched-tokens60640-single-profile-matched-unique-cache-on-r1 \
+  --output-dir results/modal-vllm-server-async-qwen15b-l4-n32-batched-tokens60640-single-profile-matched-unique-cache-control-r1
+
+modal run modal_app.py --mode vllm-server-async-cache-control-compare \
+  --server-async-cache-control-dirs results/modal-vllm-server-async-qwen15b-l4-n32-batched-tokens60640-single-profile-shared-prefix-cache-off-r1,results/modal-vllm-server-async-qwen15b-l4-n32-batched-tokens60640-single-profile-shared-prefix-cache-on-r1 \
+  --output-dir results/modal-vllm-server-async-qwen15b-l4-n32-batched-tokens60640-single-profile-shared-prefix-cache-control-r1
+
+modal run modal_app.py --mode vllm-server-async-cache-control-server-absolute \
+  --server-async-cache-control-server-absolute-compare-dirs results/modal-vllm-server-async-qwen15b-l4-n32-batched-tokens60640-single-profile-matched-unique-cache-control-r1,results/modal-vllm-server-async-qwen15b-l4-n32-batched-tokens60640-single-profile-shared-prefix-cache-control-r1 \
+  --output-dir results/modal-vllm-server-async-qwen15b-l4-n32-batched-tokens60640-single-profile-server-cache-control-r1
+```
+
+## Result
+
+The single-profile run preserves the main Training 083/084 finding: the
+matched-unique profile still has a large cache-on/cache-off effect even when it
+is the only profile in the server process.
+
+Server/async throughput ratio by cell:
+
+```text
+matched-unique cache-off: 0.952x
+matched-unique cache-on: 8.313x
+matched-unique cache-on/cache-off ratio: 8.728x
+
+shared-prefix cache-off: 0.933x
+shared-prefix cache-on: 9.928x
+shared-prefix cache-on/cache-off ratio: 10.645x
+```
+
+Direct raw server cache-on divided by cache-off:
+
+```text
+matched-unique:
+  output tokens/s ratio: 8.594x
+  p95 latency ratio: 0.116x
+  p95 first-content ratio: 0.099x
+  p95 stream TPOT ratio: 0.046x
+  cache-off throughput: 32.104 output tokens/s
+  cache-on throughput: 275.895 output tokens/s
+
+shared-prefix:
+  output tokens/s ratio: 10.463x
+  p95 latency ratio: 0.095x
+  p95 first-content ratio: 0.084x
+  p95 stream TPOT ratio: 0.030x
+  cache-off throughput: 32.162 output tokens/s
+  cache-on throughput: 336.502 output tokens/s
+```
+
+The server logs still observe the configured cache mode for each cell:
+cache-off rows show `enable_prefix_caching=False`, and cache-on rows show
+`enable_prefix_caching=True`. The latest prefix-cache hit-rate telemetry is
+available as `0.0` for the cache-off rows and absent for these cache-on rows, so
+the comparison now preserves that optional metric as `null` instead of treating
+it as a required aggregate.
+
+The combined server-only artifact treats each compare directory as a trial. In
+this checkpoint the compare directories are profile slices, not repeat trials,
+so the per-profile summary rows have `trial_count=1` and should not be read as
+repeat-level confidence intervals.
+
+## Interpretation
+
+This rules out a simple cross-profile contamination explanation. The
+matched-unique speedup is still present when the shared-prefix workload is not
+run in the same server process. The shared-prefix profile is larger, as
+expected, but only modestly larger than matched-unique in this one-shot
+single-profile isolation.
+
+The current evidence supports this boundary:
+
+```text
+Explicit vLLM server prefix caching creates an order-of-magnitude serving-path
+performance difference for this Qwen 1.5B/L4/n32/long-prefill shape. The effect
+is not explained solely by the application-level shared-prefix prompt profile,
+because the matched-unique single-profile control still shows an 8.594x raw
+server throughput ratio.
+```
+
+Generated artifacts:
+
+```text
+results/modal-vllm-server-async-qwen15b-l4-n32-batched-tokens60640-single-profile-matched-unique-cache-off-r1/paired-server-async.json
+results/modal-vllm-server-async-qwen15b-l4-n32-batched-tokens60640-single-profile-matched-unique-cache-on-r1/paired-server-async.json
+results/modal-vllm-server-async-qwen15b-l4-n32-batched-tokens60640-single-profile-matched-unique-cache-control-r1/cache-control-phase-order-compare.json
+results/modal-vllm-server-async-qwen15b-l4-n32-batched-tokens60640-single-profile-shared-prefix-cache-off-r1/paired-server-async.json
+results/modal-vllm-server-async-qwen15b-l4-n32-batched-tokens60640-single-profile-shared-prefix-cache-on-r1/paired-server-async.json
+results/modal-vllm-server-async-qwen15b-l4-n32-batched-tokens60640-single-profile-shared-prefix-cache-control-r1/cache-control-phase-order-compare.json
+results/modal-vllm-server-async-qwen15b-l4-n32-batched-tokens60640-single-profile-server-cache-control-r1/server-cache-control-absolute.json
+results/modal-vllm-server-async-qwen15b-l4-n32-batched-tokens60640-single-profile-server-cache-control-r1/server-cache-control-absolute-trials.csv
+results/modal-vllm-server-async-qwen15b-l4-n32-batched-tokens60640-single-profile-server-cache-control-r1/server-cache-control-absolute-summary.csv
+```
+
+## Next Step
+
+Move from profile-level isolation to a minimal server-only control. The next
+checkpoint should run a smaller matrix that varies prompt reuse inside a single
+profile family, ideally including random or shuffled long prompts, while also
+capturing vLLM runtime cache counters around the measured request window.

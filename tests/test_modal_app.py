@@ -268,6 +268,59 @@ class ModalAppTests(unittest.TestCase):
             0.1,
         )
 
+    def test_compares_server_async_cache_control_matrix_without_hit_rate_metrics(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            dirs = []
+            for name, mode, observed, throughput, latency in (
+                ("off", "off", False, 1.0, 1.1),
+                ("on", "on", True, 10.0, 0.1),
+            ):
+                path = root / name
+                path.mkdir()
+                command_flag = (
+                    "--enable-prefix-caching"
+                    if mode == "on"
+                    else "--no-enable-prefix-caching"
+                )
+                _write_paired_server_async_payload(
+                    path,
+                    configured_mode=mode,
+                    command_flag=command_flag,
+                    observed_cache=observed,
+                    hit_rate_pct=0.0,
+                    phase_order="async_first",
+                    throughput_ratio=throughput,
+                    latency_ratio=latency,
+                    include_runtime_metrics=False,
+                )
+                dirs.append(path)
+
+            payload = modal_app._compare_vllm_server_async_cache_control_matrix(
+                dirs
+            )
+
+        self.assertEqual(payload["row_count"], 2)
+        self.assertEqual(len(payload["phase_order_cache_contrasts"]), 1)
+        self.assertIsNone(
+            payload["cache_mode_summary"][0][
+                "mean_server_latest_prefix_cache_hit_rate_pct"
+            ]
+        )
+        self.assertIsNone(
+            payload["phase_order_cache_contrasts"][0][
+                "cache_on_minus_off_prefix_cache_hit_rate_pct"
+            ]
+        )
+        self.assertEqual(
+            payload["phase_order_cache_contrasts"][0][
+                "cache_on_minus_off_throughput_ratio"
+            ],
+            9.0,
+        )
+
     def test_aggregates_server_async_cache_control_trials(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -1456,7 +1509,18 @@ def _write_paired_server_async_payload(
     server_p95_first_content_ms: float = 80.0,
     server_p95_stream_tpot_ms: float = 5.0,
     server_batch_wall_ms: float = 100.0,
+    include_runtime_metrics: bool = True,
 ) -> None:
+    server_logs_tail = []
+    if include_runtime_metrics:
+        server_logs_tail.append(
+            (
+                "INFO Engine 000: Avg prompt throughput: 10.0 tokens/s, "
+                "Avg generation throughput: 2.0 tokens/s, Running: 0 reqs, "
+                "Waiting: 0 reqs, GPU KV cache usage: 0.0%, "
+                f"Prefix cache hit rate: {hit_rate_pct}%"
+            )
+        )
     directory.joinpath("paired-server-async.json").write_text(
         json.dumps(
             {
@@ -1482,14 +1546,7 @@ def _write_paired_server_async_payload(
                     "INFO Maximum concurrency for 1,024 tokens per request: 4.00x",
                     "INFO Available KV cache memory: 1.0 GiB",
                 ],
-                "server_logs_tail": [
-                    (
-                        "INFO Engine 000: Avg prompt throughput: 10.0 tokens/s, "
-                        "Avg generation throughput: 2.0 tokens/s, Running: 0 reqs, "
-                        "Waiting: 0 reqs, GPU KV cache usage: 0.0%, "
-                        f"Prefix cache hit rate: {hit_rate_pct}%"
-                    )
-                ],
+                "server_logs_tail": server_logs_tail,
                 "mean_server_to_async_throughput_ratio": throughput_ratio,
                 "mean_server_to_async_latency_ratio": latency_ratio,
                 "mean_server_to_async_tpot_ratio": tpot_ratio,

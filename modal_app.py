@@ -5285,7 +5285,7 @@ def main(
         )
         print(
             "mean_server_latest_prefix_cache_hit_rate_pct: "
-            f"{payload['mean_server_latest_prefix_cache_hit_rate_pct']:.3f}"
+            f"{_format_optional_float(payload['mean_server_latest_prefix_cache_hit_rate_pct'])}"
         )
         print(f"json: {json_path}")
         print(f"csv: {csv_path}")
@@ -7615,7 +7615,7 @@ def _summarize_vllm_server_async_log_metrics(
                 if row.get("server_prefix_caching_configured") is not None
             }
         ),
-        "mean_server_latest_prefix_cache_hit_rate_pct": _mean_present(
+        "mean_server_latest_prefix_cache_hit_rate_pct": _mean_present_or_none(
             row["server_latest_prefix_cache_hit_rate_pct"] for row in rows
         ),
         "all_server_enable_prefix_caching_observed": (
@@ -7722,7 +7722,7 @@ def _compare_vllm_server_async_cache_control_matrix(
             {
                 "server_prefix_caching_configured": cache_mode,
                 "phase_order_count": len({row["phase_order"] for row in mode_rows}),
-                "mean_server_latest_prefix_cache_hit_rate_pct": _mean_present(
+                "mean_server_latest_prefix_cache_hit_rate_pct": _mean_present_or_none(
                     row["server_latest_prefix_cache_hit_rate_pct"]
                     for row in mode_rows
                 ),
@@ -11333,6 +11333,19 @@ def _mean_present(values: Any) -> float:
     if not present:
         raise ValueError("Cannot compute mean for empty values")
     return sum(present) / len(present)
+
+
+def _mean_present_or_none(values: Any) -> float | None:
+    present = [float(value) for value in values if value is not None]
+    if not present:
+        return None
+    return sum(present) / len(present)
+
+
+def _format_optional_float(value: Any, digits: int = 3) -> str:
+    if value is None:
+        return "None"
+    return f"{float(value):.{digits}f}"
 
 
 def _tail_lines(lines: list[str], count: int) -> list[str]:
