@@ -9260,3 +9260,129 @@ results/modal-vllm-server-async-qwen15b-l4-pressure-curve-n40-batched-tokens6064
 results/modal-vllm-server-async-qwen15b-l4-pressure-curve-n16-n40-batched-tokens60640-seed3603-cache-control-r1/server-cache-control-absolute.json
 results/modal-vllm-server-async-qwen15b-l4-pressure-curve-n16-n40-batched-tokens60640-seed3603-pressure-curve-r1/server-cache-pressure-curve.md
 ```
+
+# Training 091 - Server Cache-Pressure Edge Probe
+
+## Goal
+
+Probe the edge proposed by Training 090:
+
+```text
+Can shared-prefix server KV-cache benefit survive when estimated prompt-token
+pressure reaches the reported GPU KV-cache capacity?
+```
+
+This checkpoint uses request counts `n=42` and `n=44` with the same model,
+GPU, output length, phase order, no-warmup setting, and
+`max_num_batched_tokens=60640` as Training 090. The reported capacity lines
+were:
+
+```text
+matched-unique: 158,276 KV tokens, 43.48 max concurrency at 3,640 tokens/request
+shared-prefix:  158,147 KV tokens, 43.29 max concurrency at 3,653 tokens/request
+```
+
+So `n=42` is just below the reported capacity estimate and `n=44` is just above
+it.
+
+## Commands
+
+The eight measured cells use this shape:
+
+```bash
+modal run modal_app.py --mode vllm-server-async-paired \
+  --modal-gpu L4 \
+  --hf-model Qwen/Qwen2.5-1.5B-Instruct \
+  --prompt-profiles {matched_unique_prefix_mega_long_no_repeat_variant|shared_prefix_mega_long_no_repeat_variant} \
+  --output-tokens 8 \
+  --request-counts {42|44} \
+  --repeats 1 \
+  --scenario-seed 3704 \
+  --warmup-runs 0 \
+  --phase-order async_first \
+  --server-async-max-num-batched-tokens 60640 \
+  --server-async-prefix-caching {off|on} \
+  --output-dir results/modal-vllm-server-async-qwen15b-l4-pressure-edge-n{42|44}-batched-tokens60640-{matched-unique|shared-prefix}-seed3704-cache-{off|on}-r1
+```
+
+Each off/on pair is compared with
+`vllm-server-async-cache-control-compare`, all four compare artifacts are
+combined with `vllm-server-async-cache-control-server-absolute`, and the final
+pressure table is generated with:
+
+```bash
+python3 scripts/build_server_cache_pressure_curve.py \
+  --server-absolute-json results/modal-vllm-server-async-qwen15b-l4-pressure-edge-n42-n44-batched-tokens60640-seed3704-cache-control-r1/server-cache-control-absolute.json \
+  --output-dir results/modal-vllm-server-async-qwen15b-l4-pressure-edge-n42-n44-batched-tokens60640-seed3704-pressure-curve-r1
+```
+
+## Result
+
+Direct raw server cache-on divided by cache-off:
+
+```text
+matched-unique n42:
+  prompt pressure: 0.951
+  cache-on hit rate: 0.436%
+  output tokens/s ratio: 1.063x
+  p95 latency ratio: 0.940x
+
+matched-unique n44:
+  prompt pressure: 0.997
+  cache-on hit rate: 0.436%
+  output tokens/s ratio: 1.042x
+  p95 latency ratio: 0.960x
+
+shared-prefix n42:
+  prompt pressure: 0.959
+  cache-on hit rate: 97.113%
+  output tokens/s ratio: 10.969x
+  p95 latency ratio: 0.091x
+
+shared-prefix n44:
+  prompt pressure: 1.004
+  cache-on hit rate: 97.231%
+  output tokens/s ratio: 7.307x
+  p95 latency ratio: 0.137x
+```
+
+All eight measured cells completed. In this configuration, crossing the
+reported maximum-concurrency estimate did not cause immediate admission failure.
+With chunked prefill enabled, the estimate behaves like a pressure signal rather
+than a hard per-scenario failure boundary.
+
+## Interpretation
+
+This is a stronger result than Training 090. The shared-prefix benefit still
+survives at estimated prompt-token pressure near 1.0, including the `n=44`
+shared-prefix cell at pressure `1.004`. The benefit is smaller at `n=44` than
+at `n=42`, but it remains large: `7.307x` output tokens/s and `0.137x` p95
+latency.
+
+The matched-unique control stays nearly flat with measured-window cache hit
+rate below 0.5%, which supports the interpretation that the shared-prefix gain
+comes from real reusable KV rather than general server/cache-on overhead.
+
+The next pressure step should reduce the available KV budget rather than only
+raise request count. Good follow-ups are a `gpu_memory_utilization` sweep or a
+smaller `max_num_batched_tokens`/capacity budget that creates several points
+above pressure 1.0 without relying on a single near-edge request-count jump.
+
+Generated artifacts:
+
+```text
+results/modal-vllm-server-async-qwen15b-l4-pressure-edge-n42-batched-tokens60640-matched-unique-seed3704-cache-off-r1/paired-server-async.json
+results/modal-vllm-server-async-qwen15b-l4-pressure-edge-n42-batched-tokens60640-matched-unique-seed3704-cache-on-r1/paired-server-async.json
+results/modal-vllm-server-async-qwen15b-l4-pressure-edge-n42-batched-tokens60640-matched-unique-seed3704-cache-control-r1/cache-control-phase-order-compare.json
+results/modal-vllm-server-async-qwen15b-l4-pressure-edge-n42-batched-tokens60640-shared-prefix-seed3704-cache-off-r1/paired-server-async.json
+results/modal-vllm-server-async-qwen15b-l4-pressure-edge-n42-batched-tokens60640-shared-prefix-seed3704-cache-on-r1/paired-server-async.json
+results/modal-vllm-server-async-qwen15b-l4-pressure-edge-n42-batched-tokens60640-shared-prefix-seed3704-cache-control-r1/cache-control-phase-order-compare.json
+results/modal-vllm-server-async-qwen15b-l4-pressure-edge-n44-batched-tokens60640-matched-unique-seed3704-cache-off-r1/paired-server-async.json
+results/modal-vllm-server-async-qwen15b-l4-pressure-edge-n44-batched-tokens60640-matched-unique-seed3704-cache-on-r1/paired-server-async.json
+results/modal-vllm-server-async-qwen15b-l4-pressure-edge-n44-batched-tokens60640-matched-unique-seed3704-cache-control-r1/cache-control-phase-order-compare.json
+results/modal-vllm-server-async-qwen15b-l4-pressure-edge-n44-batched-tokens60640-shared-prefix-seed3704-cache-off-r1/paired-server-async.json
+results/modal-vllm-server-async-qwen15b-l4-pressure-edge-n44-batched-tokens60640-shared-prefix-seed3704-cache-on-r1/paired-server-async.json
+results/modal-vllm-server-async-qwen15b-l4-pressure-edge-n44-batched-tokens60640-shared-prefix-seed3704-cache-control-r1/cache-control-phase-order-compare.json
+results/modal-vllm-server-async-qwen15b-l4-pressure-edge-n42-n44-batched-tokens60640-seed3704-cache-control-r1/server-cache-control-absolute.json
+results/modal-vllm-server-async-qwen15b-l4-pressure-edge-n42-n44-batched-tokens60640-seed3704-pressure-curve-r1/server-cache-pressure-curve.md
+```
