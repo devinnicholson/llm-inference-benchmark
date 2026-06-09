@@ -177,6 +177,97 @@ class ModalAppTests(unittest.TestCase):
         self.assertFalse(summary["all_server_enable_prefix_caching_observed"])
         self.assertFalse(summary["all_server_disable_prefix_caching_observed"])
 
+    def test_compares_server_async_cache_control_matrix(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            dirs = []
+            for name, phase_order, mode, flag, observed, hit, throughput, latency in (
+                (
+                    "off-async",
+                    "async_first",
+                    "off",
+                    "--no-enable-prefix-caching",
+                    False,
+                    0.0,
+                    1.0,
+                    1.1,
+                ),
+                (
+                    "off-server",
+                    "server_first",
+                    "off",
+                    "--no-enable-prefix-caching",
+                    False,
+                    0.0,
+                    0.9,
+                    1.2,
+                ),
+                (
+                    "on-async",
+                    "async_first",
+                    "on",
+                    "--enable-prefix-caching",
+                    True,
+                    70.0,
+                    10.0,
+                    0.1,
+                ),
+                (
+                    "on-server",
+                    "server_first",
+                    "on",
+                    "--enable-prefix-caching",
+                    True,
+                    80.0,
+                    9.0,
+                    0.2,
+                ),
+            ):
+                path = root / name
+                path.mkdir()
+                _write_paired_server_async_payload(
+                    path,
+                    configured_mode=mode,
+                    command_flag=flag,
+                    observed_cache=observed,
+                    hit_rate_pct=hit,
+                    phase_order=phase_order,
+                    throughput_ratio=throughput,
+                    latency_ratio=latency,
+                    tpot_ratio=latency / 2,
+                )
+                dirs.append(path)
+
+            payload = modal_app._compare_vllm_server_async_cache_control_matrix(
+                dirs
+            )
+
+        self.assertEqual(payload["row_count"], 4)
+        self.assertEqual(payload["cache_modes"], ["off", "on"])
+        self.assertEqual(payload["phase_orders"], ["async_first", "server_first"])
+        self.assertEqual(len(payload["phase_order_cache_contrasts"]), 2)
+        async_first = {
+            row["phase_order"]: row
+            for row in payload["phase_order_cache_contrasts"]
+        }["async_first"]
+        self.assertEqual(async_first["cache_on_minus_off_throughput_ratio"], 9.0)
+        self.assertAlmostEqual(
+            async_first["cache_on_div_off_latency_ratio"],
+            0.1 / 1.1,
+        )
+        mode_summary = {
+            row["server_prefix_caching_configured"]: row
+            for row in payload["cache_mode_summary"]
+        }
+        self.assertAlmostEqual(
+            mode_summary["off"]["server_first_minus_async_first_throughput_ratio"],
+            -0.1,
+        )
+        self.assertAlmostEqual(
+            mode_summary["on"]["server_first_minus_async_first_latency_ratio"],
+            0.1,
+        )
+
     def test_parses_vllm_server_cli_help_prefix_flags(self) -> None:
         parsed = modal_app._parse_vllm_server_cli_help(
             "  --enable-prefix-caching\n"
@@ -1157,11 +1248,15 @@ def _write_paired_server_async_payload(
     command_flag: str,
     observed_cache: bool,
     hit_rate_pct: float,
+    phase_order: str = "async_first",
+    throughput_ratio: float = 1.0,
+    latency_ratio: float = 1.0,
+    tpot_ratio: float = 1.0,
 ) -> None:
     directory.joinpath("paired-server-async.json").write_text(
         json.dumps(
             {
-                "phase_order": "async_first",
+                "phase_order": phase_order,
                 "model_id": "fake-model",
                 "modal_gpu": "L4",
                 "request_counts": [32],
@@ -1191,9 +1286,9 @@ def _write_paired_server_async_payload(
                         f"Prefix cache hit rate: {hit_rate_pct}%"
                     )
                 ],
-                "mean_server_to_async_throughput_ratio": 1.0,
-                "mean_server_to_async_latency_ratio": 1.0,
-                "mean_server_to_async_tpot_ratio": 1.0,
+                "mean_server_to_async_throughput_ratio": throughput_ratio,
+                "mean_server_to_async_latency_ratio": latency_ratio,
+                "mean_server_to_async_tpot_ratio": tpot_ratio,
             }
         ),
         encoding="utf-8",

@@ -7705,3 +7705,135 @@ Promote the explicit server cache-control path from smoke to a repeated
 phase-order control: run cache off/on across async-first and server-first
 orders, then aggregate whether the server cache-on win survives phase-order
 variation while cache-off stays near no-cache `AsyncLLM`.
+
+# Training 081 - Server Cache-Control Phase-Order Matrix
+
+Training 081 promotes the explicit server cache-control smoke into a four-cell
+phase-order matrix. It adds `vllm-server-async-cache-control-compare`, a local
+aggregation mode that reads paired server-vs-`AsyncLLM` artifacts and emits:
+
+- one matrix row per `(server_prefix_caching_configured, phase_order)` cell
+- one cache-mode summary row across phase orders
+- one cache-on-vs-cache-off contrast row per phase order
+
+## Goal
+
+Check whether the Training 080 result depends on phase order. The expected
+shape is:
+
+- server cache off should remain near no-cache `AsyncLLM` in both phase orders
+- server cache on should show a large serving-path win in both phase orders
+- vLLM logs should still observe `enable_prefix_caching=False` for off and
+  `enable_prefix_caching=True` for on
+
+## Commands
+
+Training 080 already produced async-first cache off/on. Training 081 adds the
+server-first cells:
+
+```bash
+modal run modal_app.py --mode vllm-server-async-paired \
+  --modal-gpu L4 \
+  --hf-model Qwen/Qwen2.5-1.5B-Instruct \
+  --prompt-profiles shared_prefix_mega_long_no_repeat_variant,matched_unique_prefix_mega_long_no_repeat_variant \
+  --output-tokens 8 \
+  --request-counts 32 \
+  --repeats 1 \
+  --scenario-seed 3201 \
+  --warmup-runs 1 \
+  --phase-order server_first \
+  --server-async-max-num-batched-tokens 60640 \
+  --server-async-prefix-caching off \
+  --output-dir results/modal-vllm-server-async-qwen15b-l4-n32-batched-tokens60640-server-cache-off-server-first-smoke-r1
+
+modal run modal_app.py --mode vllm-server-async-paired \
+  --modal-gpu L4 \
+  --hf-model Qwen/Qwen2.5-1.5B-Instruct \
+  --prompt-profiles shared_prefix_mega_long_no_repeat_variant,matched_unique_prefix_mega_long_no_repeat_variant \
+  --output-tokens 8 \
+  --request-counts 32 \
+  --repeats 1 \
+  --scenario-seed 3201 \
+  --warmup-runs 1 \
+  --phase-order server_first \
+  --server-async-max-num-batched-tokens 60640 \
+  --server-async-prefix-caching on \
+  --output-dir results/modal-vllm-server-async-qwen15b-l4-n32-batched-tokens60640-server-cache-on-server-first-smoke-r1
+
+modal run modal_app.py --mode vllm-server-async-cache-control-compare \
+  --server-async-cache-control-dirs results/modal-vllm-server-async-qwen15b-l4-n32-batched-tokens60640-server-cache-off-smoke-r1,results/modal-vllm-server-async-qwen15b-l4-n32-batched-tokens60640-server-cache-off-server-first-smoke-r1,results/modal-vllm-server-async-qwen15b-l4-n32-batched-tokens60640-server-cache-on-smoke-r1,results/modal-vllm-server-async-qwen15b-l4-n32-batched-tokens60640-server-cache-on-server-first-smoke-r1 \
+  --output-dir results/modal-vllm-server-async-qwen15b-l4-n32-batched-tokens60640-server-cache-control-phase-order-r1
+```
+
+## Result
+
+The four-cell matrix used Qwen 1.5B on L4 with n32,
+`max_num_batched_tokens=60640`, one repeat per cell, and the same seed as
+Training 080.
+
+```text
+cache off / async_first:
+  observed enable_prefix_caching=False
+  latest prefix-cache hit rate: 0.0%
+  mean server/async throughput ratio: 0.944
+  mean server/async latency ratio: 1.065
+
+cache off / server_first:
+  observed enable_prefix_caching=False
+  latest prefix-cache hit rate: 0.0%
+  mean server/async throughput ratio: 0.986
+  mean server/async latency ratio: 1.019
+
+cache on / async_first:
+  observed enable_prefix_caching=True
+  latest prefix-cache hit rate: 74.1%
+  mean server/async throughput ratio: 11.443
+  mean server/async latency ratio: 0.088
+
+cache on / server_first:
+  observed enable_prefix_caching=True
+  latest prefix-cache hit rate: 48.4%
+  mean server/async throughput ratio: 12.409
+  mean server/async latency ratio: 0.081
+```
+
+Cache-on minus cache-off by phase order:
+
+```text
+async_first:
+  throughput-ratio delta: +10.499
+  latency-ratio delta: -0.977
+  prefix-cache hit-rate delta: +74.1 pp
+
+server_first:
+  throughput-ratio delta: +11.423
+  latency-ratio delta: -0.938
+  prefix-cache hit-rate delta: +48.4 pp
+```
+
+At smoke scale, the explicit server cache-on win survives the phase-order flip,
+and explicit cache-off remains near no-cache `AsyncLLM` in both phase orders.
+This is stronger semantic evidence than Training 080, but still not a final
+statistical result because each matrix cell has one repeat.
+
+Generated artifacts:
+
+```text
+results/modal-vllm-server-async-qwen15b-l4-n32-batched-tokens60640-server-cache-off-server-first-smoke-r1/paired-server-async.json
+results/modal-vllm-server-async-qwen15b-l4-n32-batched-tokens60640-server-cache-off-server-first-smoke-r1/paired-server-async-summary.csv
+results/modal-vllm-server-async-qwen15b-l4-n32-batched-tokens60640-server-cache-off-server-first-smoke-r1/paired-server-async-runs.csv
+results/modal-vllm-server-async-qwen15b-l4-n32-batched-tokens60640-server-cache-on-server-first-smoke-r1/paired-server-async.json
+results/modal-vllm-server-async-qwen15b-l4-n32-batched-tokens60640-server-cache-on-server-first-smoke-r1/paired-server-async-summary.csv
+results/modal-vllm-server-async-qwen15b-l4-n32-batched-tokens60640-server-cache-on-server-first-smoke-r1/paired-server-async-runs.csv
+results/modal-vllm-server-async-qwen15b-l4-n32-batched-tokens60640-server-cache-control-phase-order-r1/cache-control-phase-order-compare.json
+results/modal-vllm-server-async-qwen15b-l4-n32-batched-tokens60640-server-cache-control-phase-order-r1/cache-control-matrix.csv
+results/modal-vllm-server-async-qwen15b-l4-n32-batched-tokens60640-server-cache-control-phase-order-r1/cache-control-contrasts.csv
+results/modal-vllm-server-async-qwen15b-l4-n32-batched-tokens60640-server-cache-control-phase-order-r1/cache-control-mode-summary.csv
+```
+
+## Next Step
+
+Promote the cache-control matrix from one repeat per cell to repeated trials.
+The next artifact should merge several fresh four-cell matrices or run repeated
+cells directly, then report confidence intervals for cache-on minus cache-off
+under both phase orders.

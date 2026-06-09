@@ -55,6 +55,15 @@ DEFAULT_VLLM_SERVER_ASYNC_LONG_PHASE_ORDER_COMPARE_OUTPUT = (
 DEFAULT_VLLM_SERVER_ASYNC_WORKLOAD_COMPARE_OUTPUT = (
     "results/modal-vllm-server-async-workload-compare"
 )
+DEFAULT_VLLM_SERVER_ASYNC_CACHE_CONTROL_COMPARE_OUTPUT = (
+    "results/modal-vllm-server-async-cache-control-phase-order-compare"
+)
+DEFAULT_VLLM_SERVER_ASYNC_CACHE_CONTROL_COMPARE_DIRS = (
+    "results/modal-vllm-server-async-qwen15b-l4-n32-batched-tokens60640-server-cache-off-smoke-r1,"
+    "results/modal-vllm-server-async-qwen15b-l4-n32-batched-tokens60640-server-cache-off-server-first-smoke-r1,"
+    "results/modal-vllm-server-async-qwen15b-l4-n32-batched-tokens60640-server-cache-on-smoke-r1,"
+    "results/modal-vllm-server-async-qwen15b-l4-n32-batched-tokens60640-server-cache-on-server-first-smoke-r1"
+)
 DEFAULT_VLLM_SERVER_ASYNC_LOG_SUMMARY_OUTPUT = (
     "results/modal-vllm-server-async-log-summary"
 )
@@ -4759,6 +4768,7 @@ def main(
     server_first_paired_dir: str = DEFAULT_VLLM_SERVER_ASYNC_PAIRED_SERVER_FIRST_OUTPUT,
     phase_order_compare_dirs: str = DEFAULT_VLLM_SERVER_ASYNC_PHASE_ORDER_COMPARE_DIRS,
     server_async_log_summary_dirs: str = DEFAULT_VLLM_SERVER_ASYNC_LOG_SUMMARY_DIRS,
+    server_async_cache_control_dirs: str = DEFAULT_VLLM_SERVER_ASYNC_CACHE_CONTROL_COMPARE_DIRS,
     short_multitrial_dir: str = DEFAULT_VLLM_SERVER_ASYNC_MULTITRIAL_OUTPUT,
     long_phase_order_compare_dir: str = DEFAULT_VLLM_SERVER_ASYNC_LONG_PHASE_ORDER_COMPARE_OUTPUT,
     prefix_cache_cold_first_paired_dir: str = DEFAULT_VLLM_PREFIX_CACHE_PAIRED_OUTPUT,
@@ -5338,6 +5348,40 @@ def main(
             )
         print(f"json: {json_path}")
         print(f"csv: {csv_path}")
+        return
+
+    if mode == "vllm-server-async-cache-control-compare":
+        payload = _compare_vllm_server_async_cache_control_matrix(
+            [Path(path) for path in _split_csv(server_async_cache_control_dirs)]
+        )
+        output_path = Path(
+            output_dir or DEFAULT_VLLM_SERVER_ASYNC_CACHE_CONTROL_COMPARE_OUTPUT
+        )
+        output_path.mkdir(parents=True, exist_ok=True)
+        json_path = output_path / "cache-control-phase-order-compare.json"
+        matrix_csv_path = output_path / "cache-control-matrix.csv"
+        contrast_csv_path = output_path / "cache-control-contrasts.csv"
+        summary_csv_path = output_path / "cache-control-mode-summary.csv"
+        json_path.write_text(
+            json.dumps(payload, indent=2, sort_keys=True) + "\n",
+            encoding="utf-8",
+        )
+        _write_records_csv(matrix_csv_path, payload["matrix_rows"])
+        _write_records_csv(contrast_csv_path, payload["phase_order_cache_contrasts"])
+        _write_records_csv(summary_csv_path, payload["cache_mode_summary"])
+
+        print(f"matrix_rows: {payload['row_count']}")
+        for row in payload["phase_order_cache_contrasts"]:
+            print(
+                f"{row['phase_order']}: on_minus_off_throughput_ratio="
+                f"{row['cache_on_minus_off_throughput_ratio']:.3f} "
+                f"on_minus_off_latency_ratio="
+                f"{row['cache_on_minus_off_latency_ratio']:.3f}"
+            )
+        print(f"json: {json_path}")
+        print(f"matrix_csv: {matrix_csv_path}")
+        print(f"contrast_csv: {contrast_csv_path}")
+        print(f"summary_csv: {summary_csv_path}")
         return
 
     if mode == "vllm-sweep":
@@ -6063,7 +6107,8 @@ def main(
             "'vllm-server-async-log-summary', "
             "'vllm-server-async-phase-order-compare', "
             "'vllm-server-async-multitrial-aggregate', "
-            "'vllm-server-async-workload-compare', 'vllm-sweep', or "
+            "'vllm-server-async-workload-compare', "
+            "'vllm-server-async-cache-control-compare', 'vllm-sweep', or "
             "'vllm-prefix-cache-isolated-window-summary', "
             "'vllm-prefix-cache-isolated-stability-summary', "
             "'vllm-prefix-cache-prompt-audit', "
@@ -7444,6 +7489,220 @@ def _summarize_vllm_server_async_log_metrics(
             or row["server_command_has_disable_prefix_caching_flag"]
             for row in rows
         ),
+    }
+
+
+def _compare_vllm_server_async_cache_control_matrix(
+    paired_dirs: list[Path],
+) -> dict[str, Any]:
+    log_summary = _summarize_vllm_server_async_log_metrics(paired_dirs)
+    rows = []
+    seen_keys: set[tuple[str, str]] = set()
+    for row in log_summary["rows"]:
+        cache_mode = str(row.get("server_prefix_caching_configured") or "unknown")
+        phase_order = str(row.get("phase_order") or "unknown")
+        key = (cache_mode, phase_order)
+        if key in seen_keys:
+            raise ValueError(
+                "Duplicate cache-control matrix cell: "
+                f"cache_mode={cache_mode} phase_order={phase_order}"
+            )
+        seen_keys.add(key)
+        rows.append(
+            {
+                "server_prefix_caching_configured": cache_mode,
+                "phase_order": phase_order,
+                "source_dir": row["source_dir"],
+                "model_id": row["model_id"],
+                "modal_gpu": row["modal_gpu"],
+                "request_counts": row["request_counts"],
+                "prompt_profiles": row["prompt_profiles"],
+                "output_tokens": row["output_tokens"],
+                "repeats": row["repeats"],
+                "max_model_len": row["max_model_len"],
+                "max_num_batched_tokens": row["max_num_batched_tokens"],
+                "max_num_batched_tokens_source": row[
+                    "max_num_batched_tokens_source"
+                ],
+                "async_enable_prefix_caching_configured": row[
+                    "async_enable_prefix_caching_configured"
+                ],
+                "server_prefix_caching_flag": row["server_prefix_caching_flag"],
+                "server_enable_prefix_caching_observed": row[
+                    "server_enable_prefix_caching_observed"
+                ],
+                "server_runtime_metric_count": row["server_runtime_metric_count"],
+                "server_latest_prefix_cache_hit_rate_pct": row[
+                    "server_latest_prefix_cache_hit_rate_pct"
+                ],
+                "server_gpu_kv_cache_size_tokens": row[
+                    "server_gpu_kv_cache_size_tokens"
+                ],
+                "server_max_concurrency_for_request": row[
+                    "server_max_concurrency_for_request"
+                ],
+                "mean_server_to_async_throughput_ratio": row[
+                    "mean_server_to_async_throughput_ratio"
+                ],
+                "mean_server_to_async_latency_ratio": row[
+                    "mean_server_to_async_latency_ratio"
+                ],
+                "mean_server_to_async_tpot_ratio": row[
+                    "mean_server_to_async_tpot_ratio"
+                ],
+            }
+        )
+
+    rows.sort(
+        key=lambda row: (
+            str(row["server_prefix_caching_configured"]),
+            str(row["phase_order"]),
+        )
+    )
+    by_key = {
+        (row["server_prefix_caching_configured"], row["phase_order"]): row
+        for row in rows
+    }
+    cache_modes = sorted({row["server_prefix_caching_configured"] for row in rows})
+    phase_orders = sorted({row["phase_order"] for row in rows})
+
+    cache_mode_summary = []
+    for cache_mode in cache_modes:
+        mode_rows = [
+            row for row in rows
+            if row["server_prefix_caching_configured"] == cache_mode
+        ]
+        async_first = by_key.get((cache_mode, "async_first"))
+        server_first = by_key.get((cache_mode, "server_first"))
+        cache_mode_summary.append(
+            {
+                "server_prefix_caching_configured": cache_mode,
+                "phase_order_count": len({row["phase_order"] for row in mode_rows}),
+                "mean_server_latest_prefix_cache_hit_rate_pct": _mean_present(
+                    row["server_latest_prefix_cache_hit_rate_pct"]
+                    for row in mode_rows
+                ),
+                "mean_server_to_async_throughput_ratio": _mean_present(
+                    row["mean_server_to_async_throughput_ratio"]
+                    for row in mode_rows
+                ),
+                "mean_server_to_async_latency_ratio": _mean_present(
+                    row["mean_server_to_async_latency_ratio"]
+                    for row in mode_rows
+                ),
+                "mean_server_to_async_tpot_ratio": _mean_present(
+                    row["mean_server_to_async_tpot_ratio"] for row in mode_rows
+                ),
+                "async_first_throughput_ratio": (
+                    async_first["mean_server_to_async_throughput_ratio"]
+                    if async_first
+                    else None
+                ),
+                "server_first_throughput_ratio": (
+                    server_first["mean_server_to_async_throughput_ratio"]
+                    if server_first
+                    else None
+                ),
+                "server_first_minus_async_first_throughput_ratio": (
+                    _delta(
+                        server_first["mean_server_to_async_throughput_ratio"],
+                        async_first["mean_server_to_async_throughput_ratio"],
+                    )
+                    if async_first and server_first
+                    else None
+                ),
+                "async_first_latency_ratio": (
+                    async_first["mean_server_to_async_latency_ratio"]
+                    if async_first
+                    else None
+                ),
+                "server_first_latency_ratio": (
+                    server_first["mean_server_to_async_latency_ratio"]
+                    if server_first
+                    else None
+                ),
+                "server_first_minus_async_first_latency_ratio": (
+                    _delta(
+                        server_first["mean_server_to_async_latency_ratio"],
+                        async_first["mean_server_to_async_latency_ratio"],
+                    )
+                    if async_first and server_first
+                    else None
+                ),
+            }
+        )
+
+    phase_order_cache_contrasts = []
+    for phase_order in phase_orders:
+        off_row = by_key.get(("off", phase_order))
+        on_row = by_key.get(("on", phase_order))
+        if not off_row or not on_row:
+            continue
+        phase_order_cache_contrasts.append(
+            {
+                "phase_order": phase_order,
+                "off_source_dir": off_row["source_dir"],
+                "on_source_dir": on_row["source_dir"],
+                "off_server_enable_prefix_caching_observed": off_row[
+                    "server_enable_prefix_caching_observed"
+                ],
+                "on_server_enable_prefix_caching_observed": on_row[
+                    "server_enable_prefix_caching_observed"
+                ],
+                "off_latest_prefix_cache_hit_rate_pct": off_row[
+                    "server_latest_prefix_cache_hit_rate_pct"
+                ],
+                "on_latest_prefix_cache_hit_rate_pct": on_row[
+                    "server_latest_prefix_cache_hit_rate_pct"
+                ],
+                "cache_on_minus_off_prefix_cache_hit_rate_pct": _delta(
+                    on_row["server_latest_prefix_cache_hit_rate_pct"],
+                    off_row["server_latest_prefix_cache_hit_rate_pct"],
+                ),
+                "off_throughput_ratio": off_row[
+                    "mean_server_to_async_throughput_ratio"
+                ],
+                "on_throughput_ratio": on_row[
+                    "mean_server_to_async_throughput_ratio"
+                ],
+                "cache_on_minus_off_throughput_ratio": _delta(
+                    on_row["mean_server_to_async_throughput_ratio"],
+                    off_row["mean_server_to_async_throughput_ratio"],
+                ),
+                "cache_on_div_off_throughput_ratio": _ratio(
+                    on_row["mean_server_to_async_throughput_ratio"],
+                    off_row["mean_server_to_async_throughput_ratio"],
+                ),
+                "off_latency_ratio": off_row["mean_server_to_async_latency_ratio"],
+                "on_latency_ratio": on_row["mean_server_to_async_latency_ratio"],
+                "cache_on_minus_off_latency_ratio": _delta(
+                    on_row["mean_server_to_async_latency_ratio"],
+                    off_row["mean_server_to_async_latency_ratio"],
+                ),
+                "cache_on_div_off_latency_ratio": _ratio(
+                    on_row["mean_server_to_async_latency_ratio"],
+                    off_row["mean_server_to_async_latency_ratio"],
+                ),
+                "off_tpot_ratio": off_row["mean_server_to_async_tpot_ratio"],
+                "on_tpot_ratio": on_row["mean_server_to_async_tpot_ratio"],
+                "cache_on_minus_off_tpot_ratio": _delta(
+                    on_row["mean_server_to_async_tpot_ratio"],
+                    off_row["mean_server_to_async_tpot_ratio"],
+                ),
+            }
+        )
+
+    return {
+        "schema_version": 1,
+        "mode": "vllm-server-async-cache-control-compare",
+        "source_dirs": [str(path) for path in paired_dirs],
+        "row_count": len(rows),
+        "cache_modes": cache_modes,
+        "phase_orders": phase_orders,
+        "matrix_rows": rows,
+        "cache_mode_summary": cache_mode_summary,
+        "phase_order_cache_contrasts": phase_order_cache_contrasts,
+        "log_summary": log_summary,
     }
 
 

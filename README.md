@@ -55,6 +55,9 @@ Latest L4 serving-path log summary:
 Latest L4 serving-path cache-control smoke:
 [`results/modal-vllm-server-async-qwen15b-l4-n32-batched-tokens60640-server-cache-control-log-summary-r1/server-async-log-summary.csv`](results/modal-vllm-server-async-qwen15b-l4-n32-batched-tokens60640-server-cache-control-log-summary-r1/server-async-log-summary.csv)
 
+Latest L4 serving-path cache-control phase-order matrix:
+[`results/modal-vllm-server-async-qwen15b-l4-n32-batched-tokens60640-server-cache-control-phase-order-r1/cache-control-phase-order-compare.json`](results/modal-vllm-server-async-qwen15b-l4-n32-batched-tokens60640-server-cache-control-phase-order-r1/cache-control-phase-order-compare.json)
+
 Latest vLLM server CLI evidence:
 [`results/modal-vllm-server-cli-help-v021/vllm-server-cli-help.json`](results/modal-vllm-server-cli-help-v021/vllm-server-cli-help.json)
 
