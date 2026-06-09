@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import inspect
 import json
 import tempfile
 import unittest
@@ -44,6 +45,27 @@ class ModalAppTests(unittest.TestCase):
         )
         with self.assertRaisesRegex(ValueError, "T4, L4"):
             modal_app._select_vllm_server_async_paired_remote("A100")
+
+    def test_server_async_paired_exposes_gpu_memory_utilization(self) -> None:
+        payload_signature = inspect.signature(
+            modal_app._run_vllm_server_async_paired_payload
+        )
+        self.assertIn("gpu_memory_utilization", payload_signature.parameters)
+
+        for remote in (
+            modal_app.run_vllm_server_async_paired_remote,
+            modal_app.run_vllm_server_async_paired_l4_remote,
+        ):
+            remote_signature = inspect.signature(remote.get_raw_f())
+            self.assertIn("gpu_memory_utilization", remote_signature.parameters)
+
+        with self.assertRaisesRegex(
+            ValueError,
+            "gpu_memory_utilization must be in",
+        ):
+            modal_app._run_vllm_server_async_paired_payload(
+                gpu_memory_utilization=0,
+            )
 
     def test_resolves_max_num_batched_tokens_override(self) -> None:
         self.assertEqual(

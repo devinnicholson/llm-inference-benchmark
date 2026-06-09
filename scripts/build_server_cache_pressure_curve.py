@@ -64,6 +64,9 @@ def _curve_row(group_rows: list[dict[str, Any]]) -> dict[str, Any]:
         "request_count": request_count,
         "max_new_tokens": int(first["max_new_tokens"]),
         "trial_count": len(group_rows),
+        "gpu_memory_utilization_mean": _mean_present(
+            [row.get("gpu_memory_utilization") for row in group_rows]
+        ),
         "prompt_tokens_mean": prompt_tokens_mean,
         "estimated_prompt_tokens": estimated_prompt_tokens,
         "on_server_gpu_kv_cache_size_tokens_mean": kv_cache_size_tokens,
@@ -129,6 +132,7 @@ def build_pressure_curve(server_absolute_json: Path) -> dict[str, Any]:
             row.get("prompt_profile"),
             row.get("request_count"),
             row.get("max_new_tokens"),
+            row.get("gpu_memory_utilization"),
         )
         groups[key].append(row)
 
@@ -141,6 +145,7 @@ def build_pressure_curve(server_absolute_json: Path) -> dict[str, Any]:
                 str(item[0][1]),
                 int(item[0][2]),
                 int(item[0][3]),
+                str(item[0][4]),
             ),
         )
     ]
@@ -161,16 +166,17 @@ def _format_markdown(rows: list[dict[str, Any]], source_json: Path) -> str:
         f"Source: `{_relative_display_path(source_json)}`",
         "",
         (
-            "| Phase | Profile | n | Prompt Pressure | Hit Rate | "
+            "| Phase | Profile | GPU Mem | n | Prompt Pressure | Hit Rate | "
             "Throughput Ratio | p95 Latency Ratio | TTFT Ratio | TPOT Ratio |"
         ),
-        "| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |",
+        "| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |",
     ]
     for row in rows:
         lines.append(
             "| "
             f"`{row['phase_order']}` | "
             f"`{row['prompt_profile']}` | "
+            f"{_fmt(row['gpu_memory_utilization_mean'])} | "
             f"{row['request_count']} | "
             f"{_fmt(row['estimated_prompt_token_pressure_ratio'])} | "
             f"{_fmt(row['on_prefix_cache_hit_rate_pct_mean'], '%')} | "

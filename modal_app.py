@@ -3998,8 +3998,31 @@ def _run_vllm_server_async_paired_payload(
     ready_timeout_s: int = 600,
     max_num_batched_tokens_override: int = 0,
     server_prefix_caching: str = "default",
+    gpu_memory_utilization: float = 0.50,
     modal_gpu_label: str = "T4",
 ) -> dict[str, Any]:
+    request_count_values = _split_positive_int_csv(request_counts, "request_counts")
+    prompt_profile_values = [
+        profile.lower().replace("-", "_")
+        for profile in _split_csv(prompt_profiles)
+    ]
+    output_token_values = _split_positive_int_csv(output_tokens, "output_tokens")
+    if repeats <= 0:
+        raise ValueError("repeats must be positive")
+    if warmup_runs < 0:
+        raise ValueError("warmup_runs must be non-negative")
+    if ready_timeout_s <= 0:
+        raise ValueError("ready_timeout_s must be positive")
+    if gpu_memory_utilization <= 0 or gpu_memory_utilization > 1:
+        raise ValueError("gpu_memory_utilization must be in (0, 1]")
+    phase_order = phase_order.lower().replace("-", "_")
+    if phase_order not in {"async_first", "server_first"}:
+        raise ValueError("phase_order must be async_first or server_first")
+    server_prefix_caching_mode = _normalize_server_prefix_caching_choice(
+        server_prefix_caching
+    )
+    _validate_vllm_prompt_profiles(prompt_profile_values)
+
     import asyncio
     import gc
     import json
@@ -4016,26 +4039,6 @@ def _run_vllm_server_async_paired_payload(
     from vllm.engine.arg_utils import AsyncEngineArgs
     from vllm.sampling_params import RequestOutputKind
     from vllm.v1.engine.async_llm import AsyncLLM
-
-    request_count_values = _split_positive_int_csv(request_counts, "request_counts")
-    prompt_profile_values = [
-        profile.lower().replace("-", "_")
-        for profile in _split_csv(prompt_profiles)
-    ]
-    output_token_values = _split_positive_int_csv(output_tokens, "output_tokens")
-    if repeats <= 0:
-        raise ValueError("repeats must be positive")
-    if warmup_runs < 0:
-        raise ValueError("warmup_runs must be non-negative")
-    if ready_timeout_s <= 0:
-        raise ValueError("ready_timeout_s must be positive")
-    phase_order = phase_order.lower().replace("-", "_")
-    if phase_order not in {"async_first", "server_first"}:
-        raise ValueError("phase_order must be async_first or server_first")
-    server_prefix_caching_mode = _normalize_server_prefix_caching_choice(
-        server_prefix_caching
-    )
-    _validate_vllm_prompt_profiles(prompt_profile_values)
 
     import vllm
 
@@ -4095,7 +4098,7 @@ def _run_vllm_server_async_paired_payload(
             max_model_len=max_model_len,
             max_num_batched_tokens=max_num_batched_tokens,
             max_num_seqs=max_request_count,
-            gpu_memory_utilization=0.50,
+            gpu_memory_utilization=gpu_memory_utilization,
             enable_prefix_caching=False,
             enforce_eager=True,
             trust_remote_code=False,
@@ -4278,7 +4281,7 @@ def _run_vllm_server_async_paired_payload(
             "--max-num-seqs",
             str(max_request_count),
             "--gpu-memory-utilization",
-            "0.50",
+            str(gpu_memory_utilization),
             "--enforce-eager",
         ]
         command.extend(
@@ -4638,7 +4641,7 @@ def _run_vllm_server_async_paired_payload(
         "default_max_num_batched_tokens": default_max_num_batched_tokens,
         "max_num_batched_tokens_source": max_num_batched_tokens_source,
         "max_num_seqs": max_request_count,
-        "gpu_memory_utilization": 0.50,
+        "gpu_memory_utilization": gpu_memory_utilization,
         "async_enable_prefix_caching_configured": False,
         "server_prefix_caching_configured": server_prefix_caching_mode,
         "server_prefix_caching_flag": _vllm_server_prefix_caching_args(
@@ -4703,6 +4706,7 @@ def run_vllm_server_async_paired_remote(
     ready_timeout_s: int = 600,
     max_num_batched_tokens_override: int = 0,
     server_prefix_caching: str = "default",
+    gpu_memory_utilization: float = 0.50,
 ) -> dict[str, Any]:
     return _run_vllm_server_async_paired_payload(
         hf_model=hf_model,
@@ -4716,6 +4720,7 @@ def run_vllm_server_async_paired_remote(
         ready_timeout_s=ready_timeout_s,
         max_num_batched_tokens_override=max_num_batched_tokens_override,
         server_prefix_caching=server_prefix_caching,
+        gpu_memory_utilization=gpu_memory_utilization,
         modal_gpu_label="T4",
     )
 
@@ -4738,6 +4743,7 @@ def run_vllm_server_async_paired_l4_remote(
     ready_timeout_s: int = 600,
     max_num_batched_tokens_override: int = 0,
     server_prefix_caching: str = "default",
+    gpu_memory_utilization: float = 0.50,
 ) -> dict[str, Any]:
     return _run_vllm_server_async_paired_payload(
         hf_model=hf_model,
@@ -4751,6 +4757,7 @@ def run_vllm_server_async_paired_l4_remote(
         ready_timeout_s=ready_timeout_s,
         max_num_batched_tokens_override=max_num_batched_tokens_override,
         server_prefix_caching=server_prefix_caching,
+        gpu_memory_utilization=gpu_memory_utilization,
         modal_gpu_label="L4",
     )
 
@@ -5230,6 +5237,7 @@ def main(
             phase_order=phase_order,
             max_num_batched_tokens_override=server_async_max_num_batched_tokens,
             server_prefix_caching=server_async_prefix_caching,
+            gpu_memory_utilization=gpu_memory_utilization,
         )
         phase_order_slug = phase_order.lower().replace("_", "-")
         default_output = (
@@ -5262,6 +5270,7 @@ def main(
             "max_num_batched_tokens_source: "
             f"{payload['max_num_batched_tokens_source']}"
         )
+        print(f"gpu_memory_utilization: {payload['gpu_memory_utilization']}")
         print(
             "mean_server_to_async_throughput_ratio: "
             f"{payload['mean_server_to_async_throughput_ratio']:.3f}"
@@ -8192,6 +8201,9 @@ def _compare_vllm_server_async_cache_control_server_absolute(
                     "prompt_tokens_mean": run.get("prompt_tokens_mean"),
                     "model_id": paired_payload.get("model_id"),
                     "modal_gpu": paired_payload.get("modal_gpu"),
+                    "gpu_memory_utilization": paired_payload.get(
+                        "gpu_memory_utilization"
+                    ),
                     "max_model_len": paired_payload.get("max_model_len"),
                     "max_num_batched_tokens": paired_payload.get(
                         "max_num_batched_tokens"
@@ -8296,6 +8308,7 @@ def _compare_vllm_server_async_cache_control_server_absolute(
                 if off_row["prompt_tokens_mean"] is not None
                 else None
             ),
+            "gpu_memory_utilization": off_row["gpu_memory_utilization"],
             "max_model_len": off_row["max_model_len"],
             "max_num_batched_tokens": off_row["max_num_batched_tokens"],
             "off_source_dir": off_row["source_dir"],

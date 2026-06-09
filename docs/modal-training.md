@@ -9386,3 +9386,126 @@ results/modal-vllm-server-async-qwen15b-l4-pressure-edge-n44-batched-tokens60640
 results/modal-vllm-server-async-qwen15b-l4-pressure-edge-n42-n44-batched-tokens60640-seed3704-cache-control-r1/server-cache-control-absolute.json
 results/modal-vllm-server-async-qwen15b-l4-pressure-edge-n42-n44-batched-tokens60640-seed3704-pressure-curve-r1/server-cache-pressure-curve.md
 ```
+
+# Training 092 - Server KV-Budget Sweep
+
+## Goal
+
+Reduce available KV budget directly instead of only increasing request count:
+
+```text
+When n is fixed, does shared-prefix server KV-cache benefit degrade once
+estimated prompt pressure moves from near 1.0 to well above 1.0?
+```
+
+This checkpoint also wires `--gpu-memory-utilization` through the
+`vllm-server-async-paired` path. Before this change, that mode hardcoded
+`gpu_memory_utilization=0.50` for both the in-process AsyncLLM and vLLM server
+phases, so a CLI budget sweep would silently keep the old budget.
+
+The measured workload fixes `n=32`, `output_tokens=8`, no warmup,
+`max_num_batched_tokens=60640`, seed `3805`, and phase order `async_first`.
+It varies only prompt profile, server prefix-cache mode, and GPU memory budget.
+
+## Commands
+
+The eight measured cells use this shape:
+
+```bash
+modal run modal_app.py --mode vllm-server-async-paired \
+  --modal-gpu L4 \
+  --hf-model Qwen/Qwen2.5-1.5B-Instruct \
+  --prompt-profiles {matched_unique_prefix_mega_long_no_repeat_variant|shared_prefix_mega_long_no_repeat_variant} \
+  --request-counts 32 \
+  --output-tokens 8 \
+  --repeats 1 \
+  --scenario-seed 3805 \
+  --warmup-runs 0 \
+  --phase-order async_first \
+  --server-async-max-num-batched-tokens 60640 \
+  --server-async-prefix-caching {off|on} \
+  --gpu-memory-utilization {0.45|0.40} \
+  --output-dir results/modal-vllm-server-async-qwen15b-l4-kvbudget-gpu{045|040}-n32-batched-tokens60640-{matched-unique|shared-prefix}-seed3805-cache-{off|on}-r1
+```
+
+Each off/on pair is compared with
+`vllm-server-async-cache-control-compare`, all four compare artifacts are
+combined with `vllm-server-async-cache-control-server-absolute`, and the final
+pressure table is generated with:
+
+```bash
+python3 scripts/build_server_cache_pressure_curve.py \
+  --server-absolute-json results/modal-vllm-server-async-qwen15b-l4-kvbudget-gpu045-gpu040-n32-batched-tokens60640-seed3805-cache-control-r1/server-cache-control-absolute.json \
+  --output-dir results/modal-vllm-server-async-qwen15b-l4-kvbudget-gpu045-gpu040-n32-batched-tokens60640-seed3805-pressure-curve-r1
+```
+
+## Result
+
+Direct raw server cache-on divided by cache-off:
+
+```text
+matched-unique gpu=0.45:
+  prompt pressure: 0.979
+  cache-on hit rate: 0.433%
+  output tokens/s ratio: 0.987x
+  p95 latency ratio: 1.013x
+
+matched-unique gpu=0.40:
+  prompt pressure: 1.510
+  cache-on hit rate: 0.436%
+  output tokens/s ratio: 0.963x
+  p95 latency ratio: 1.038x
+
+shared-prefix gpu=0.45:
+  prompt pressure: 0.978
+  cache-on hit rate: 96.109%
+  output tokens/s ratio: 9.010x
+  p95 latency ratio: 0.111x
+
+shared-prefix gpu=0.40:
+  prompt pressure: 1.509
+  cache-on hit rate: 96.109%
+  output tokens/s ratio: 8.100x
+  p95 latency ratio: 0.123x
+```
+
+All eight measured cells completed. The reduced-budget logs confirm that
+`gpu_memory_utilization=0.45` gives about `117k` KV-cache tokens and
+`gpu_memory_utilization=0.40` gives about `76k` KV-cache tokens on this L4
+configuration.
+
+## Interpretation
+
+The shared-prefix benefit still does not collapse when estimated prompt
+pressure rises to about `1.51`. It degrades from `9.010x` at pressure `0.978`
+to `8.100x` at pressure `1.509`, but remains an order-of-magnitude class
+effect on latency and throughput.
+
+The matched-unique control stays flat-to-slightly-negative as budget tightens,
+with cache-on hit rate still below 0.5%. That is the expected control behavior:
+enabling prefix caching alone does not help unique prompts under high KV
+pressure.
+
+The most useful next step is to add one lower-budget point, likely
+`gpu_memory_utilization=0.35`, or to repeat the `0.40` point across multiple
+seeds. The single-seed result is strong enough to justify the research
+direction, but not enough to characterize the transition curve.
+
+Generated artifacts:
+
+```text
+results/modal-vllm-server-async-qwen15b-l4-kvbudget-gpu045-n32-batched-tokens60640-matched-unique-seed3805-cache-off-r1/paired-server-async.json
+results/modal-vllm-server-async-qwen15b-l4-kvbudget-gpu045-n32-batched-tokens60640-matched-unique-seed3805-cache-on-r1/paired-server-async.json
+results/modal-vllm-server-async-qwen15b-l4-kvbudget-gpu045-n32-batched-tokens60640-matched-unique-seed3805-cache-control-r1/cache-control-phase-order-compare.json
+results/modal-vllm-server-async-qwen15b-l4-kvbudget-gpu045-n32-batched-tokens60640-shared-prefix-seed3805-cache-off-r1/paired-server-async.json
+results/modal-vllm-server-async-qwen15b-l4-kvbudget-gpu045-n32-batched-tokens60640-shared-prefix-seed3805-cache-on-r1/paired-server-async.json
+results/modal-vllm-server-async-qwen15b-l4-kvbudget-gpu045-n32-batched-tokens60640-shared-prefix-seed3805-cache-control-r1/cache-control-phase-order-compare.json
+results/modal-vllm-server-async-qwen15b-l4-kvbudget-gpu040-n32-batched-tokens60640-matched-unique-seed3805-cache-off-r1/paired-server-async.json
+results/modal-vllm-server-async-qwen15b-l4-kvbudget-gpu040-n32-batched-tokens60640-matched-unique-seed3805-cache-on-r1/paired-server-async.json
+results/modal-vllm-server-async-qwen15b-l4-kvbudget-gpu040-n32-batched-tokens60640-matched-unique-seed3805-cache-control-r1/cache-control-phase-order-compare.json
+results/modal-vllm-server-async-qwen15b-l4-kvbudget-gpu040-n32-batched-tokens60640-shared-prefix-seed3805-cache-off-r1/paired-server-async.json
+results/modal-vllm-server-async-qwen15b-l4-kvbudget-gpu040-n32-batched-tokens60640-shared-prefix-seed3805-cache-on-r1/paired-server-async.json
+results/modal-vllm-server-async-qwen15b-l4-kvbudget-gpu040-n32-batched-tokens60640-shared-prefix-seed3805-cache-control-r1/cache-control-phase-order-compare.json
+results/modal-vllm-server-async-qwen15b-l4-kvbudget-gpu045-gpu040-n32-batched-tokens60640-seed3805-cache-control-r1/server-cache-control-absolute.json
+results/modal-vllm-server-async-qwen15b-l4-kvbudget-gpu045-gpu040-n32-batched-tokens60640-seed3805-pressure-curve-r1/server-cache-pressure-curve.md
+```

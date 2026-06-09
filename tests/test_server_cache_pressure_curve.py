@@ -29,6 +29,7 @@ class ServerCachePressureCurveTests(unittest.TestCase):
                                 "request_count": 16,
                                 "max_new_tokens": 8,
                                 "prompt_tokens_mean": 1000.0,
+                                "gpu_memory_utilization": 0.45,
                                 "on_server_gpu_kv_cache_size_tokens": 40000,
                                 "on_server_max_concurrency_for_request": 40.0,
                                 "max_num_batched_tokens": 60640,
@@ -46,6 +47,7 @@ class ServerCachePressureCurveTests(unittest.TestCase):
                                 "request_count": 40,
                                 "max_new_tokens": 8,
                                 "prompt_tokens_mean": 1000.0,
+                                "gpu_memory_utilization": 0.40,
                                 "on_server_gpu_kv_cache_size_tokens": 40000,
                                 "on_server_max_concurrency_for_request": 40.0,
                                 "max_num_batched_tokens": 60640,
@@ -72,8 +74,12 @@ class ServerCachePressureCurveTests(unittest.TestCase):
             by_request_count[16]["estimated_prompt_token_pressure_ratio"],
             0.4,
         )
+        self.assertEqual(by_request_count[16]["gpu_memory_utilization_mean"], 0.45)
         self.assertEqual(by_request_count[40]["throughput_ratio_mean"], 2.0)
-        self.assertIn("| `async_first` | `shared_prefix` | 40 |", payload["markdown"])
+        self.assertIn(
+            "| `async_first` | `shared_prefix` | 0.400 | 40 |",
+            payload["markdown"],
+        )
 
 
 if __name__ == "__main__":
