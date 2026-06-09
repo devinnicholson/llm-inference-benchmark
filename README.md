@@ -71,7 +71,7 @@ Latest single-profile server cache-control isolation:
 [`results/modal-vllm-server-async-qwen15b-l4-n32-batched-tokens60640-single-profile-server-cache-control-r1/server-cache-control-absolute.json`](results/modal-vllm-server-async-qwen15b-l4-n32-batched-tokens60640-single-profile-server-cache-control-r1/server-cache-control-absolute.json)
 
 Latest server `/metrics` no-warmup cache-control:
-[`results/modal-vllm-server-async-qwen15b-l4-n32-batched-tokens60640-nowarmup-server-cache-control-r1/server-cache-control-absolute.json`](results/modal-vllm-server-async-qwen15b-l4-n32-batched-tokens60640-nowarmup-server-cache-control-r1/server-cache-control-absolute.json)
+[`results/modal-vllm-server-async-qwen15b-l4-n32-batched-tokens60640-nowarmup-server-cache-control-r1-r2/server-cache-control-absolute.json`](results/modal-vllm-server-async-qwen15b-l4-n32-batched-tokens60640-nowarmup-server-cache-control-r1-r2/server-cache-control-absolute.json)
 
 Latest vLLM server CLI evidence:
 [`results/modal-vllm-server-cli-help-v021/vllm-server-cli-help.json`](results/modal-vllm-server-cli-help-v021/vllm-server-cli-help.json)

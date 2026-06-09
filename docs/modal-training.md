@@ -8952,3 +8952,190 @@ Repeat the no-warmup matched/shared matrix with at least one additional seed or
 repeat so the artifact has variance estimates. The single-run evidence is
 coherent and counter-backed, but the final report should avoid overclaiming
 until this no-warmup result is repeated.
+
+# Training 089 - Seeded No-Warmup Cache-Control Repeat
+
+## Goal
+
+Repeat the no-warmup matched/shared matrix with a different prompt family and
+keep the same serving controls:
+
+```text
+model: Qwen/Qwen2.5-1.5B-Instruct
+GPU: Modal L4
+request count: 32
+output tokens: 8
+phase order: async_first
+warmup runs: 0
+max_num_batched_tokens: 60640
+scenario seed: 3502
+```
+
+Training 089 also fixes the server-paired prompt selection path so variant
+prompt profiles pass `scenario_seed` into `_select_sweep_prompts`. Without that,
+the server-paired repeat could silently reuse the default variant family even
+when the CLI seed changed.
+
+## Commands
+
+```bash
+modal run modal_app.py --mode vllm-server-async-paired \
+  --modal-gpu L4 \
+  --hf-model Qwen/Qwen2.5-1.5B-Instruct \
+  --prompt-profiles matched_unique_prefix_mega_long_no_repeat_variant \
+  --output-tokens 8 \
+  --request-counts 32 \
+  --repeats 1 \
+  --scenario-seed 3502 \
+  --warmup-runs 0 \
+  --phase-order async_first \
+  --server-async-max-num-batched-tokens 60640 \
+  --server-async-prefix-caching off \
+  --output-dir results/modal-vllm-server-async-qwen15b-l4-n32-batched-tokens60640-matched-unique-nowarmup-seed3502-cache-off-r2
+
+modal run modal_app.py --mode vllm-server-async-paired \
+  --modal-gpu L4 \
+  --hf-model Qwen/Qwen2.5-1.5B-Instruct \
+  --prompt-profiles matched_unique_prefix_mega_long_no_repeat_variant \
+  --output-tokens 8 \
+  --request-counts 32 \
+  --repeats 1 \
+  --scenario-seed 3502 \
+  --warmup-runs 0 \
+  --phase-order async_first \
+  --server-async-max-num-batched-tokens 60640 \
+  --server-async-prefix-caching on \
+  --output-dir results/modal-vllm-server-async-qwen15b-l4-n32-batched-tokens60640-matched-unique-nowarmup-seed3502-cache-on-r2
+
+modal run modal_app.py --mode vllm-server-async-paired \
+  --modal-gpu L4 \
+  --hf-model Qwen/Qwen2.5-1.5B-Instruct \
+  --prompt-profiles shared_prefix_mega_long_no_repeat_variant \
+  --output-tokens 8 \
+  --request-counts 32 \
+  --repeats 1 \
+  --scenario-seed 3502 \
+  --warmup-runs 0 \
+  --phase-order async_first \
+  --server-async-max-num-batched-tokens 60640 \
+  --server-async-prefix-caching off \
+  --output-dir results/modal-vllm-server-async-qwen15b-l4-n32-batched-tokens60640-shared-prefix-nowarmup-seed3502-cache-off-r2
+
+modal run modal_app.py --mode vllm-server-async-paired \
+  --modal-gpu L4 \
+  --hf-model Qwen/Qwen2.5-1.5B-Instruct \
+  --prompt-profiles shared_prefix_mega_long_no_repeat_variant \
+  --output-tokens 8 \
+  --request-counts 32 \
+  --repeats 1 \
+  --scenario-seed 3502 \
+  --warmup-runs 0 \
+  --phase-order async_first \
+  --server-async-max-num-batched-tokens 60640 \
+  --server-async-prefix-caching on \
+  --output-dir results/modal-vllm-server-async-qwen15b-l4-n32-batched-tokens60640-shared-prefix-nowarmup-seed3502-cache-on-r2
+
+modal run modal_app.py --mode vllm-server-async-cache-control-compare \
+  --server-async-cache-control-dirs results/modal-vllm-server-async-qwen15b-l4-n32-batched-tokens60640-matched-unique-nowarmup-seed3502-cache-off-r2,results/modal-vllm-server-async-qwen15b-l4-n32-batched-tokens60640-matched-unique-nowarmup-seed3502-cache-on-r2 \
+  --output-dir results/modal-vllm-server-async-qwen15b-l4-n32-batched-tokens60640-matched-unique-nowarmup-seed3502-cache-control-r2
+
+modal run modal_app.py --mode vllm-server-async-cache-control-compare \
+  --server-async-cache-control-dirs results/modal-vllm-server-async-qwen15b-l4-n32-batched-tokens60640-shared-prefix-nowarmup-seed3502-cache-off-r2,results/modal-vllm-server-async-qwen15b-l4-n32-batched-tokens60640-shared-prefix-nowarmup-seed3502-cache-on-r2 \
+  --output-dir results/modal-vllm-server-async-qwen15b-l4-n32-batched-tokens60640-shared-prefix-nowarmup-seed3502-cache-control-r2
+
+modal run modal_app.py --mode vllm-server-async-cache-control-server-absolute \
+  --server-async-cache-control-server-absolute-compare-dirs results/modal-vllm-server-async-qwen15b-l4-n32-batched-tokens60640-neutral-mega-nowarmup-cache-control-r1,results/modal-vllm-server-async-qwen15b-l4-n32-batched-tokens60640-matched-unique-nowarmup-cache-control-r1,results/modal-vllm-server-async-qwen15b-l4-n32-batched-tokens60640-shared-prefix-nowarmup-cache-control-r1,results/modal-vllm-server-async-qwen15b-l4-n32-batched-tokens60640-matched-unique-nowarmup-seed3502-cache-control-r2,results/modal-vllm-server-async-qwen15b-l4-n32-batched-tokens60640-shared-prefix-nowarmup-seed3502-cache-control-r2 \
+  --output-dir results/modal-vllm-server-async-qwen15b-l4-n32-batched-tokens60640-nowarmup-server-cache-control-r1-r2
+```
+
+## Result
+
+Seed 3502 measured-window prefix-cache counters:
+
+```text
+matched-unique cache-on:
+  queries: 114,927
+  hits: 496
+  hit rate: 0.432%
+
+shared-prefix cache-on:
+  queries: 114,991
+  hits: 110,736
+  hit rate: 96.300%
+```
+
+Seed 3502 server/AsyncLLM cache-on divided by cache-off:
+
+```text
+matched-unique throughput ratio: 0.929x
+matched-unique latency ratio: 1.075x
+
+shared-prefix throughput ratio: 10.224x
+shared-prefix latency ratio: 0.098x
+```
+
+Seed 3502 direct raw server cache-on divided by cache-off:
+
+```text
+matched-unique:
+  output tokens/s ratio: 1.025x
+  p95 latency ratio: 0.976x
+  p95 first-content ratio: 0.975x
+  p95 stream TPOT ratio: 1.519x
+
+shared-prefix:
+  output tokens/s ratio: 10.215x
+  p95 latency ratio: 0.098x
+  p95 first-content ratio: 0.085x
+  p95 stream TPOT ratio: 0.035x
+```
+
+Combined no-warmup raw server cache-on/cache-off summary:
+
+```text
+matched-unique, n=2:
+  output tokens/s ratio mean: 1.013x
+  bootstrap mean p05/p95: 1.002x / 1.025x
+  p95 latency ratio mean: 0.987x
+
+neutral, n=1:
+  output tokens/s ratio: 1.129x
+  p95 latency ratio: 0.886x
+
+shared-prefix, n=2:
+  output tokens/s ratio mean: 9.517x
+  bootstrap mean p05/p95: 8.820x / 10.215x
+  p95 latency ratio mean: 0.105x
+```
+
+## Interpretation
+
+The repeated no-warmup result preserves the claim boundary from Training 088.
+The matched-unique control remains near flat across two prompt families, while
+the shared-prefix workload stays in the high-hit-rate and high-speedup regime.
+
+This is the current artifact-level claim:
+
+```text
+For Qwen/Qwen2.5-1.5B-Instruct on an L4 at n32 with long prefill and
+max_num_batched_tokens=60640, vLLM server prefix caching produces a repeatable
+within-batch speedup when requests share a long exact leading prefix. The
+matched-unique no-warmup control remains near flat across two prompt-family
+seeds, and the measured-window `/metrics` counters explain the difference.
+```
+
+The remaining limitation is sample size: n=2 is enough to catch the original
+warmup confound and show repeatability, but it is still not a broad variance
+study.
+
+Generated artifacts:
+
+```text
+results/modal-vllm-server-async-qwen15b-l4-n32-batched-tokens60640-matched-unique-nowarmup-seed3502-cache-off-r2/paired-server-async.json
+results/modal-vllm-server-async-qwen15b-l4-n32-batched-tokens60640-matched-unique-nowarmup-seed3502-cache-on-r2/paired-server-async.json
+results/modal-vllm-server-async-qwen15b-l4-n32-batched-tokens60640-matched-unique-nowarmup-seed3502-cache-control-r2/cache-control-phase-order-compare.json
+results/modal-vllm-server-async-qwen15b-l4-n32-batched-tokens60640-shared-prefix-nowarmup-seed3502-cache-off-r2/paired-server-async.json
+results/modal-vllm-server-async-qwen15b-l4-n32-batched-tokens60640-shared-prefix-nowarmup-seed3502-cache-on-r2/paired-server-async.json
+results/modal-vllm-server-async-qwen15b-l4-n32-batched-tokens60640-shared-prefix-nowarmup-seed3502-cache-control-r2/cache-control-phase-order-compare.json
+results/modal-vllm-server-async-qwen15b-l4-n32-batched-tokens60640-nowarmup-server-cache-control-r1-r2/server-cache-control-absolute.json
+```

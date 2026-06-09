@@ -3660,7 +3660,12 @@ def run_vllm_server_sweep_remote(
         for max_new_tokens in output_token_values:
             for request_count in request_count_values:
                 prompt_records = []
-                for index, prompt in enumerate(_select_sweep_prompts(request_count, prompt_profile)):
+                prompts = _select_sweep_prompts(
+                    request_count,
+                    prompt_profile,
+                    variant_index=scenario_seed,
+                )
+                for index, prompt in enumerate(prompts):
                     formatted_prompt, prompt_format = _format_prompt_for_generation(tokenizer, prompt)
                     prompt_records.append(
                         {
