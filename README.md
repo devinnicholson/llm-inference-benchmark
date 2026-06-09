@@ -1,12 +1,12 @@
 # llm-inference-benchmark-lab
 
-Research-grade learning repo for **568 Systems and Machine Learning**.
+Research-grade learning repo for ML inference systems experiments.
 
 The project is now centered on **KV-cache behavior in LLM serving**. The goal is
-to build an ML inference systems artifact that can survive an ML infra interview:
-clear workload definitions, request lifecycle traces, benchmark methodology,
-scheduler experiments, KV-cache pressure studies, and eventually backend
-comparisons against real inference engines.
+to build a reproducible ML inference systems artifact with clear workload
+definitions, request lifecycle traces, benchmark methodology, scheduler
+experiments, KV-cache pressure studies, and eventually backend comparisons
+against real inference engines.
 
 Current report: [`docs/prefix-cache-study.md`](docs/prefix-cache-study.md)
 summarizes the no-repeat vLLM prefix-cache result, longer-context follow-ups,
@@ -64,9 +64,9 @@ Latest L4 serving-path cache-control multitrial aggregate:
 Latest vLLM server CLI evidence:
 [`results/modal-vllm-server-cli-help-v021/vllm-server-cli-help.json`](results/modal-vllm-server-cli-help-v021/vllm-server-cli-help.json)
 
-## Course Track
+## Project Track
 
-This repo starts with the 568 path:
+This repo follows a systems-focused path:
 
 1. Request lifecycle, KV-cache accounting, and measurement vocabulary
 2. Profiling and trace discipline
@@ -104,14 +104,14 @@ Generate a deterministic bursty workload:
 ```bash
 python3 scripts/generate_workload.py mixed_bursty \
   --requests 32 \
-  --seed 568 \
-  --output workloads/generated/mixed_bursty_32_seed568.json
+  --seed 1337 \
+  --output workloads/generated/mixed_bursty_32_seed1337.json
 ```
 
 Replay it with overlapping FIFO request slots:
 
 ```bash
-python3 scripts/replay_workload.py workloads/generated/mixed_bursty_32_seed568.json \
+python3 scripts/replay_workload.py workloads/generated/mixed_bursty_32_seed1337.json \
   --model-config configs/models/llama-7b-gqa-fp16.json \
   --max-concurrent-requests 4 \
   --scheduler-policy fifo
@@ -120,7 +120,7 @@ python3 scripts/replay_workload.py workloads/generated/mixed_bursty_32_seed568.j
 Compare a scheduler policy:
 
 ```bash
-python3 scripts/replay_workload.py workloads/generated/mixed_bursty_32_seed568.json \
+python3 scripts/replay_workload.py workloads/generated/mixed_bursty_32_seed1337.json \
   --model-config configs/models/llama-7b-gqa-fp16.json \
   --max-concurrent-requests 4 \
   --scheduler-policy shortest-cache
@@ -129,7 +129,7 @@ python3 scripts/replay_workload.py workloads/generated/mixed_bursty_32_seed568.j
 Replay with a constrained KV-cache budget:
 
 ```bash
-python3 scripts/replay_workload.py workloads/generated/mixed_bursty_32_seed568.json \
+python3 scripts/replay_workload.py workloads/generated/mixed_bursty_32_seed1337.json \
   --model-config configs/models/llama-7b-gqa-fp16.json \
   --capacity-config configs/capacity/tight-1gb-kv.json \
   --max-concurrent-requests 4 \
@@ -300,7 +300,7 @@ modal run modal_app.py --mode vllm-sweep
 Run the repeated sweep with an explicit shuffle seed:
 
 ```bash
-modal run modal_app.py --mode vllm-sweep --repeats 3 --scenario-seed 568
+modal run modal_app.py --mode vllm-sweep --repeats 3 --scenario-seed 1337
 ```
 
 Run the paired prefix-cache sweep and comparison:
@@ -318,7 +318,7 @@ modal run modal_app.py --mode vllm-sweep \
   --output-tokens 32 \
   --request-counts 1,2,4,8 \
   --repeats 3 \
-  --scenario-seed 568 \
+  --scenario-seed 1337 \
   --prefix-caching off \
   --output-dir results/modal-vllm-shared-prefix-cold
 
@@ -327,7 +327,7 @@ modal run modal_app.py --mode vllm-sweep \
   --output-tokens 32 \
   --request-counts 1,2,4,8 \
   --repeats 3 \
-  --scenario-seed 568 \
+  --scenario-seed 1337 \
   --prefix-caching on \
   --output-dir results/modal-vllm-shared-prefix-cache
 
@@ -346,7 +346,7 @@ modal run modal_app.py --mode vllm-prefix-cache-paired \
   --request-counts 1,2,4,8 \
   --repeats 3 \
   --warmup-runs 1 \
-  --scenario-seed 568 \
+  --scenario-seed 1337 \
   --phase-order cold_first
 
 modal run modal_app.py --mode vllm-prefix-cache-paired \
@@ -355,7 +355,7 @@ modal run modal_app.py --mode vllm-prefix-cache-paired \
   --request-counts 1,2,4,8 \
   --repeats 3 \
   --warmup-runs 1 \
-  --scenario-seed 568 \
+  --scenario-seed 1337 \
   --phase-order cache_first
 
 modal run modal_app.py --mode vllm-prefix-cache-phase-order-compare
@@ -370,7 +370,7 @@ modal run modal_app.py --mode vllm-prefix-cache-paired \
   --request-counts 1,2,4,8 \
   --repeats 3 \
   --warmup-runs 1 \
-  --scenario-seed 568 \
+  --scenario-seed 1337 \
   --phase-order cold_first \
   --output-dir results/modal-vllm-prefix-cache-long-control-paired
 
@@ -380,7 +380,7 @@ modal run modal_app.py --mode vllm-prefix-cache-paired \
   --request-counts 1,2,4,8 \
   --repeats 3 \
   --warmup-runs 1 \
-  --scenario-seed 568 \
+  --scenario-seed 1337 \
   --phase-order cache_first \
   --output-dir results/modal-vllm-prefix-cache-long-control-paired-cache-first
 
@@ -809,16 +809,6 @@ Run tests:
 ```bash
 python3 -m unittest discover -s tests
 ```
-
-## Interview Narrative
-
-This repo should let us answer questions like:
-
-- What happens to a request from ingress to final token?
-- Which latency metric are we optimizing: TTFT, TPOT, p95, p99, or throughput?
-- How do prompt length, output length, and arrival burstiness change queueing?
-- What does a benchmark disclose so someone else can reproduce it?
-- Where does a microbenchmark result appear, or fail to appear, end to end?
 
 ## Current Status
 
