@@ -611,7 +611,14 @@ results/prefix-cache-study-mega-long-qwen15b-l4-n32-batched-tokens60640-merged-r
 
 ## Next Step
 
-Use the controlled r8 artifact as the vLLM baseline for the next backend or
-serving-path comparison. The specific question is whether another engine or
-serving mode preserves the same direct-cache effect and TPOT recovery under a
-known KV-capacity budget.
+Training 078 adds an L4, scheduler-controlled server-vs-`AsyncLLM` smoke for
+the same Qwen 1.5B n32 shape:
+
+```text
+results/modal-vllm-server-async-qwen15b-l4-n32-batched-tokens60640-phase-order-smoke-r1/phase-order-compare.csv
+```
+
+Use that as the serving-path harness smoke, then add server-side prefix-cache
+instrumentation. The specific next question is whether the OpenAI-compatible
+server path preserves the same direct-cache and TPOT effects when prefix
+caching is enabled and the KV-capacity budget is known.

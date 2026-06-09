@@ -46,6 +46,9 @@ Latest L4 capacity diagnostic:
 Latest L4 scheduler-control follow-up:
 [`results/prefix-cache-study-mega-long-qwen15b-l4-n32-batched-tokens60640-merged-r8/key-results.md`](results/prefix-cache-study-mega-long-qwen15b-l4-n32-batched-tokens60640-merged-r8/key-results.md)
 
+Latest L4 serving-path scheduler-control smoke:
+[`results/modal-vllm-server-async-qwen15b-l4-n32-batched-tokens60640-phase-order-smoke-r1/phase-order-compare.csv`](results/modal-vllm-server-async-qwen15b-l4-n32-batched-tokens60640-phase-order-smoke-r1/phase-order-compare.csv)
+
 ## Course Track
 
 This repo starts with the 568 path:

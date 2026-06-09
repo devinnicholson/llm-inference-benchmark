@@ -33,6 +33,18 @@ class ModalAppTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "T4, L4"):
             modal_app._select_vllm_capacity_diagnostic_remote("A100")
 
+    def test_server_async_paired_gpu_selector_accepts_supported_gpus(self) -> None:
+        self.assertIs(
+            modal_app._select_vllm_server_async_paired_remote("T4"),
+            modal_app.run_vllm_server_async_paired_remote,
+        )
+        self.assertIs(
+            modal_app._select_vllm_server_async_paired_remote("l4"),
+            modal_app.run_vllm_server_async_paired_l4_remote,
+        )
+        with self.assertRaisesRegex(ValueError, "T4, L4"):
+            modal_app._select_vllm_server_async_paired_remote("A100")
+
     def test_resolves_max_num_batched_tokens_override(self) -> None:
         self.assertEqual(
             modal_app._resolve_max_num_batched_tokens(

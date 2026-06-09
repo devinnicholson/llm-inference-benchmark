@@ -3921,13 +3921,7 @@ def run_vllm_server_sweep_remote(
     }
 
 
-@app.function(
-    image=vllm_image,
-    gpu="T4",
-    timeout=3600,
-    volumes={HF_CACHE_PATH: hf_cache_volume, VLLM_CACHE_PATH: vllm_cache_volume},
-)
-def run_vllm_server_async_paired_remote(
+def _run_vllm_server_async_paired_payload(
     hf_model: str = DEFAULT_HF_MODEL,
     request_counts: str = DEFAULT_VLLM_SWEEP_REQUEST_COUNTS,
     prompt_profiles: str = DEFAULT_VLLM_SWEEP_PROMPT_PROFILES,
@@ -3937,6 +3931,8 @@ def run_vllm_server_async_paired_remote(
     warmup_runs: int = 1,
     phase_order: str = "async_first",
     ready_timeout_s: int = 600,
+    max_num_batched_tokens_override: int = 0,
+    modal_gpu_label: str = "T4",
 ) -> dict[str, Any]:
     import asyncio
     import gc
@@ -4027,7 +4023,14 @@ def run_vllm_server_async_paired_remote(
     max_output_tokens = max(output_token_values)
     max_prompt_tokens = max(spec["prompt_tokens_max"] for spec in scenario_specs)
     max_model_len = max(1024, max_prompt_tokens + max_output_tokens + 32)
-    max_num_batched_tokens = max(2048, max_request_count * max_model_len)
+    default_max_num_batched_tokens = max(2048, max_request_count * max_model_len)
+    max_num_batched_tokens, max_num_batched_tokens_source = (
+        _resolve_max_num_batched_tokens(
+            default_max_num_batched_tokens,
+            max_num_batched_tokens_override,
+            "max_num_batched_tokens_override",
+        )
+    )
     scenario_plan = []
     for repeat_index in range(repeats):
         for spec in scenario_specs:
@@ -4504,6 +4507,7 @@ def run_vllm_server_async_paired_remote(
         "execution": "modal",
         "mode": "vllm-server-async-paired",
         "backend": "vllm-paired-async-and-openai-server",
+        "modal_gpu": modal_gpu_label,
         "model_id": hf_model,
         "request_counts": request_count_values,
         "prompt_profiles": prompt_profile_values,
@@ -4516,6 +4520,8 @@ def run_vllm_server_async_paired_remote(
         "paired_run_count": len(paired_runs),
         "max_model_len": max_model_len,
         "max_num_batched_tokens": max_num_batched_tokens,
+        "default_max_num_batched_tokens": default_max_num_batched_tokens,
+        "max_num_batched_tokens_source": max_num_batched_tokens_source,
         "max_num_seqs": max_request_count,
         "gpu_memory_utilization": 0.50,
         "tokenizer_load_ms": tokenizer_load_ms,
@@ -4558,6 +4564,81 @@ def run_vllm_server_async_paired_remote(
     }
 
 
+@app.function(
+    image=vllm_image,
+    gpu="T4",
+    timeout=3600,
+    volumes={HF_CACHE_PATH: hf_cache_volume, VLLM_CACHE_PATH: vllm_cache_volume},
+)
+def run_vllm_server_async_paired_remote(
+    hf_model: str = DEFAULT_HF_MODEL,
+    request_counts: str = DEFAULT_VLLM_SWEEP_REQUEST_COUNTS,
+    prompt_profiles: str = DEFAULT_VLLM_SWEEP_PROMPT_PROFILES,
+    output_tokens: str = DEFAULT_VLLM_SWEEP_OUTPUT_TOKENS,
+    repeats: int = DEFAULT_VLLM_SWEEP_REPEATS,
+    scenario_seed: int = DEFAULT_VLLM_SWEEP_SEED,
+    warmup_runs: int = 1,
+    phase_order: str = "async_first",
+    ready_timeout_s: int = 600,
+    max_num_batched_tokens_override: int = 0,
+) -> dict[str, Any]:
+    return _run_vllm_server_async_paired_payload(
+        hf_model=hf_model,
+        request_counts=request_counts,
+        prompt_profiles=prompt_profiles,
+        output_tokens=output_tokens,
+        repeats=repeats,
+        scenario_seed=scenario_seed,
+        warmup_runs=warmup_runs,
+        phase_order=phase_order,
+        ready_timeout_s=ready_timeout_s,
+        max_num_batched_tokens_override=max_num_batched_tokens_override,
+        modal_gpu_label="T4",
+    )
+
+
+@app.function(
+    image=vllm_image,
+    gpu="L4",
+    timeout=3600,
+    volumes={HF_CACHE_PATH: hf_cache_volume, VLLM_CACHE_PATH: vllm_cache_volume},
+)
+def run_vllm_server_async_paired_l4_remote(
+    hf_model: str = DEFAULT_HF_MODEL,
+    request_counts: str = DEFAULT_VLLM_SWEEP_REQUEST_COUNTS,
+    prompt_profiles: str = DEFAULT_VLLM_SWEEP_PROMPT_PROFILES,
+    output_tokens: str = DEFAULT_VLLM_SWEEP_OUTPUT_TOKENS,
+    repeats: int = DEFAULT_VLLM_SWEEP_REPEATS,
+    scenario_seed: int = DEFAULT_VLLM_SWEEP_SEED,
+    warmup_runs: int = 1,
+    phase_order: str = "async_first",
+    ready_timeout_s: int = 600,
+    max_num_batched_tokens_override: int = 0,
+) -> dict[str, Any]:
+    return _run_vllm_server_async_paired_payload(
+        hf_model=hf_model,
+        request_counts=request_counts,
+        prompt_profiles=prompt_profiles,
+        output_tokens=output_tokens,
+        repeats=repeats,
+        scenario_seed=scenario_seed,
+        warmup_runs=warmup_runs,
+        phase_order=phase_order,
+        ready_timeout_s=ready_timeout_s,
+        max_num_batched_tokens_override=max_num_batched_tokens_override,
+        modal_gpu_label="L4",
+    )
+
+
+def _select_vllm_server_async_paired_remote(modal_gpu: str) -> Any:
+    normalized_gpu = modal_gpu.strip().upper().replace("_", "-")
+    if normalized_gpu == "T4":
+        return run_vllm_server_async_paired_remote
+    if normalized_gpu == "L4":
+        return run_vllm_server_async_paired_l4_remote
+    raise ValueError("modal_gpu must be one of: T4, L4")
+
+
 @app.local_entrypoint()
 def main(
     mode: str = "sweep",
@@ -4586,6 +4667,7 @@ def main(
     modal_gpu: str = "T4",
     capacity_prefix_cache_modes: str = "false",
     capacity_max_num_batched_tokens: str = "",
+    server_async_max_num_batched_tokens: int = 0,
     prefix_cache_max_num_batched_tokens: int = 0,
     gpu_memory_utilization: float = 0.50,
     cold_sweep_dir: str = DEFAULT_VLLM_SWEEP_OUTPUT,
@@ -4980,7 +5062,8 @@ def main(
         return
 
     if mode == "vllm-server-async-paired":
-        payload = run_vllm_server_async_paired_remote.remote(
+        server_async_remote = _select_vllm_server_async_paired_remote(modal_gpu)
+        payload = server_async_remote.remote(
             hf_model=hf_model,
             request_counts=request_counts,
             prompt_profiles=prompt_profiles,
@@ -4989,6 +5072,7 @@ def main(
             scenario_seed=scenario_seed,
             warmup_runs=warmup_runs,
             phase_order=phase_order,
+            max_num_batched_tokens_override=server_async_max_num_batched_tokens,
         )
         phase_order_slug = phase_order.lower().replace("_", "-")
         default_output = (
@@ -5011,6 +5095,12 @@ def main(
         print(f"repeats: {payload['repeats']}")
         print(f"warmup_runs: {payload['warmup_runs']}")
         print(f"phase_order: {payload['phase_order']}")
+        print(f"modal_gpu: {payload['modal_gpu']}")
+        print(f"max_num_batched_tokens: {payload['max_num_batched_tokens']}")
+        print(
+            "max_num_batched_tokens_source: "
+            f"{payload['max_num_batched_tokens_source']}"
+        )
         print(
             "mean_server_to_async_throughput_ratio: "
             f"{payload['mean_server_to_async_throughput_ratio']:.3f}"
