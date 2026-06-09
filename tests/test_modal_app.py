@@ -422,6 +422,50 @@ class ModalAppTests(unittest.TestCase):
             1.0,
         )
 
+    def test_compares_prompt_overlap_with_server_cache_control(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            audit_dirs = []
+            for seed, shared_blocks in ((3201, 223), (3301, 222)):
+                audit_dir = root / f"audit-{seed}"
+                audit_dir.mkdir()
+                _write_prompt_audit_payload(audit_dir, seed, shared_blocks)
+                audit_dirs.append(audit_dir)
+
+            server_dir = root / "server-absolute"
+            server_dir.mkdir()
+            _write_server_absolute_payload(server_dir)
+
+            payload = (
+                modal_app._compare_vllm_prefix_cache_prompt_overlap_with_server_cache_control(
+                    prompt_audit_dirs=audit_dirs,
+                    server_absolute_dir=server_dir,
+                )
+            )
+
+        self.assertEqual(payload["audit_trial_count"], 2)
+        self.assertTrue(payload["summary"]["control_has_minimal_leading_overlap"])
+        self.assertTrue(payload["summary"]["control_has_no_exact_duplicate_reuse"])
+        self.assertEqual(
+            payload["summary"]["control_common_prefix_full_blocks_mean"],
+            1.0,
+        )
+        self.assertGreater(
+            payload["summary"]["matched_unique_min_server_throughput_ratio_mean"],
+            10.0,
+        )
+        matched_rows = [
+            row
+            for row in payload["server_join_rows"]
+            if row["prompt_profile"]
+            == "matched_unique_prefix_mega_long_no_repeat_variant"
+        ]
+        self.assertEqual(
+            {row["overlap_class"] for row in matched_rows},
+            {"minimal_leading_overlap"},
+        )
+        self.assertIn("not enough leading-token reuse", payload["markdown"])
+
     def test_parses_vllm_server_cli_help_prefix_flags(self) -> None:
         parsed = modal_app._parse_vllm_server_cli_help(
             "  --enable-prefix-caching\n"
@@ -1539,6 +1583,145 @@ def _cache_control_contrast_row(
         "on_tpot_ratio": 0.05,
         "cache_on_minus_off_tpot_ratio": -0.45,
     }
+
+
+def _write_prompt_audit_payload(
+    directory: Path,
+    scenario_seed: int,
+    shared_blocks: int,
+) -> None:
+    shared_profile = "shared_prefix_mega_long_no_repeat_variant"
+    control_profile = "matched_unique_prefix_mega_long_no_repeat_variant"
+    shared_reusable_tokens = shared_blocks * 16 * 31
+    control_reusable_tokens = 16 * 31
+    directory.joinpath("prefix-cache-prompt-audit.json").write_text(
+        json.dumps(
+            {
+                "mode": "vllm-prefix-cache-prompt-audit",
+                "model_id": "fake-model",
+                "request_counts": [32],
+                "prompt_profiles": [shared_profile, control_profile],
+                "output_tokens": [8],
+                "scenario_seed": scenario_seed,
+                "kv_cache_block_size": 16,
+                "summary": {},
+                "scenario_rows": [
+                    {
+                        "prompt_profile": shared_profile,
+                        "variant_index": scenario_seed,
+                        "request_count": 32,
+                        "max_new_tokens": 8,
+                        "prompt_tokens_mean": 3600.0,
+                        "common_prefix_tokens": shared_blocks * 16,
+                        "common_prefix_full_blocks": shared_blocks,
+                        "estimated_reusable_block_tokens": shared_reusable_tokens,
+                        "estimated_reusable_block_token_fraction_of_total_prompt": 0.95,
+                        "unique_prompt_count": 32,
+                        "exact_duplicate_prompt_repeated_count": 0,
+                        "estimated_exact_duplicate_reusable_block_tokens": 0,
+                    },
+                    {
+                        "prompt_profile": control_profile,
+                        "variant_index": scenario_seed,
+                        "request_count": 32,
+                        "max_new_tokens": 8,
+                        "prompt_tokens_mean": 3598.0,
+                        "common_prefix_tokens": 24,
+                        "common_prefix_full_blocks": 1,
+                        "estimated_reusable_block_tokens": control_reusable_tokens,
+                        "estimated_reusable_block_token_fraction_of_total_prompt": 0.004,
+                        "unique_prompt_count": 32,
+                        "exact_duplicate_prompt_repeated_count": 0,
+                        "estimated_exact_duplicate_reusable_block_tokens": 0,
+                    },
+                ],
+                "profile_control_rows": [
+                    {
+                        "repeat_index": 0,
+                        "request_count": 32,
+                        "max_new_tokens": 8,
+                        "shared_profile": shared_profile,
+                        "control_profile": control_profile,
+                        "shared_variant_index": scenario_seed,
+                        "control_variant_index": scenario_seed,
+                        "shared_common_prefix_tokens": shared_blocks * 16,
+                        "control_common_prefix_tokens": 24,
+                        "shared_minus_control_common_prefix_tokens": (
+                            shared_blocks * 16 - 24
+                        ),
+                        "shared_common_prefix_full_blocks": shared_blocks,
+                        "control_common_prefix_full_blocks": 1,
+                        "shared_minus_control_common_prefix_full_blocks": (
+                            shared_blocks - 1
+                        ),
+                        "shared_estimated_reusable_block_tokens": shared_reusable_tokens,
+                        "control_estimated_reusable_block_tokens": (
+                            control_reusable_tokens
+                        ),
+                        "shared_minus_control_estimated_reusable_block_tokens": (
+                            shared_reusable_tokens - control_reusable_tokens
+                        ),
+                        "shared_reusable_block_token_fraction": 0.95,
+                        "control_reusable_block_token_fraction": 0.004,
+                        "shared_minus_control_reusable_block_token_fraction": 0.946,
+                        "shared_unique_prompt_count": 32,
+                        "control_unique_prompt_count": 32,
+                        "shared_exact_duplicate_prompt_repeated_count": 0,
+                        "control_exact_duplicate_prompt_repeated_count": 0,
+                        "shared_estimated_exact_duplicate_reusable_block_tokens": 0,
+                        "control_estimated_exact_duplicate_reusable_block_tokens": 0,
+                        "shared_minus_control_estimated_exact_duplicate_reusable_block_tokens": 0,
+                        "shared_exact_duplicate_reusable_block_token_fraction": 0.0,
+                        "control_exact_duplicate_reusable_block_token_fraction": 0.0,
+                        "shared_minus_control_exact_duplicate_reusable_block_token_fraction": 0.0,
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+
+def _write_server_absolute_payload(directory: Path) -> None:
+    shared_profile = "shared_prefix_mega_long_no_repeat_variant"
+    control_profile = "matched_unique_prefix_mega_long_no_repeat_variant"
+    rows = []
+    for phase_order in ("async_first", "server_first"):
+        for prompt_profile, throughput, latency in (
+            (shared_profile, 12.0, 0.08),
+            (control_profile, 11.0, 0.09),
+        ):
+            rows.extend(
+                [
+                    {
+                        "phase_order": phase_order,
+                        "prompt_profile": prompt_profile,
+                        "metric": "cache_on_div_off_server_output_tokens_per_second",
+                        "mean": throughput,
+                        "bootstrap_mean_p05": throughput - 1.0,
+                        "bootstrap_mean_p95": throughput + 1.0,
+                    },
+                    {
+                        "phase_order": phase_order,
+                        "prompt_profile": prompt_profile,
+                        "metric": "cache_on_div_off_server_p95_latency_ms",
+                        "mean": latency,
+                        "bootstrap_mean_p05": latency - 0.01,
+                        "bootstrap_mean_p95": latency + 0.01,
+                    },
+                ]
+            )
+    directory.joinpath("server-cache-control-absolute.json").write_text(
+        json.dumps(
+            {
+                "mode": "vllm-server-async-cache-control-server-absolute",
+                "phase_orders": ["async_first", "server_first"],
+                "prompt_profiles": [control_profile, shared_profile],
+                "summary": rows,
+            }
+        ),
+        encoding="utf-8",
+    )
 
 
 class _Object:

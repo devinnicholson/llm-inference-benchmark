@@ -120,6 +120,16 @@ DEFAULT_VLLM_PREFIX_CACHE_ISOLATED_WINDOW_OUTPUT = (
 DEFAULT_VLLM_PREFIX_CACHE_PROMPT_AUDIT_OUTPUT = (
     "results/modal-vllm-prefix-cache-prompt-audit"
 )
+DEFAULT_VLLM_PREFIX_CACHE_PROMPT_OVERLAP_SERVER_COMPARE_OUTPUT = (
+    "results/modal-vllm-prefix-cache-prompt-overlap-server-compare"
+)
+DEFAULT_VLLM_PREFIX_CACHE_PROMPT_OVERLAP_AUDIT_DIRS = (
+    "results/modal-vllm-prefix-cache-prompt-audit-mega-long-qwen15b-n32-seed3201,"
+    "results/modal-vllm-prefix-cache-prompt-audit-mega-long-qwen15b-n32-seed3301"
+)
+DEFAULT_VLLM_SERVER_ASYNC_CACHE_CONTROL_SERVER_ABSOLUTE_DIR = (
+    "results/modal-vllm-server-async-qwen15b-l4-n32-batched-tokens60640-server-cache-control-server-absolute-r2"
+)
 DEFAULT_VLLM_SWEEP_REQUEST_COUNTS = "1,2,4,8"
 DEFAULT_VLLM_SWEEP_PROMPT_PROFILES = "short,long"
 DEFAULT_VLLM_SWEEP_OUTPUT_TOKENS = "16,32"
@@ -4791,8 +4801,10 @@ def main(
     prefix_cache_profile_control_dirs: str = DEFAULT_VLLM_PREFIX_CACHE_PROFILE_CONTROL_DIRS,
     prefix_cache_isolated_metrics_dir: str = DEFAULT_VLLM_PREFIX_CACHE_ISOLATED_METRICS_OUTPUT,
     prefix_cache_isolated_merge_dirs: str = "",
+    prefix_cache_prompt_audit_dirs: str = DEFAULT_VLLM_PREFIX_CACHE_PROMPT_OVERLAP_AUDIT_DIRS,
     prefix_cache_shared_profile: str = "shared_prefix_long",
     prefix_cache_control_profile: str = "matched_unique_prefix",
+    server_async_cache_control_server_absolute_dir: str = DEFAULT_VLLM_SERVER_ASYNC_CACHE_CONTROL_SERVER_ABSOLUTE_DIR,
     output_dir: str = "",
 ) -> None:
     def normalized_prefix_cache_control_profiles() -> tuple[str, str]:
@@ -5470,6 +5482,46 @@ def main(
         print(f"json: {json_path}")
         print(f"trials_csv: {trials_csv_path}")
         print(f"summary_csv: {summary_csv_path}")
+        return
+
+    if mode == "vllm-prefix-cache-prompt-overlap-server-compare":
+        payload = _compare_vllm_prefix_cache_prompt_overlap_with_server_cache_control(
+            prompt_audit_dirs=[
+                Path(path)
+                for path in _split_csv(prefix_cache_prompt_audit_dirs)
+            ],
+            server_absolute_dir=Path(server_async_cache_control_server_absolute_dir),
+        )
+        output_path = Path(
+            output_dir
+            or DEFAULT_VLLM_PREFIX_CACHE_PROMPT_OVERLAP_SERVER_COMPARE_OUTPUT
+        )
+        output_path.mkdir(parents=True, exist_ok=True)
+        json_path = output_path / "prompt-overlap-server-compare.json"
+        audit_csv_path = output_path / "prompt-overlap-audit-summary.csv"
+        server_csv_path = output_path / "prompt-overlap-server-summary.csv"
+        markdown_path = output_path / "prompt-overlap-server-compare.md"
+        json_path.write_text(
+            json.dumps(payload, indent=2, sort_keys=True) + "\n",
+            encoding="utf-8",
+        )
+        _write_records_csv(audit_csv_path, payload["audit_profile_summary_rows"])
+        _write_records_csv(server_csv_path, payload["server_join_rows"])
+        markdown_path.write_text(payload["markdown"], encoding="utf-8")
+
+        print(f"audit_trials: {payload['audit_trial_count']}")
+        print(
+            "control_common_prefix_full_blocks_mean: "
+            f"{payload['summary']['control_common_prefix_full_blocks_mean']:.3f}"
+        )
+        print(
+            "matched_unique_min_server_throughput_ratio_mean: "
+            f"{payload['summary']['matched_unique_min_server_throughput_ratio_mean']:.3f}"
+        )
+        print(f"json: {json_path}")
+        print(f"audit_csv: {audit_csv_path}")
+        print(f"server_csv: {server_csv_path}")
+        print(f"markdown: {markdown_path}")
         return
 
     if mode == "vllm-sweep":
@@ -6202,6 +6254,7 @@ def main(
             "'vllm-sweep', or "
             "'vllm-prefix-cache-isolated-window-summary', "
             "'vllm-prefix-cache-isolated-stability-summary', "
+            "'vllm-prefix-cache-prompt-overlap-server-compare', "
             "'vllm-prefix-cache-prompt-audit', "
             "'vllm-prefix-cache-isolated-merge', "
             "'vllm-prefix-cache-isolated-neutral-warmup', "
@@ -11825,6 +11878,364 @@ def _vllm_prefix_cache_prompt_audit_summary(
             for row in profile_control_rows
         ),
     }
+
+
+def _compare_vllm_prefix_cache_prompt_overlap_with_server_cache_control(
+    *,
+    prompt_audit_dirs: list[Path],
+    server_absolute_dir: Path,
+) -> dict[str, Any]:
+    if not prompt_audit_dirs:
+        raise ValueError("prompt_audit_dirs must not be empty")
+
+    prompt_payloads = []
+    audit_scenario_rows = []
+    audit_profile_control_rows = []
+    for audit_dir in prompt_audit_dirs:
+        audit_json = audit_dir / "prefix-cache-prompt-audit.json"
+        payload = json.loads(audit_json.read_text(encoding="utf-8"))
+        prompt_payloads.append(
+            {
+                "audit_dir": str(audit_dir),
+                "audit_json": str(audit_json),
+                "scenario_seed": payload.get("scenario_seed"),
+                "model_id": payload.get("model_id"),
+                "request_counts": payload.get("request_counts"),
+                "prompt_profiles": payload.get("prompt_profiles"),
+                "output_tokens": payload.get("output_tokens"),
+                "kv_cache_block_size": payload.get("kv_cache_block_size"),
+                "summary": payload.get("summary"),
+            }
+        )
+        for row in payload.get("scenario_rows", []):
+            audit_scenario_rows.append(
+                {
+                    "audit_dir": str(audit_dir),
+                    "scenario_seed": payload.get("scenario_seed"),
+                    "prompt_profile": row["prompt_profile"],
+                    "variant_index": row["variant_index"],
+                    "request_count": row["request_count"],
+                    "max_new_tokens": row["max_new_tokens"],
+                    "prompt_tokens_mean": row["prompt_tokens_mean"],
+                    "common_prefix_tokens": row["common_prefix_tokens"],
+                    "common_prefix_full_blocks": row[
+                        "common_prefix_full_blocks"
+                    ],
+                    "estimated_reusable_block_tokens": row[
+                        "estimated_reusable_block_tokens"
+                    ],
+                    "estimated_reusable_block_token_fraction_of_total_prompt": row[
+                        "estimated_reusable_block_token_fraction_of_total_prompt"
+                    ],
+                    "unique_prompt_count": row["unique_prompt_count"],
+                    "exact_duplicate_prompt_repeated_count": row[
+                        "exact_duplicate_prompt_repeated_count"
+                    ],
+                    "estimated_exact_duplicate_reusable_block_tokens": row[
+                        "estimated_exact_duplicate_reusable_block_tokens"
+                    ],
+                }
+            )
+        for row in payload.get("profile_control_rows", []):
+            audit_profile_control_rows.append(
+                {
+                    "audit_dir": str(audit_dir),
+                    "scenario_seed": payload.get("scenario_seed"),
+                    **row,
+                }
+            )
+
+    server_json = server_absolute_dir / "server-cache-control-absolute.json"
+    server_payload = json.loads(server_json.read_text(encoding="utf-8"))
+    server_summary_by_key = {
+        (row["phase_order"], row["prompt_profile"], row["metric"]): row
+        for row in server_payload.get("summary", [])
+    }
+
+    audit_profile_summary_rows = []
+    for prompt_profile in sorted(
+        {row["prompt_profile"] for row in audit_scenario_rows}
+    ):
+        profile_rows = [
+            row
+            for row in audit_scenario_rows
+            if row["prompt_profile"] == prompt_profile
+        ]
+        summary_row = {
+            "prompt_profile": prompt_profile,
+            "audit_trial_count": len(profile_rows),
+        }
+        for metric in (
+            "prompt_tokens_mean",
+            "common_prefix_tokens",
+            "common_prefix_full_blocks",
+            "estimated_reusable_block_tokens",
+            "estimated_reusable_block_token_fraction_of_total_prompt",
+            "unique_prompt_count",
+            "exact_duplicate_prompt_repeated_count",
+            "estimated_exact_duplicate_reusable_block_tokens",
+        ):
+            stats = _metric_distribution(profile_rows, metric)
+            summary_row[f"{metric}_mean"] = stats[f"{metric}_mean"]
+            summary_row[f"{metric}_min"] = stats[f"{metric}_min"]
+            summary_row[f"{metric}_max"] = stats[f"{metric}_max"]
+        audit_profile_summary_rows.append(summary_row)
+
+    audit_summary_by_profile = {
+        row["prompt_profile"]: row for row in audit_profile_summary_rows
+    }
+    server_join_rows = []
+    for phase_order in server_payload.get("phase_orders", []):
+        for prompt_profile in server_payload.get("prompt_profiles", []):
+            audit_row = audit_summary_by_profile.get(prompt_profile)
+            throughput = server_summary_by_key.get(
+                (
+                    phase_order,
+                    prompt_profile,
+                    "cache_on_div_off_server_output_tokens_per_second",
+                )
+            )
+            latency = server_summary_by_key.get(
+                (
+                    phase_order,
+                    prompt_profile,
+                    "cache_on_div_off_server_p95_latency_ms",
+                )
+            )
+            if audit_row is None or throughput is None or latency is None:
+                continue
+            server_join_rows.append(
+                {
+                    "phase_order": phase_order,
+                    "prompt_profile": prompt_profile,
+                    "audit_common_prefix_full_blocks_mean": audit_row[
+                        "common_prefix_full_blocks_mean"
+                    ],
+                    "audit_common_prefix_tokens_mean": audit_row[
+                        "common_prefix_tokens_mean"
+                    ],
+                    "audit_estimated_reusable_block_tokens_mean": audit_row[
+                        "estimated_reusable_block_tokens_mean"
+                    ],
+                    "audit_exact_duplicate_reusable_block_tokens_mean": audit_row[
+                        "estimated_exact_duplicate_reusable_block_tokens_mean"
+                    ],
+                    "server_cache_on_div_off_throughput_ratio_mean": throughput[
+                        "mean"
+                    ],
+                    "server_cache_on_div_off_throughput_ratio_p05": throughput[
+                        "bootstrap_mean_p05"
+                    ],
+                    "server_cache_on_div_off_throughput_ratio_p95": throughput[
+                        "bootstrap_mean_p95"
+                    ],
+                    "server_cache_on_div_off_p95_latency_ratio_mean": latency[
+                        "mean"
+                    ],
+                    "server_cache_on_div_off_p95_latency_ratio_p05": latency[
+                        "bootstrap_mean_p05"
+                    ],
+                    "server_cache_on_div_off_p95_latency_ratio_p95": latency[
+                        "bootstrap_mean_p95"
+                    ],
+                    "overlap_class": (
+                        "minimal_leading_overlap"
+                        if audit_row["common_prefix_full_blocks_mean"] <= 1
+                        else "large_leading_overlap"
+                    ),
+                }
+            )
+
+    shared_profile = str(prompt_payloads[0]["summary"].get("shared_profile", ""))
+    control_profile = str(prompt_payloads[0]["summary"].get("control_profile", ""))
+    if not shared_profile or not control_profile:
+        first_payload_profiles = prompt_payloads[0].get("prompt_profiles") or []
+        shared_profile, control_profile = _infer_vllm_prefix_cache_prompt_audit_pair(
+            [str(profile) for profile in first_payload_profiles]
+        )
+
+    profile_control_summary = {}
+    for metric in (
+        "shared_common_prefix_full_blocks",
+        "control_common_prefix_full_blocks",
+        "shared_minus_control_common_prefix_full_blocks",
+        "shared_estimated_reusable_block_tokens",
+        "control_estimated_reusable_block_tokens",
+        "shared_minus_control_estimated_reusable_block_tokens",
+        "control_estimated_exact_duplicate_reusable_block_tokens",
+    ):
+        stats = _metric_distribution(audit_profile_control_rows, metric)
+        profile_control_summary[f"{metric}_mean"] = stats[f"{metric}_mean"]
+        profile_control_summary[f"{metric}_min"] = stats[f"{metric}_min"]
+        profile_control_summary[f"{metric}_max"] = stats[f"{metric}_max"]
+
+    matched_unique_server_rows = [
+        row
+        for row in server_join_rows
+        if row["prompt_profile"] == control_profile
+    ]
+    shared_server_rows = [
+        row for row in server_join_rows if row["prompt_profile"] == shared_profile
+    ]
+    summary = {
+        "audit_trial_count": len(prompt_audit_dirs),
+        "shared_profile": shared_profile,
+        "control_profile": control_profile,
+        "shared_common_prefix_full_blocks_mean": profile_control_summary[
+            "shared_common_prefix_full_blocks_mean"
+        ],
+        "control_common_prefix_full_blocks_mean": profile_control_summary[
+            "control_common_prefix_full_blocks_mean"
+        ],
+        "shared_minus_control_common_prefix_full_blocks_mean": (
+            profile_control_summary[
+                "shared_minus_control_common_prefix_full_blocks_mean"
+            ]
+        ),
+        "shared_minus_control_estimated_reusable_block_tokens_mean": (
+            profile_control_summary[
+                "shared_minus_control_estimated_reusable_block_tokens_mean"
+            ]
+        ),
+        "control_estimated_exact_duplicate_reusable_block_tokens_mean": (
+            profile_control_summary[
+                "control_estimated_exact_duplicate_reusable_block_tokens_mean"
+            ]
+        ),
+        "matched_unique_min_server_throughput_ratio_mean": min(
+            row["server_cache_on_div_off_throughput_ratio_mean"]
+            for row in matched_unique_server_rows
+        ),
+        "matched_unique_max_server_p95_latency_ratio_mean": max(
+            row["server_cache_on_div_off_p95_latency_ratio_mean"]
+            for row in matched_unique_server_rows
+        ),
+        "shared_min_server_throughput_ratio_mean": min(
+            row["server_cache_on_div_off_throughput_ratio_mean"]
+            for row in shared_server_rows
+        ),
+        "control_has_minimal_leading_overlap": (
+            profile_control_summary["control_common_prefix_full_blocks_max"] <= 1
+        ),
+        "control_has_no_exact_duplicate_reuse": (
+            profile_control_summary[
+                "control_estimated_exact_duplicate_reusable_block_tokens_max"
+            ]
+            == 0
+        ),
+    }
+
+    payload = {
+        "schema_version": 1,
+        "mode": "vllm-prefix-cache-prompt-overlap-server-compare",
+        "prompt_audit_dirs": [str(path) for path in prompt_audit_dirs],
+        "server_absolute_dir": str(server_absolute_dir),
+        "server_absolute_json": str(server_json),
+        "audit_trial_count": len(prompt_audit_dirs),
+        "audit_scenario_rows": audit_scenario_rows,
+        "audit_profile_control_rows": audit_profile_control_rows,
+        "audit_profile_summary_rows": audit_profile_summary_rows,
+        "server_join_rows": server_join_rows,
+        "profile_control_summary": profile_control_summary,
+        "summary": summary,
+        "source_prompt_audits": prompt_payloads,
+    }
+    payload["markdown"] = (
+        _format_vllm_prefix_cache_prompt_overlap_server_compare_markdown(payload)
+    )
+    return payload
+
+
+def _format_vllm_prefix_cache_prompt_overlap_server_compare_markdown(
+    payload: dict[str, Any],
+) -> str:
+    def fmt(value: Any, suffix: str = "") -> str:
+        if value is None:
+            return "n/a"
+        if isinstance(value, float):
+            return f"{value:.3f}{suffix}"
+        return f"{value}{suffix}"
+
+    summary = payload["summary"]
+    lines = [
+        "# Prompt Overlap Vs Server Cache-Control",
+        "",
+        "## Summary",
+        "",
+        "| Metric | Value |",
+        "| --- | ---: |",
+        f"| Audit trials | {summary['audit_trial_count']} |",
+        (
+            "| Shared common-prefix full blocks | "
+            f"{fmt(summary['shared_common_prefix_full_blocks_mean'])} |"
+        ),
+        (
+            "| Control common-prefix full blocks | "
+            f"{fmt(summary['control_common_prefix_full_blocks_mean'])} |"
+        ),
+        (
+            "| Shared-minus-control full-block delta | "
+            f"{fmt(summary['shared_minus_control_common_prefix_full_blocks_mean'])} |"
+        ),
+        (
+            "| Shared-minus-control reusable block-token delta | "
+            f"{fmt(summary['shared_minus_control_estimated_reusable_block_tokens_mean'])} |"
+        ),
+        (
+            "| Control exact-duplicate reusable block tokens | "
+            f"{fmt(summary['control_estimated_exact_duplicate_reusable_block_tokens_mean'])} |"
+        ),
+        (
+            "| Matched-unique min server cache-on/off throughput ratio | "
+            f"{fmt(summary['matched_unique_min_server_throughput_ratio_mean'], 'x')} |"
+        ),
+        (
+            "| Matched-unique max server cache-on/off p95 latency ratio | "
+            f"{fmt(summary['matched_unique_max_server_p95_latency_ratio_mean'], 'x')} |"
+        ),
+        "",
+        "## Joined Server View",
+        "",
+        (
+            "| Phase Order | Profile | Overlap Class | Common Blocks | "
+            "Server Throughput Ratio | Server p95 Latency Ratio |"
+        ),
+        "| --- | --- | --- | ---: | ---: | ---: |",
+    ]
+    for row in payload["server_join_rows"]:
+        lines.append(
+            "| "
+            f"`{row['phase_order']}` | "
+            f"`{row['prompt_profile']}` | "
+            f"`{row['overlap_class']}` | "
+            f"{fmt(row['audit_common_prefix_full_blocks_mean'])} | "
+            f"{fmt(row['server_cache_on_div_off_throughput_ratio_mean'], 'x')} | "
+            f"{fmt(row['server_cache_on_div_off_p95_latency_ratio_mean'], 'x')} |"
+        )
+
+    lines.extend(
+        [
+            "",
+            "## Interpretation",
+            "",
+            (
+                "The prompt-token audit says the matched-unique control has only "
+                "one common leading full block and no exact duplicate prompts. "
+                "That is not enough leading-token reuse to explain the "
+                "order-of-magnitude server cache-on/cache-off speedup by the "
+                "intended shared-prefix mechanism alone."
+            ),
+            "",
+            (
+                "The next measurement should separate explicit user-visible "
+                "shared prefixes from other server-path effects: vLLM prefix-cache "
+                "semantics, scenario ordering, shared chat-template scaffolding, "
+                "or generic cache-on server behavior under this workload shape."
+            ),
+            "",
+        ]
+    )
+    return "\n".join(lines)
 
 
 def _format_vllm_prefix_cache_prompt_audit_markdown(

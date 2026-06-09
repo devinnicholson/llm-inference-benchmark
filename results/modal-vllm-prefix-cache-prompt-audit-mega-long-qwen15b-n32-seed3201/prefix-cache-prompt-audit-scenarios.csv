@@ -1,0 +1,9 @@
+scenario_id,prompt_profile,repeat_index,variant_index,request_count,max_new_tokens,prompt_format,kv_cache_block_size,prompt_tokens_min,prompt_tokens_max,prompt_tokens_mean,total_prompt_tokens,common_prefix_tokens,common_prefix_full_blocks,common_prefix_block_tokens,common_prefix_remainder_tokens,suffix_after_common_tokens_min,suffix_after_common_tokens_max,suffix_after_common_tokens_mean,unique_prompt_count,exact_duplicate_prompt_group_count,exact_duplicate_prompt_repeated_count,exact_duplicate_prompt_max_group_size,estimated_exact_duplicate_reusable_block_tokens,estimated_exact_duplicate_reusable_block_token_fraction_of_total_prompt,estimated_reusable_block_tokens,estimated_reusable_block_token_fraction_of_total_prompt,common_prefix_token_fraction_of_prompt_mean,common_prefix_text_preview
+shared_prefix_mega_long_no_repeat_variant_out8_n32_rep00,shared_prefix_mega_long_no_repeat_variant,0,3201,32,8,chat_template,16,3588,3597,3593.46875,114991,3570,223,3568,2,18,27,23.46875,32,0,0,1,0,0.0,110608,0.9618839735283631,0.9934690540998861,"<|im_start|>system
+You are Qwen, created by Alibaba Cloud. You are a helpful assistant.<|im_end|>
+<|im_start|>user
+Payments Relay shared incident packet. Every request in this batch begins with the same payment authorization gateway runbook"
+matched_unique_prefix_mega_long_no_repeat_variant_out8_n32_rep00,matched_unique_prefix_mega_long_no_repeat_variant,0,3201,32,8,chat_template,16,3574,3608,3591.46875,114927,24,1,16,8,3550,3584,3567.46875,32,0,0,1,0,0.0,496,0.004315783062291715,0.006682502806129108,"<|im_start|>system
+You are Qwen, created by Alibaba Cloud. You are a helpful assistant.<|im_end|>
+<|im_start|>user
+"

@@ -8158,3 +8158,150 @@ profiles under the exact server prompt construction. The server-only result is
 strong, but the matched-unique improvement means we need to separate
 application-level shared text from tokenizer/template/system-prompt reuse before
 writing the final cache-control claim.
+
+# Training 084 - Prompt Overlap Versus Server Cache-Control
+
+## Goal
+
+Explain the strongest open question from Training 083: why does the
+`matched_unique_prefix_mega_long_no_repeat_variant` control also show a large
+server cache-on/cache-off speedup?
+
+This checkpoint reruns the tokenizer/block prompt audit with the exact model,
+request shape, prompt profiles, and seeds used by the r1/r2 server cache-control
+matrices, then joins that static prompt-overlap evidence with the Training 083
+direct server cache-control ratios.
+
+The server path sends `/v1/chat/completions` messages. The prompt audit formats
+those same user prompts through the Qwen chat template, so it is a static
+tokenizer-level approximation of the server prompt shape rather than a vLLM
+runtime trace.
+
+## Commands
+
+```bash
+modal run modal_app.py --mode vllm-prefix-cache-prompt-audit \
+  --hf-model Qwen/Qwen2.5-1.5B-Instruct \
+  --prompt-profiles shared_prefix_mega_long_no_repeat_variant,matched_unique_prefix_mega_long_no_repeat_variant \
+  --request-counts 32 \
+  --output-tokens 8 \
+  --repeats 1 \
+  --scenario-seed 3201 \
+  --kv-cache-block-size 16 \
+  --output-dir results/modal-vllm-prefix-cache-prompt-audit-mega-long-qwen15b-n32-seed3201
+
+modal run modal_app.py --mode vllm-prefix-cache-prompt-audit \
+  --hf-model Qwen/Qwen2.5-1.5B-Instruct \
+  --prompt-profiles shared_prefix_mega_long_no_repeat_variant,matched_unique_prefix_mega_long_no_repeat_variant \
+  --request-counts 32 \
+  --output-tokens 8 \
+  --repeats 1 \
+  --scenario-seed 3301 \
+  --kv-cache-block-size 16 \
+  --output-dir results/modal-vllm-prefix-cache-prompt-audit-mega-long-qwen15b-n32-seed3301
+
+modal run modal_app.py --mode vllm-prefix-cache-prompt-overlap-server-compare \
+  --prefix-cache-prompt-audit-dirs results/modal-vllm-prefix-cache-prompt-audit-mega-long-qwen15b-n32-seed3201,results/modal-vllm-prefix-cache-prompt-audit-mega-long-qwen15b-n32-seed3301 \
+  --server-async-cache-control-server-absolute-dir results/modal-vllm-server-async-qwen15b-l4-n32-batched-tokens60640-server-cache-control-server-absolute-r2 \
+  --output-dir results/modal-vllm-prefix-cache-prompt-overlap-server-cache-control-qwen15b-n32-r2
+```
+
+## Result
+
+The exact-shape prompt audits show the shared profile has hundreds of reusable
+leading blocks, while the matched-unique control has only one.
+
+```text
+seed 3201:
+  shared common-prefix full blocks: 223
+  matched-unique common-prefix full blocks: 1
+  shared estimated reusable block tokens: 110,608
+  matched-unique estimated reusable block tokens: 496
+  exact duplicate reusable tokens: 0 for both profiles
+
+seed 3301:
+  shared common-prefix full blocks: 222
+  matched-unique common-prefix full blocks: 1
+  shared estimated reusable block tokens: 110,112
+  matched-unique estimated reusable block tokens: 496
+  exact duplicate reusable tokens: 0 for both profiles
+```
+
+The joined artifact summarizes the two audits:
+
+```text
+shared common-prefix full blocks mean: 222.5
+matched-unique common-prefix full blocks mean: 1.0
+shared-minus-control reusable block-token delta mean: 109,864
+matched-unique exact duplicate reusable block tokens mean: 0
+```
+
+Joined with Training 083 server cache-on/cache-off ratios:
+
+```text
+async_first / matched_unique:
+  prompt-overlap class: minimal leading overlap
+  common full blocks: 1.0
+  server cache-on/off throughput ratio: 10.821x
+  server cache-on/off p95 latency ratio: 0.096x
+
+async_first / shared_prefix:
+  prompt-overlap class: large leading overlap
+  common full blocks: 222.5
+  server cache-on/off throughput ratio: 11.308x
+  server cache-on/off p95 latency ratio: 0.088x
+
+server_first / matched_unique:
+  prompt-overlap class: minimal leading overlap
+  common full blocks: 1.0
+  server cache-on/off throughput ratio: 12.091x
+  server cache-on/off p95 latency ratio: 0.083x
+
+server_first / shared_prefix:
+  prompt-overlap class: large leading overlap
+  common full blocks: 222.5
+  server cache-on/off throughput ratio: 13.841x
+  server cache-on/off p95 latency ratio: 0.073x
+```
+
+This changes the claim boundary. The server cache-on/cache-off speedup is real
+for these runs, but the matched-unique control speedup is not explained by the
+intended large shared leading-prefix mechanism. Under the static tokenizer audit,
+the control has only one reusable leading full block and no exact duplicate
+prompts. That is too little prompt overlap to justify an order-of-magnitude
+speedup by user-visible shared-prefix reuse alone.
+
+The current evidence supports a narrower statement:
+
+```text
+Explicit vLLM server prefix caching changes serving-path performance dramatically
+under this Qwen 1.5B/L4/n32 workload shape, but the present cache-on/cache-off
+timing result is not yet isolated to the application-level shared-prefix
+workload.
+```
+
+Generated artifacts:
+
+```text
+results/modal-vllm-prefix-cache-prompt-audit-mega-long-qwen15b-n32-seed3201/prefix-cache-prompt-audit.json
+results/modal-vllm-prefix-cache-prompt-audit-mega-long-qwen15b-n32-seed3201/prefix-cache-prompt-audit-scenarios.csv
+results/modal-vllm-prefix-cache-prompt-audit-mega-long-qwen15b-n32-seed3201/prefix-cache-prompt-audit-prompts.csv
+results/modal-vllm-prefix-cache-prompt-audit-mega-long-qwen15b-n32-seed3201/prefix-cache-prompt-audit-profile-control.csv
+results/modal-vllm-prefix-cache-prompt-audit-mega-long-qwen15b-n32-seed3201/prefix-cache-prompt-audit.md
+results/modal-vllm-prefix-cache-prompt-audit-mega-long-qwen15b-n32-seed3301/prefix-cache-prompt-audit.json
+results/modal-vllm-prefix-cache-prompt-audit-mega-long-qwen15b-n32-seed3301/prefix-cache-prompt-audit-scenarios.csv
+results/modal-vllm-prefix-cache-prompt-audit-mega-long-qwen15b-n32-seed3301/prefix-cache-prompt-audit-prompts.csv
+results/modal-vllm-prefix-cache-prompt-audit-mega-long-qwen15b-n32-seed3301/prefix-cache-prompt-audit-profile-control.csv
+results/modal-vllm-prefix-cache-prompt-audit-mega-long-qwen15b-n32-seed3301/prefix-cache-prompt-audit.md
+results/modal-vllm-prefix-cache-prompt-overlap-server-cache-control-qwen15b-n32-r2/prompt-overlap-server-compare.json
+results/modal-vllm-prefix-cache-prompt-overlap-server-cache-control-qwen15b-n32-r2/prompt-overlap-audit-summary.csv
+results/modal-vllm-prefix-cache-prompt-overlap-server-cache-control-qwen15b-n32-r2/prompt-overlap-server-summary.csv
+results/modal-vllm-prefix-cache-prompt-overlap-server-cache-control-qwen15b-n32-r2/prompt-overlap-server-compare.md
+```
+
+## Next Step
+
+Run single-profile server cache-control cells. The next test should run
+cache-off/cache-on with only the matched-unique profile, then only the
+shared-prefix profile, so scenario ordering and cross-profile cache state cannot
+explain the result.
