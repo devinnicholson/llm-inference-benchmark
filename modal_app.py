@@ -434,6 +434,7 @@ def _run_vllm_prefix_cache_paired_payload(
     phase_order: str = "cold_first",
     collect_cache_metrics: bool = False,
     kv_cache_metrics_sample: float = 1.0,
+    max_num_batched_tokens_override: int = 0,
     modal_gpu_label: str = "T4",
 ) -> dict[str, Any]:
     import asyncio
@@ -564,7 +565,14 @@ def _run_vllm_prefix_cache_paired_payload(
     all_shape_specs = scenario_specs + warmup_scenario_specs
     max_prompt_tokens = max(spec["prompt_tokens_max"] for spec in all_shape_specs)
     max_model_len = max(1024, max_prompt_tokens + max_output_tokens + 32)
-    max_num_batched_tokens = max(2048, max_request_count * max_model_len)
+    default_max_num_batched_tokens = max(2048, max_request_count * max_model_len)
+    max_num_batched_tokens, max_num_batched_tokens_source = (
+        _resolve_max_num_batched_tokens(
+            default_max_num_batched_tokens,
+            max_num_batched_tokens_override,
+            "max_num_batched_tokens_override",
+        )
+    )
     scenario_plan = []
     for repeat_index in range(repeats):
         for spec in scenario_specs:
@@ -1155,6 +1163,8 @@ def _run_vllm_prefix_cache_paired_payload(
         "paired_run_count": len(paired_runs),
         "max_model_len": max_model_len,
         "max_num_batched_tokens": max_num_batched_tokens,
+        "default_max_num_batched_tokens": default_max_num_batched_tokens,
+        "max_num_batched_tokens_source": max_num_batched_tokens_source,
         "max_num_seqs": max_request_count,
         "gpu_memory_utilization": 0.50,
         "tokenizer_load_ms": tokenizer_load_ms,
@@ -1240,6 +1250,7 @@ def run_vllm_prefix_cache_paired_remote(
     phase_order: str = "cold_first",
     collect_cache_metrics: bool = False,
     kv_cache_metrics_sample: float = 1.0,
+    max_num_batched_tokens_override: int = 0,
 ) -> dict[str, Any]:
     return _run_vllm_prefix_cache_paired_payload(
         hf_model=hf_model,
@@ -1253,6 +1264,7 @@ def run_vllm_prefix_cache_paired_remote(
         phase_order=phase_order,
         collect_cache_metrics=collect_cache_metrics,
         kv_cache_metrics_sample=kv_cache_metrics_sample,
+        max_num_batched_tokens_override=max_num_batched_tokens_override,
         modal_gpu_label="T4",
     )
 
@@ -1275,6 +1287,7 @@ def run_vllm_prefix_cache_paired_l4_remote(
     phase_order: str = "cold_first",
     collect_cache_metrics: bool = False,
     kv_cache_metrics_sample: float = 1.0,
+    max_num_batched_tokens_override: int = 0,
 ) -> dict[str, Any]:
     return _run_vllm_prefix_cache_paired_payload(
         hf_model=hf_model,
@@ -1288,6 +1301,7 @@ def run_vllm_prefix_cache_paired_l4_remote(
         phase_order=phase_order,
         collect_cache_metrics=collect_cache_metrics,
         kv_cache_metrics_sample=kv_cache_metrics_sample,
+        max_num_batched_tokens_override=max_num_batched_tokens_override,
         modal_gpu_label="L4",
     )
 
@@ -4572,6 +4586,7 @@ def main(
     modal_gpu: str = "T4",
     capacity_prefix_cache_modes: str = "false",
     capacity_max_num_batched_tokens: str = "",
+    prefix_cache_max_num_batched_tokens: int = 0,
     gpu_memory_utilization: float = 0.50,
     cold_sweep_dir: str = DEFAULT_VLLM_SWEEP_OUTPUT,
     prefix_sweep_dir: str = DEFAULT_VLLM_PREFIX_CACHE_SWEEP_OUTPUT,
@@ -5325,6 +5340,9 @@ def main(
                 "warmup_prompt_profile": effective_warmup_prompt_profile or None,
                 "collect_cache_metrics": True,
                 "kv_cache_metrics_sample": float(kv_cache_metrics_sample),
+                "max_num_batched_tokens_override": int(
+                    prefix_cache_max_num_batched_tokens
+                ),
                 "checkpoint_complete": checkpoint_complete,
                 "planned_remote_call_count": planned_remote_call_count,
                 "isolation_method": (
@@ -5415,6 +5433,9 @@ def main(
                             phase_order=isolated_phase_order,
                             collect_cache_metrics=True,
                             kv_cache_metrics_sample=kv_cache_metrics_sample,
+                            max_num_batched_tokens_override=(
+                                prefix_cache_max_num_batched_tokens
+                            ),
                         )
                         if single_payload["paired_run_count"] != 1:
                             raise ValueError(
@@ -5445,6 +5466,15 @@ def main(
                                 "prompt_profile": row["prompt_profile"],
                                 "request_count": row["request_count"],
                                 "max_new_tokens": row["max_new_tokens"],
+                                "max_num_batched_tokens": single_payload[
+                                    "max_num_batched_tokens"
+                                ],
+                                "default_max_num_batched_tokens": single_payload[
+                                    "default_max_num_batched_tokens"
+                                ],
+                                "max_num_batched_tokens_source": single_payload[
+                                    "max_num_batched_tokens_source"
+                                ],
                                 "phase_order": single_payload["phase_order"],
                                 "warmup_prompt_profile": single_payload[
                                     "warmup_prompt_profile"
@@ -5597,6 +5627,10 @@ def main(
         print(f"warmup_runs: {payload['warmup_runs']}")
         print(f"warmup_prompt_profile: {payload['warmup_prompt_profile']}")
         print(
+            "max_num_batched_tokens_override: "
+            f"{payload['max_num_batched_tokens_override']}"
+        )
+        print(
             "mean_cache_to_cold_throughput_ratio: "
             f"{payload['mean_cache_to_cold_throughput_ratio']:.3f}"
         )
@@ -5640,6 +5674,7 @@ def main(
             phase_order=phase_order,
             collect_cache_metrics=collect_cache_metrics,
             kv_cache_metrics_sample=kv_cache_metrics_sample,
+            max_num_batched_tokens_override=prefix_cache_max_num_batched_tokens,
         )
         phase_order_slug = payload["phase_order"].lower().replace("_", "-")
         default_output = (
@@ -5665,6 +5700,11 @@ def main(
         print(f"phase_order: {payload['phase_order']}")
         print(f"modal_gpu: {payload['modal_gpu']}")
         print(f"collect_cache_metrics: {payload['collect_cache_metrics']}")
+        print(f"max_num_batched_tokens: {payload['max_num_batched_tokens']}")
+        print(
+            "max_num_batched_tokens_source: "
+            f"{payload['max_num_batched_tokens_source']}"
+        )
         print(
             "mean_cache_to_cold_throughput_ratio: "
             f"{payload['mean_cache_to_cold_throughput_ratio']:.3f}"
@@ -5842,6 +5882,20 @@ def _split_positive_int_csv(value: str, label: str) -> list[int]:
             raise ValueError(f"{label} must contain positive integers")
         parsed_values.append(parsed_value)
     return parsed_values
+
+
+def _resolve_max_num_batched_tokens(
+    default_value: int,
+    override_value: int,
+    label: str,
+) -> tuple[int, str]:
+    if default_value <= 0:
+        raise ValueError("default max_num_batched_tokens must be positive")
+    if override_value < 0:
+        raise ValueError(f"{label} must be zero or a positive integer")
+    if override_value == 0:
+        return default_value, "default"
+    return override_value, "override"
 
 
 def _validate_vllm_prompt_profiles(profiles: list[str], label: str = "prompt_profiles") -> None:

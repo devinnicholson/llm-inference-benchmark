@@ -7097,3 +7097,99 @@ Add the same `max_num_batched_tokens` override to the paired benchmark path and
 run n32 at `60,640`. The key test is whether restoring KV capacity also restores
 the TPOT and latency behavior that weakened in the default n32 batch-pressure
 artifact.
+
+# Training 075: Qwen 1.5B L4 n32 Scheduler-Control Smoke
+
+Training 075 adds `max_num_batched_tokens` override support to the paired
+prefix-cache benchmark path and runs the n32 Qwen 1.5B L4 smoke with the
+restored `60,640` scheduler budget.
+
+## Goal
+
+Test whether the capacity knob identified in Training 074 changes measured
+timing behavior, especially the weaker n32 stream TPOT result.
+
+## Command
+
+```bash
+modal run modal_app.py --mode vllm-prefix-cache-isolated-neutral-warmup \
+  --modal-gpu L4 \
+  --hf-model Qwen/Qwen2.5-1.5B-Instruct \
+  --prompt-profiles shared_prefix_mega_long_no_repeat_variant,matched_unique_prefix_mega_long_no_repeat_variant \
+  --output-tokens 8 \
+  --request-counts 32 \
+  --repeats 2 \
+  --scenario-seed 2801 \
+  --phase-order cold_first \
+  --kv-cache-metrics-sample 1.0 \
+  --warmup-prompt-profile neutral_mega_long \
+  --prefix-cache-shared-profile shared_prefix_mega_long_no_repeat_variant \
+  --prefix-cache-control-profile matched_unique_prefix_mega_long_no_repeat_variant \
+  --prefix-cache-max-num-batched-tokens 60640 \
+  --output-dir results/modal-vllm-prefix-cache-mega-long-qwen15b-l4-n32-batched-tokens60640-smoke-r2
+
+modal run modal_app.py --mode vllm-prefix-cache-isolated-stability-summary \
+  --prefix-cache-isolated-metrics-dir results/modal-vllm-prefix-cache-mega-long-qwen15b-l4-n32-batched-tokens60640-smoke-r2 \
+  --prefix-cache-shared-profile shared_prefix_mega_long_no_repeat_variant \
+  --prefix-cache-control-profile matched_unique_prefix_mega_long_no_repeat_variant \
+  --output-dir results/modal-vllm-prefix-cache-mega-long-qwen15b-l4-n32-batched-tokens60640-smoke-r2-summary
+
+python3 scripts/build_prefix_cache_study_table.py \
+  --summary-json results/modal-vllm-prefix-cache-mega-long-qwen15b-l4-n32-batched-tokens60640-smoke-r2-summary/prefix-cache-isolated-stability-summary.json \
+  --output-dir results/prefix-cache-study-mega-long-qwen15b-l4-n32-batched-tokens60640-smoke-r2
+```
+
+## Capacity Check
+
+The Modal console repeatedly showed the controlled scheduler budget and restored
+allocator profile:
+
+```text
+max_num_batched_tokens=60640
+GPU KV cache size: 158,540 tokens
+Maximum concurrency for 3,790 tokens per request: 41.83x
+```
+
+The persisted paired rows capture the requested scheduler knob as
+`engine_max_num_batched_tokens=60640`. Exact GPU KV-token allocation still
+requires the subprocess capacity diagnostic because vLLM's multiprocessing logs
+are not fully visible to the in-process snapshot.
+
+## Result
+
+The smoke artifact has `4` scenario-level cold/cache paired runs, or `2`
+shared/control comparisons, for `n=32`.
+
+- shared-minus-control direct counter delta: `95.869 pp`, interval
+  `95.868 pp` to `95.870 pp`
+- p95 first-event/TTFT ratio delta: `-0.961`, interval `-0.966` to `-0.956`
+- throughput-ratio delta: `10.029`, interval `9.572` to `10.485`
+- p95 latency-ratio delta: `-0.922`, interval `-0.930` to `-0.914`
+- p95 stream TPOT-ratio delta: `-0.955`, interval `-0.963` to `-0.947`
+
+Compared with the default n32 r2 smoke, the major change is stream TPOT:
+`-0.675` at `121,280` max batched tokens becomes `-0.955` at `60,640`.
+That is the first timing artifact supporting the hypothesis that the n32 TPOT
+weakening was scheduler-capacity-driven, not just a request-count effect.
+
+Generated artifacts:
+
+```text
+results/modal-vllm-prefix-cache-mega-long-qwen15b-l4-n32-batched-tokens60640-smoke-r2/prefix-cache-isolated-metrics.json
+results/modal-vllm-prefix-cache-mega-long-qwen15b-l4-n32-batched-tokens60640-smoke-r2/prefix-cache-isolated-metrics-summary.csv
+results/modal-vllm-prefix-cache-mega-long-qwen15b-l4-n32-batched-tokens60640-smoke-r2/prefix-cache-isolated-metrics-runs.csv
+results/modal-vllm-prefix-cache-mega-long-qwen15b-l4-n32-batched-tokens60640-smoke-r2/prefix-cache-isolated-profile-control.csv
+results/modal-vllm-prefix-cache-mega-long-qwen15b-l4-n32-batched-tokens60640-smoke-r2-summary/prefix-cache-isolated-stability-summary.md
+results/modal-vllm-prefix-cache-mega-long-qwen15b-l4-n32-batched-tokens60640-smoke-r2-summary/prefix-cache-isolated-stability-summary.json
+results/modal-vllm-prefix-cache-mega-long-qwen15b-l4-n32-batched-tokens60640-smoke-r2-summary/prefix-cache-isolated-stability-summary.csv
+results/modal-vllm-prefix-cache-mega-long-qwen15b-l4-n32-batched-tokens60640-smoke-r2-summary/prefix-cache-isolated-stability-profile-control.csv
+results/prefix-cache-study-mega-long-qwen15b-l4-n32-batched-tokens60640-smoke-r2/key-results.md
+results/prefix-cache-study-mega-long-qwen15b-l4-n32-batched-tokens60640-smoke-r2/key-results.csv
+results/prefix-cache-study-mega-long-qwen15b-l4-n32-batched-tokens60640-smoke-r2/intervals.md
+```
+
+## Next Step
+
+Promote this scheduler-control axis to r5, then r8 if stable. That would give
+the repo a repeat-count-matched answer to whether restored KV capacity explains
+the n32 decode behavior.

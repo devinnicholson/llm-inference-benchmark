@@ -33,6 +33,30 @@ class ModalAppTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "T4, L4"):
             modal_app._select_vllm_capacity_diagnostic_remote("A100")
 
+    def test_resolves_max_num_batched_tokens_override(self) -> None:
+        self.assertEqual(
+            modal_app._resolve_max_num_batched_tokens(
+                default_value=121280,
+                override_value=0,
+                label="test_override",
+            ),
+            (121280, "default"),
+        )
+        self.assertEqual(
+            modal_app._resolve_max_num_batched_tokens(
+                default_value=121280,
+                override_value=60640,
+                label="test_override",
+            ),
+            (60640, "override"),
+        )
+        with self.assertRaisesRegex(ValueError, "test_override"):
+            modal_app._resolve_max_num_batched_tokens(
+                default_value=121280,
+                override_value=-1,
+                label="test_override",
+            )
+
     def test_parses_vllm_engine_capacity_log_metrics(self) -> None:
         metrics = modal_app._parse_vllm_engine_capacity_log_metrics(
             {
