@@ -8639,3 +8639,136 @@ Rerun the server cache-control cells with `--warmup-runs 0`. The minimal next
 matrix should start with `neutral_mega_long` cache-off/cache-on, then repeat
 matched-unique and shared-prefix only if the no-warmup neutral result removes
 the high measured-window prefix-cache hit rate.
+
+# Training 087 - Neutral No-Warmup Server Cache-Control
+
+## Goal
+
+Remove the same-prompt warmup identified in Training 086 and rerun the neutral
+long-prompt control. This isolates the measured server batch from scenario
+warmup seeding by setting `--warmup-runs 0` for both cache-off and cache-on.
+
+## Commands
+
+```bash
+modal run modal_app.py --mode vllm-server-async-paired \
+  --modal-gpu L4 \
+  --hf-model Qwen/Qwen2.5-1.5B-Instruct \
+  --prompt-profiles neutral_mega_long \
+  --output-tokens 8 \
+  --request-counts 32 \
+  --repeats 1 \
+  --scenario-seed 3401 \
+  --warmup-runs 0 \
+  --phase-order async_first \
+  --server-async-max-num-batched-tokens 60640 \
+  --server-async-prefix-caching off \
+  --output-dir results/modal-vllm-server-async-qwen15b-l4-n32-batched-tokens60640-neutral-mega-nowarmup-cache-off-r1
+
+modal run modal_app.py --mode vllm-server-async-paired \
+  --modal-gpu L4 \
+  --hf-model Qwen/Qwen2.5-1.5B-Instruct \
+  --prompt-profiles neutral_mega_long \
+  --output-tokens 8 \
+  --request-counts 32 \
+  --repeats 1 \
+  --scenario-seed 3401 \
+  --warmup-runs 0 \
+  --phase-order async_first \
+  --server-async-max-num-batched-tokens 60640 \
+  --server-async-prefix-caching on \
+  --output-dir results/modal-vllm-server-async-qwen15b-l4-n32-batched-tokens60640-neutral-mega-nowarmup-cache-on-r1
+
+modal run modal_app.py --mode vllm-server-async-cache-control-compare \
+  --server-async-cache-control-dirs results/modal-vllm-server-async-qwen15b-l4-n32-batched-tokens60640-neutral-mega-nowarmup-cache-off-r1,results/modal-vllm-server-async-qwen15b-l4-n32-batched-tokens60640-neutral-mega-nowarmup-cache-on-r1 \
+  --output-dir results/modal-vllm-server-async-qwen15b-l4-n32-batched-tokens60640-neutral-mega-nowarmup-cache-control-r1
+
+modal run modal_app.py --mode vllm-server-async-cache-control-server-absolute \
+  --server-async-cache-control-server-absolute-compare-dirs results/modal-vllm-server-async-qwen15b-l4-n32-batched-tokens60640-neutral-mega-nowarmup-cache-control-r1 \
+  --output-dir results/modal-vllm-server-async-qwen15b-l4-n32-batched-tokens60640-neutral-mega-nowarmup-server-cache-control-r1
+```
+
+## Result
+
+Removing same-prompt warmup collapses the neutral cache-on effect.
+
+Server/async ratios:
+
+```text
+no-warmup neutral cache-off throughput ratio: 1.078x
+no-warmup neutral cache-on throughput ratio: 1.173x
+no-warmup cache-on/cache-off server/async ratio: 1.087x
+
+no-warmup neutral cache-off latency ratio: 0.929x
+no-warmup neutral cache-on latency ratio: 0.852x
+no-warmup cache-on/cache-off latency ratio: 0.918x
+```
+
+Direct raw server cache-on divided by cache-off:
+
+```text
+output tokens/s ratio: 1.129x
+p95 latency ratio: 0.886x
+p95 first-content ratio: 0.886x
+p95 stream TPOT ratio: 0.428x
+
+cache-off throughput: 30.559 output tokens/s
+cache-on throughput: 34.508 output tokens/s
+```
+
+Measured-window server `/metrics` counters:
+
+```text
+cache-off neutral:
+  prefix-cache queries: 0
+  prefix-cache hits: 0
+  hit rate: 0.000%
+
+cache-on neutral:
+  prefix-cache queries: 119,574
+  prefix-cache hits: 10,480
+  hit rate: 8.764%
+```
+
+Training 086 versus Training 087:
+
+```text
+neutral with same-prompt warmup:
+  cache-on measured-window hit rate: 99.768%
+  raw server cache-on/cache-off throughput ratio: 11.913x
+
+neutral with no scenario warmup:
+  cache-on measured-window hit rate: 8.764%
+  raw server cache-on/cache-off throughput ratio: 1.129x
+```
+
+## Interpretation
+
+This confirms that the order-of-magnitude neutral result in Training 086 was
+caused by same-prompt warmup seeding. Without scenario warmup, the server still
+records some prefix-cache hits, likely from short shared chat-template or prompt
+structure within the batch, but the high-hit-rate/high-throughput regime is
+gone.
+
+This also explains the earlier matched-unique anomaly: the server cache-control
+matrix used the same `warmup_runs=1` pattern, so the measured cache-on pass was
+not independent of warmup. Earlier timing artifacts remain useful as evidence
+that vLLM server prefix caching can produce large wins when exact prompt blocks
+are already cached, but they should not be cited as isolated cross-request
+shared-prefix evidence.
+
+Generated artifacts:
+
+```text
+results/modal-vllm-server-async-qwen15b-l4-n32-batched-tokens60640-neutral-mega-nowarmup-cache-off-r1/paired-server-async.json
+results/modal-vllm-server-async-qwen15b-l4-n32-batched-tokens60640-neutral-mega-nowarmup-cache-on-r1/paired-server-async.json
+results/modal-vllm-server-async-qwen15b-l4-n32-batched-tokens60640-neutral-mega-nowarmup-cache-control-r1/cache-control-phase-order-compare.json
+results/modal-vllm-server-async-qwen15b-l4-n32-batched-tokens60640-neutral-mega-nowarmup-server-cache-control-r1/server-cache-control-absolute.json
+```
+
+## Next Step
+
+Rerun `matched_unique_prefix_mega_long_no_repeat_variant` and
+`shared_prefix_mega_long_no_repeat_variant` with `--warmup-runs 0`. That will
+separate the remaining within-batch/shared-prefix cache effect from the
+same-prompt warmup artifact.
