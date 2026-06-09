@@ -7295,3 +7295,108 @@ results/prefix-cache-study-mega-long-qwen15b-l4-n32-batched-tokens60640-merged-r
 Promote the scheduler-control axis to r8. If TPOT remains near the r5 value at
 repeat-count parity, we can treat `max_num_batched_tokens` as a controlled vLLM
 baseline for backend comparisons.
+
+# Training 077: Qwen 1.5B L4 n32 Scheduler-Control Merged r8
+
+Training 077 promotes the `max_num_batched_tokens=60640` n32
+scheduler-control axis from r5 to r8. It adds one three-repeat chunk, then
+merges it with the Training 076 r5 artifact.
+
+## Goal
+
+Check whether the restored-capacity TPOT finding holds at repeat-count parity
+with the default n32 and n16 r8 artifacts.
+
+## Commands
+
+```bash
+modal run modal_app.py --mode vllm-prefix-cache-isolated-neutral-warmup \
+  --modal-gpu L4 \
+  --hf-model Qwen/Qwen2.5-1.5B-Instruct \
+  --prompt-profiles shared_prefix_mega_long_no_repeat_variant,matched_unique_prefix_mega_long_no_repeat_variant \
+  --output-tokens 8 \
+  --request-counts 32 \
+  --repeats 3 \
+  --scenario-seed 3001 \
+  --phase-order cold_first \
+  --kv-cache-metrics-sample 1.0 \
+  --warmup-prompt-profile neutral_mega_long \
+  --prefix-cache-shared-profile shared_prefix_mega_long_no_repeat_variant \
+  --prefix-cache-control-profile matched_unique_prefix_mega_long_no_repeat_variant \
+  --prefix-cache-max-num-batched-tokens 60640 \
+  --output-dir results/modal-vllm-prefix-cache-mega-long-qwen15b-l4-n32-batched-tokens60640-chunk-r3-seed3001
+
+modal run modal_app.py --mode vllm-prefix-cache-isolated-merge \
+  --prefix-cache-isolated-merge-dirs results/modal-vllm-prefix-cache-mega-long-qwen15b-l4-n32-batched-tokens60640-merged-r5,results/modal-vllm-prefix-cache-mega-long-qwen15b-l4-n32-batched-tokens60640-chunk-r3-seed3001 \
+  --prefix-cache-shared-profile shared_prefix_mega_long_no_repeat_variant \
+  --prefix-cache-control-profile matched_unique_prefix_mega_long_no_repeat_variant \
+  --output-dir results/modal-vllm-prefix-cache-mega-long-qwen15b-l4-n32-batched-tokens60640-merged-r8
+
+modal run modal_app.py --mode vllm-prefix-cache-isolated-stability-summary \
+  --prefix-cache-isolated-metrics-dir results/modal-vllm-prefix-cache-mega-long-qwen15b-l4-n32-batched-tokens60640-merged-r8 \
+  --prefix-cache-shared-profile shared_prefix_mega_long_no_repeat_variant \
+  --prefix-cache-control-profile matched_unique_prefix_mega_long_no_repeat_variant \
+  --output-dir results/modal-vllm-prefix-cache-mega-long-qwen15b-l4-n32-batched-tokens60640-merged-r8-summary
+
+python3 scripts/build_prefix_cache_study_table.py \
+  --summary-json results/modal-vllm-prefix-cache-mega-long-qwen15b-l4-n32-batched-tokens60640-merged-r8-summary/prefix-cache-isolated-stability-summary.json \
+  --output-dir results/prefix-cache-study-mega-long-qwen15b-l4-n32-batched-tokens60640-merged-r8
+```
+
+## Capacity Check
+
+The new r3 chunk repeatedly logged the restored capacity profile:
+
+```text
+max_num_batched_tokens=60640
+GPU KV cache size: 158,540 tokens
+Maximum concurrency for 3,790 tokens per request: 41.83x
+```
+
+The merged source manifest records the r5 source plus the seed `3001` r3 chunk,
+for `16` scenario-level cold/cache paired runs and `8` shared/control
+comparisons.
+
+## Result
+
+The merged r8 artifact keeps the controlled scheduler-budget effect stable.
+
+- shared-minus-control direct counter delta: `95.821 pp`, interval
+  `95.772 pp` to `95.869 pp`
+- p95 first-event/TTFT ratio delta: `-0.954`, interval `-0.960` to `-0.947`
+- throughput-ratio delta: `9.184`, interval `7.959` to `10.196`
+- p95 latency-ratio delta: `-0.916`, interval `-0.926` to `-0.902`
+- p95 stream TPOT-ratio delta: `-0.937`, interval `-0.954` to `-0.918`
+
+Against the default n32 r8 artifact, direct-cache and latency behavior are
+similar, throughput is lower (`9.184` controlled versus `9.863` default), and
+stream TPOT is much stronger (`-0.937` controlled versus `-0.683` default).
+That keeps the claim narrow but useful: controlling vLLM's scheduler token
+budget restores the decode-side TPOT behavior under the n32 request shape.
+
+Generated artifacts:
+
+```text
+results/modal-vllm-prefix-cache-mega-long-qwen15b-l4-n32-batched-tokens60640-chunk-r3-seed3001/prefix-cache-isolated-metrics.json
+results/modal-vllm-prefix-cache-mega-long-qwen15b-l4-n32-batched-tokens60640-chunk-r3-seed3001/prefix-cache-isolated-metrics-summary.csv
+results/modal-vllm-prefix-cache-mega-long-qwen15b-l4-n32-batched-tokens60640-chunk-r3-seed3001/prefix-cache-isolated-metrics-runs.csv
+results/modal-vllm-prefix-cache-mega-long-qwen15b-l4-n32-batched-tokens60640-chunk-r3-seed3001/prefix-cache-isolated-profile-control.csv
+results/modal-vllm-prefix-cache-mega-long-qwen15b-l4-n32-batched-tokens60640-merged-r8/prefix-cache-isolated-metrics.json
+results/modal-vllm-prefix-cache-mega-long-qwen15b-l4-n32-batched-tokens60640-merged-r8/prefix-cache-isolated-metrics-summary.csv
+results/modal-vllm-prefix-cache-mega-long-qwen15b-l4-n32-batched-tokens60640-merged-r8/prefix-cache-isolated-metrics-runs.csv
+results/modal-vllm-prefix-cache-mega-long-qwen15b-l4-n32-batched-tokens60640-merged-r8/prefix-cache-isolated-profile-control.csv
+results/modal-vllm-prefix-cache-mega-long-qwen15b-l4-n32-batched-tokens60640-merged-r8/prefix-cache-isolated-merge-sources.csv
+results/modal-vllm-prefix-cache-mega-long-qwen15b-l4-n32-batched-tokens60640-merged-r8-summary/prefix-cache-isolated-stability-summary.md
+results/modal-vllm-prefix-cache-mega-long-qwen15b-l4-n32-batched-tokens60640-merged-r8-summary/prefix-cache-isolated-stability-summary.json
+results/modal-vllm-prefix-cache-mega-long-qwen15b-l4-n32-batched-tokens60640-merged-r8-summary/prefix-cache-isolated-stability-summary.csv
+results/modal-vllm-prefix-cache-mega-long-qwen15b-l4-n32-batched-tokens60640-merged-r8-summary/prefix-cache-isolated-stability-profile-control.csv
+results/prefix-cache-study-mega-long-qwen15b-l4-n32-batched-tokens60640-merged-r8/key-results.md
+results/prefix-cache-study-mega-long-qwen15b-l4-n32-batched-tokens60640-merged-r8/key-results.csv
+results/prefix-cache-study-mega-long-qwen15b-l4-n32-batched-tokens60640-merged-r8/intervals.md
+```
+
+## Next Step
+
+Use this controlled r8 artifact as the vLLM baseline for backend comparison or
+serving-path comparison. The next useful question is whether another backend
+keeps the direct-cache and TPOT effects when the KV-capacity budget is known.

@@ -44,7 +44,7 @@ Latest L4 capacity diagnostic:
 [`results/modal-vllm-capacity-diagnostic-qwen15b-l4-n32-batched-tokens-r1/capacity-diagnostic.md`](results/modal-vllm-capacity-diagnostic-qwen15b-l4-n32-batched-tokens-r1/capacity-diagnostic.md)
 
 Latest L4 scheduler-control follow-up:
-[`results/prefix-cache-study-mega-long-qwen15b-l4-n32-batched-tokens60640-merged-r5/key-results.md`](results/prefix-cache-study-mega-long-qwen15b-l4-n32-batched-tokens60640-merged-r5/key-results.md)
+[`results/prefix-cache-study-mega-long-qwen15b-l4-n32-batched-tokens60640-merged-r8/key-results.md`](results/prefix-cache-study-mega-long-qwen15b-l4-n32-batched-tokens60640-merged-r8/key-results.md)
 
 ## Course Track
 
