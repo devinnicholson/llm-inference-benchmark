@@ -7530,3 +7530,67 @@ Add an explicit server-side prefix-cache paired mode. The next run should set
 the server prefix-cache behavior directly, rather than relying on defaults, so
 the OpenAI-compatible path can be compared against the Training 077 direct-cache
 claim under the same scheduler budget.
+
+# Training 079 - vLLM Server Prefix-Cache CLI Evidence
+
+Training 078 showed that the OpenAI-compatible vLLM server path had prefix
+caching enabled by default, while the paired `AsyncLLM` path was explicitly
+configured with prefix caching disabled. Before adding an explicit server-side
+control, Training 079 captures the installed vLLM 0.21.0 server CLI help inside
+the same L4 Modal image used by the serving-path experiments.
+
+## Goal
+
+Identify the exact server CLI flag that disables prefix caching in this vLLM
+version, and store the raw help output as a reproducibility artifact.
+
+## Commands
+
+```bash
+modal run modal_app.py --mode vllm-server-cli-help \
+  --output-dir results/modal-vllm-server-cli-help-v021
+```
+
+The capture runs these commands remotely on L4:
+
+```text
+vllm serve --help
+vllm serve --help=CacheConfig
+vllm serve --help=all
+```
+
+## Result
+
+All three help commands returned `0` in the L4 Modal image. Plain `--help`
+lists config groups, while `--help=CacheConfig` and `--help=all` expose the
+prefix-cache server flags:
+
+```text
+vllm_version: 0.21.0
+modal_gpu: L4
+returncodes: [0, 0, 0]
+prefix_related_flags:
+- --enable-prefix-caching
+- --no-enable-prefix-caching
+- --prefix-caching-hash-algo
+has_no_enable_prefix_caching_flag: True
+has_disable_prefix_caching_flag: False
+```
+
+The next server-control implementation should use
+`--no-enable-prefix-caching` when constructing the OpenAI-compatible server
+command for the no-cache side of the paired serving-path benchmark.
+
+Generated artifacts:
+
+```text
+results/modal-vllm-server-cli-help-v021/vllm-server-cli-help.json
+results/modal-vllm-server-cli-help-v021/vllm-server-cli-help.txt
+```
+
+## Next Step
+
+Add explicit server-side prefix-cache control to the `vllm-server-async-paired`
+harness, then rerun the n32 Qwen 1.5B L4 scheduler-control smoke with the server
+side configured both with `--no-enable-prefix-caching` and
+`--enable-prefix-caching`.

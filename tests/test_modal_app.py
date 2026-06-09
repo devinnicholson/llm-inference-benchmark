@@ -115,6 +115,27 @@ class ModalAppTests(unittest.TestCase):
         self.assertEqual(metrics["latest_prefix_cache_hit_rate_pct"], 65.5)
         self.assertEqual(metrics["runtime_metric_count"], 1)
 
+    def test_parses_vllm_server_cli_help_prefix_flags(self) -> None:
+        parsed = modal_app._parse_vllm_server_cli_help(
+            "  --enable-prefix-caching\n"
+            "  --no-enable-prefix-caching\n"
+            "  --prefix-caching-hash-algo {builtin,sha256}\n"
+            "  --disable-log-requests\n"
+        )
+
+        self.assertEqual(
+            parsed["prefix_related_flags"],
+            [
+                "--enable-prefix-caching",
+                "--no-enable-prefix-caching",
+                "--prefix-caching-hash-algo",
+            ],
+        )
+        self.assertTrue(parsed["has_enable_prefix_caching_flag"])
+        self.assertTrue(parsed["has_no_enable_prefix_caching_flag"])
+        self.assertFalse(parsed["has_disable_prefix_caching_flag"])
+        self.assertEqual(len(parsed["prefix_related_lines"]), 3)
+
     def test_formats_vllm_capacity_diagnostic_markdown(self) -> None:
         markdown = modal_app._format_vllm_capacity_diagnostic_markdown(
             {

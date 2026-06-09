@@ -32,6 +32,7 @@ DEFAULT_VLLM_SWEEP_OUTPUT = "results/modal-vllm-sweep"
 DEFAULT_VLLM_SERVER_OUTPUT = "results/modal-vllm-server-streaming"
 DEFAULT_VLLM_SERVER_CONCURRENT_OUTPUT = "results/modal-vllm-server-concurrent"
 DEFAULT_VLLM_SERVER_SWEEP_OUTPUT = "results/modal-vllm-server-sweep"
+DEFAULT_VLLM_SERVER_CLI_HELP_OUTPUT = "results/modal-vllm-server-cli-help"
 DEFAULT_VLLM_SERVER_SWEEP_COMPARE_OUTPUT = "results/modal-vllm-server-sweep-compare"
 DEFAULT_VLLM_SERVER_ASYNC_PAIRED_OUTPUT = "results/modal-vllm-server-async-paired"
 DEFAULT_VLLM_SERVER_ASYNC_PAIRED_SERVER_FIRST_OUTPUT = (
@@ -258,6 +259,61 @@ def run_gpu_probe_remote() -> dict[str, Any]:
         }
     )
     return result
+
+
+@app.function(image=vllm_image, gpu="L4", timeout=900)
+def run_vllm_server_cli_help_remote() -> dict[str, Any]:
+    import platform
+    import subprocess
+
+    import vllm
+
+    started = time.perf_counter()
+    commands = [
+        ["vllm", "serve", "--help"],
+        ["vllm", "serve", "--help=CacheConfig"],
+        ["vllm", "serve", "--help=all"],
+    ]
+    captures = []
+    for command in commands:
+        command_started = time.perf_counter()
+        completed = subprocess.run(
+            command,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            timeout=240,
+            check=False,
+        )
+        text = _strip_trailing_whitespace_lines(completed.stdout)
+        captures.append(
+            {
+                "command": command,
+                "returncode": completed.returncode,
+                "elapsed_ms": (time.perf_counter() - command_started) * 1000,
+                "help_text": text,
+                **_parse_vllm_server_cli_help(text),
+            }
+        )
+    help_text = "\n\n".join(
+        "$ " + " ".join(capture["command"]) + "\n" + capture["help_text"]
+        for capture in captures
+    )
+    return {
+        "schema_version": 1,
+        "execution": "modal",
+        "mode": "vllm-server-cli-help",
+        "modal_gpu": "L4",
+        "commands": commands,
+        "returncodes": [capture["returncode"] for capture in captures],
+        "elapsed_ms": (time.perf_counter() - started) * 1000,
+        "vllm_version": str(vllm.__version__),
+        "platform": platform.platform(),
+        "python_version": platform.python_version(),
+        "help_captures": captures,
+        "help_text": help_text,
+        **_parse_vllm_server_cli_help(help_text),
+    }
 
 
 @app.function(
@@ -4726,6 +4782,28 @@ def main(
         print(f"json: {json_path}")
         return
 
+    if mode == "vllm-server-cli-help":
+        payload = run_vllm_server_cli_help_remote.remote()
+        output_path = Path(output_dir or DEFAULT_VLLM_SERVER_CLI_HELP_OUTPUT)
+        output_path.mkdir(parents=True, exist_ok=True)
+        json_path = output_path / "vllm-server-cli-help.json"
+        text_path = output_path / "vllm-server-cli-help.txt"
+        json_path.write_text(
+            json.dumps(payload, indent=2, sort_keys=True) + "\n",
+            encoding="utf-8",
+        )
+        text_path.write_text(payload["help_text"], encoding="utf-8")
+
+        print(f"vllm_version: {payload['vllm_version']}")
+        print("prefix_related_flags: " + ",".join(payload["prefix_related_flags"]))
+        print(
+            "has_no_enable_prefix_caching_flag: "
+            f"{payload['has_no_enable_prefix_caching_flag']}"
+        )
+        print(f"json: {json_path}")
+        print(f"text: {text_path}")
+        return
+
     if mode == "tiny-inference":
         payload = run_tiny_inference_remote.remote(
             hf_model=hf_model,
@@ -5949,6 +6027,7 @@ def main(
             "'vllm-cache-metrics-smoke', 'vllm-streaming', 'vllm-concurrent', "
             "'vllm-server-streaming', 'vllm-server-concurrent', "
             "'vllm-server-sweep', 'vllm-server-sweep-compare', "
+            "'vllm-server-cli-help', "
             "'vllm-server-async-paired', "
             "'vllm-server-async-log-summary', "
             "'vllm-server-async-phase-order-compare', "
@@ -7084,6 +7163,40 @@ def _metric_distribution(
         f"{field}_p95": _percentile(values, 95),
         f"{field}_cv": stddev / abs(mean_value) if mean_value else None,
     }
+
+
+def _parse_vllm_server_cli_help(help_text: str) -> dict[str, Any]:
+    lines = [line.rstrip() for line in help_text.splitlines()]
+    prefix_related_lines = [
+        line
+        for line in lines
+        if "prefix" in line.lower()
+    ]
+    prefix_related_flags = sorted(
+        {
+            flag
+            for flag in re.findall(r"--[A-Za-z0-9][A-Za-z0-9-]*", help_text)
+            if "prefix" in flag.lower()
+        }
+    )
+    return {
+        "prefix_related_flags": prefix_related_flags,
+        "prefix_related_lines": prefix_related_lines,
+        "has_enable_prefix_caching_flag": (
+            "--enable-prefix-caching" in prefix_related_flags
+        ),
+        "has_no_enable_prefix_caching_flag": (
+            "--no-enable-prefix-caching" in prefix_related_flags
+        ),
+        "has_disable_prefix_caching_flag": (
+            "--disable-prefix-caching" in prefix_related_flags
+        ),
+    }
+
+
+def _strip_trailing_whitespace_lines(text: str) -> str:
+    stripped = "\n".join(line.rstrip() for line in text.splitlines())
+    return stripped + ("\n" if text.endswith("\n") else "")
 
 
 def _parse_vllm_server_log_metrics(log_lines: list[str] | None) -> dict[str, Any]:
