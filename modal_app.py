@@ -3995,6 +3995,7 @@ def _run_vllm_server_async_paired_payload(
     phase_order: str = "async_first",
     ready_timeout_s: int = 600,
     max_num_batched_tokens_override: int = 0,
+    server_prefix_caching: str = "default",
     modal_gpu_label: str = "T4",
 ) -> dict[str, Any]:
     import asyncio
@@ -4029,6 +4030,9 @@ def _run_vllm_server_async_paired_payload(
     phase_order = phase_order.lower().replace("-", "_")
     if phase_order not in {"async_first", "server_first"}:
         raise ValueError("phase_order must be async_first or server_first")
+    server_prefix_caching_mode = _normalize_server_prefix_caching_choice(
+        server_prefix_caching
+    )
     _validate_vllm_prompt_profiles(prompt_profile_values)
 
     import vllm
@@ -4302,6 +4306,9 @@ def _run_vllm_server_async_paired_payload(
             "0.50",
             "--enforce-eager",
         ]
+        command.extend(
+            _vllm_server_prefix_caching_args(server_prefix_caching_mode)
+        )
         server_logs: list[str] = []
         server_started = time.perf_counter()
         process = subprocess.Popen(
@@ -4587,6 +4594,11 @@ def _run_vllm_server_async_paired_payload(
         "max_num_batched_tokens_source": max_num_batched_tokens_source,
         "max_num_seqs": max_request_count,
         "gpu_memory_utilization": 0.50,
+        "async_enable_prefix_caching_configured": False,
+        "server_prefix_caching_configured": server_prefix_caching_mode,
+        "server_prefix_caching_flag": _vllm_server_prefix_caching_args(
+            server_prefix_caching_mode
+        ),
         "tokenizer_load_ms": tokenizer_load_ms,
         "prompt_format_ms": prompt_format_ms,
         "async_engine_load_ms": async_result["engine_load_ms"],
@@ -4622,7 +4634,8 @@ def _run_vllm_server_async_paired_payload(
         "note": (
             "One Modal worker runs in-process AsyncLLM and the OpenAI-compatible "
             f"vLLM server in phase order {phase_order} with the same scenario plan. "
-            "Paired rows compare matching scenario_id and repeat_index."
+            "Paired rows compare matching scenario_id and repeat_index. The "
+            f"server prefix-cache mode is {server_prefix_caching_mode}."
         ),
     }
 
@@ -4644,6 +4657,7 @@ def run_vllm_server_async_paired_remote(
     phase_order: str = "async_first",
     ready_timeout_s: int = 600,
     max_num_batched_tokens_override: int = 0,
+    server_prefix_caching: str = "default",
 ) -> dict[str, Any]:
     return _run_vllm_server_async_paired_payload(
         hf_model=hf_model,
@@ -4656,6 +4670,7 @@ def run_vllm_server_async_paired_remote(
         phase_order=phase_order,
         ready_timeout_s=ready_timeout_s,
         max_num_batched_tokens_override=max_num_batched_tokens_override,
+        server_prefix_caching=server_prefix_caching,
         modal_gpu_label="T4",
     )
 
@@ -4677,6 +4692,7 @@ def run_vllm_server_async_paired_l4_remote(
     phase_order: str = "async_first",
     ready_timeout_s: int = 600,
     max_num_batched_tokens_override: int = 0,
+    server_prefix_caching: str = "default",
 ) -> dict[str, Any]:
     return _run_vllm_server_async_paired_payload(
         hf_model=hf_model,
@@ -4689,6 +4705,7 @@ def run_vllm_server_async_paired_l4_remote(
         phase_order=phase_order,
         ready_timeout_s=ready_timeout_s,
         max_num_batched_tokens_override=max_num_batched_tokens_override,
+        server_prefix_caching=server_prefix_caching,
         modal_gpu_label="L4",
     )
 
@@ -4731,6 +4748,7 @@ def main(
     capacity_prefix_cache_modes: str = "false",
     capacity_max_num_batched_tokens: str = "",
     server_async_max_num_batched_tokens: int = 0,
+    server_async_prefix_caching: str = "default",
     prefix_cache_max_num_batched_tokens: int = 0,
     gpu_memory_utilization: float = 0.50,
     cold_sweep_dir: str = DEFAULT_VLLM_SWEEP_OUTPUT,
@@ -5159,6 +5177,7 @@ def main(
             warmup_runs=warmup_runs,
             phase_order=phase_order,
             max_num_batched_tokens_override=server_async_max_num_batched_tokens,
+            server_prefix_caching=server_async_prefix_caching,
         )
         phase_order_slug = phase_order.lower().replace("_", "-")
         default_output = (
@@ -5182,6 +5201,10 @@ def main(
         print(f"warmup_runs: {payload['warmup_runs']}")
         print(f"phase_order: {payload['phase_order']}")
         print(f"modal_gpu: {payload['modal_gpu']}")
+        print(
+            "server_prefix_caching_configured: "
+            f"{payload['server_prefix_caching_configured']}"
+        )
         print(f"max_num_batched_tokens: {payload['max_num_batched_tokens']}")
         print(
             "max_num_batched_tokens_source: "
@@ -5215,6 +5238,14 @@ def main(
         print(
             "all_server_enable_prefix_caching_observed: "
             f"{payload['all_server_enable_prefix_caching_observed']}"
+        )
+        print(
+            "server_enable_prefix_caching_observed_true_count: "
+            f"{payload['server_enable_prefix_caching_observed_true_count']}"
+        )
+        print(
+            "server_enable_prefix_caching_observed_false_count: "
+            f"{payload['server_enable_prefix_caching_observed_false_count']}"
         )
         print(
             "mean_server_latest_prefix_cache_hit_rate_pct: "
@@ -6098,6 +6129,26 @@ def _resolve_max_num_batched_tokens(
     if override_value == 0:
         return default_value, "default"
     return override_value, "override"
+
+
+def _normalize_server_prefix_caching_choice(value: str) -> str:
+    normalized = value.strip().lower().replace("-", "_")
+    if normalized in {"default", "auto"}:
+        return "default"
+    if normalized in {"1", "true", "yes", "y", "on", "enabled", "enable"}:
+        return "on"
+    if normalized in {"0", "false", "no", "n", "off", "disabled", "disable"}:
+        return "off"
+    raise ValueError("server_prefix_caching must be default, on, or off")
+
+
+def _vllm_server_prefix_caching_args(mode: str) -> list[str]:
+    normalized_mode = _normalize_server_prefix_caching_choice(mode)
+    if normalized_mode == "default":
+        return []
+    if normalized_mode == "on":
+        return ["--enable-prefix-caching"]
+    return ["--no-enable-prefix-caching"]
 
 
 def _validate_vllm_prompt_profiles(profiles: list[str], label: str = "prompt_profiles") -> None:
@@ -7289,7 +7340,17 @@ def _summarize_vllm_server_async_log_metrics(
                 "max_num_batched_tokens_source": payload.get(
                     "max_num_batched_tokens_source"
                 ),
-                "async_enable_prefix_caching_configured": False,
+                "async_enable_prefix_caching_configured": payload.get(
+                    "async_enable_prefix_caching_configured",
+                    False,
+                ),
+                "server_prefix_caching_configured": payload.get(
+                    "server_prefix_caching_configured",
+                    "unknown",
+                ),
+                "server_prefix_caching_flag": ",".join(
+                    payload.get("server_prefix_caching_flag") or []
+                ),
                 "server_enable_prefix_caching_observed": metrics.get(
                     "enable_prefix_caching"
                 ),
@@ -7349,11 +7410,32 @@ def _summarize_vllm_server_async_log_metrics(
         "source_dirs": [str(path) for path in paired_dirs],
         "row_count": len(rows),
         "rows": rows,
+        "server_enable_prefix_caching_observed_true_count": sum(
+            row["server_enable_prefix_caching_observed"] is True for row in rows
+        ),
+        "server_enable_prefix_caching_observed_false_count": sum(
+            row["server_enable_prefix_caching_observed"] is False for row in rows
+        ),
+        "server_enable_prefix_caching_observed_unknown_count": sum(
+            row["server_enable_prefix_caching_observed"] is None for row in rows
+        ),
+        "server_prefix_caching_configured_modes": sorted(
+            {
+                str(row["server_prefix_caching_configured"])
+                for row in rows
+                if row.get("server_prefix_caching_configured") is not None
+            }
+        ),
         "mean_server_latest_prefix_cache_hit_rate_pct": _mean_present(
             row["server_latest_prefix_cache_hit_rate_pct"] for row in rows
         ),
         "all_server_enable_prefix_caching_observed": (
             all(row["server_enable_prefix_caching_observed"] is True for row in rows)
+            if rows
+            else None
+        ),
+        "all_server_disable_prefix_caching_observed": (
+            all(row["server_enable_prefix_caching_observed"] is False for row in rows)
             if rows
             else None
         ),

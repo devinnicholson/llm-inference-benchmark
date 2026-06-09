@@ -7594,3 +7594,114 @@ Add explicit server-side prefix-cache control to the `vllm-server-async-paired`
 harness, then rerun the n32 Qwen 1.5B L4 scheduler-control smoke with the server
 side configured both with `--no-enable-prefix-caching` and
 `--enable-prefix-caching`.
+
+# Training 080 - Explicit Server Prefix-Cache Control Smoke
+
+Training 080 implements explicit OpenAI-compatible server prefix-cache control
+in `vllm-server-async-paired`. The mode now accepts
+`--server-async-prefix-caching default|on|off`; `on` adds
+`--enable-prefix-caching`, `off` adds `--no-enable-prefix-caching`, and
+`default` preserves vLLM's default behavior.
+
+## Goal
+
+Remove the Training 078 ambiguity where the server side inherited vLLM's
+prefix-cache default. The paired serving-path harness should record the
+configured server prefix-cache mode, the command-line flag used, the observed
+server-side `enable_prefix_caching` value, and the resulting server log hit
+rate.
+
+## Commands
+
+```bash
+modal run modal_app.py --mode vllm-server-async-paired \
+  --modal-gpu L4 \
+  --hf-model Qwen/Qwen2.5-1.5B-Instruct \
+  --prompt-profiles shared_prefix_mega_long_no_repeat_variant,matched_unique_prefix_mega_long_no_repeat_variant \
+  --output-tokens 8 \
+  --request-counts 32 \
+  --repeats 1 \
+  --scenario-seed 3201 \
+  --warmup-runs 1 \
+  --phase-order async_first \
+  --server-async-max-num-batched-tokens 60640 \
+  --server-async-prefix-caching off \
+  --output-dir results/modal-vllm-server-async-qwen15b-l4-n32-batched-tokens60640-server-cache-off-smoke-r1
+
+modal run modal_app.py --mode vllm-server-async-paired \
+  --modal-gpu L4 \
+  --hf-model Qwen/Qwen2.5-1.5B-Instruct \
+  --prompt-profiles shared_prefix_mega_long_no_repeat_variant,matched_unique_prefix_mega_long_no_repeat_variant \
+  --output-tokens 8 \
+  --request-counts 32 \
+  --repeats 1 \
+  --scenario-seed 3201 \
+  --warmup-runs 1 \
+  --phase-order async_first \
+  --server-async-max-num-batched-tokens 60640 \
+  --server-async-prefix-caching on \
+  --output-dir results/modal-vllm-server-async-qwen15b-l4-n32-batched-tokens60640-server-cache-on-smoke-r1
+
+modal run modal_app.py --mode vllm-server-async-log-summary \
+  --server-async-log-summary-dirs results/modal-vllm-server-async-qwen15b-l4-n32-batched-tokens60640-server-cache-off-smoke-r1,results/modal-vllm-server-async-qwen15b-l4-n32-batched-tokens60640-server-cache-on-smoke-r1 \
+  --output-dir results/modal-vllm-server-async-qwen15b-l4-n32-batched-tokens60640-server-cache-control-log-summary-r1
+```
+
+## Result
+
+Both smokes used Qwen 1.5B on L4 with n32, `max_num_batched_tokens=60640`,
+`phase_order=async_first`, and one repeat per cache mode.
+
+```text
+server_prefix_caching_configured=off
+server_prefix_caching_flag=--no-enable-prefix-caching
+server_enable_prefix_caching_observed=False
+server_latest_prefix_cache_hit_rate_pct=0.0
+mean_server_to_async_throughput_ratio=0.944
+mean_server_to_async_latency_ratio=1.065
+mean_server_to_async_tpot_ratio=0.508
+
+server_prefix_caching_configured=on
+server_prefix_caching_flag=--enable-prefix-caching
+server_enable_prefix_caching_observed=True
+server_latest_prefix_cache_hit_rate_pct=74.1
+mean_server_to_async_throughput_ratio=11.443
+mean_server_to_async_latency_ratio=0.088
+mean_server_to_async_tpot_ratio=0.021
+```
+
+The server command and vLLM logs agree in both directions. With cache disabled,
+the OpenAI-compatible server is roughly in the same performance class as the
+no-cache `AsyncLLM` path for this smoke. With cache enabled, the server shows a
+large serving-path win and nonzero prefix-cache reuse. This is a semantic and
+smoke-scale control result, not a final statistical result, because each mode
+has only one repeat.
+
+The log summary reports:
+
+```text
+server_enable_prefix_caching_observed_true_count: 1
+server_enable_prefix_caching_observed_false_count: 1
+server_prefix_caching_configured_modes: off,on
+mean_server_latest_prefix_cache_hit_rate_pct: 37.05
+```
+
+Generated artifacts:
+
+```text
+results/modal-vllm-server-async-qwen15b-l4-n32-batched-tokens60640-server-cache-off-smoke-r1/paired-server-async.json
+results/modal-vllm-server-async-qwen15b-l4-n32-batched-tokens60640-server-cache-off-smoke-r1/paired-server-async-summary.csv
+results/modal-vllm-server-async-qwen15b-l4-n32-batched-tokens60640-server-cache-off-smoke-r1/paired-server-async-runs.csv
+results/modal-vllm-server-async-qwen15b-l4-n32-batched-tokens60640-server-cache-on-smoke-r1/paired-server-async.json
+results/modal-vllm-server-async-qwen15b-l4-n32-batched-tokens60640-server-cache-on-smoke-r1/paired-server-async-summary.csv
+results/modal-vllm-server-async-qwen15b-l4-n32-batched-tokens60640-server-cache-on-smoke-r1/paired-server-async-runs.csv
+results/modal-vllm-server-async-qwen15b-l4-n32-batched-tokens60640-server-cache-control-log-summary-r1/server-async-log-summary.json
+results/modal-vllm-server-async-qwen15b-l4-n32-batched-tokens60640-server-cache-control-log-summary-r1/server-async-log-summary.csv
+```
+
+## Next Step
+
+Promote the explicit server cache-control path from smoke to a repeated
+phase-order control: run cache off/on across async-first and server-first
+orders, then aggregate whether the server cache-on win survives phase-order
+variation while cache-off stays near no-cache `AsyncLLM`.

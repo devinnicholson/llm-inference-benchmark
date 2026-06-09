@@ -52,6 +52,9 @@ Latest L4 serving-path scheduler-control smoke:
 Latest L4 serving-path log summary:
 [`results/modal-vllm-server-async-qwen15b-l4-n32-batched-tokens60640-log-summary-r1/server-async-log-summary.csv`](results/modal-vllm-server-async-qwen15b-l4-n32-batched-tokens60640-log-summary-r1/server-async-log-summary.csv)
 
+Latest L4 serving-path cache-control smoke:
+[`results/modal-vllm-server-async-qwen15b-l4-n32-batched-tokens60640-server-cache-control-log-summary-r1/server-async-log-summary.csv`](results/modal-vllm-server-async-qwen15b-l4-n32-batched-tokens60640-server-cache-control-log-summary-r1/server-async-log-summary.csv)
+
 Latest vLLM server CLI evidence:
 [`results/modal-vllm-server-cli-help-v021/vllm-server-cli-help.json`](results/modal-vllm-server-cli-help-v021/vllm-server-cli-help.json)
 
@@ -217,6 +220,7 @@ Run a paired same-worker server-vs-`AsyncLLM` benchmark:
 modal run modal_app.py --mode vllm-server-async-paired \
   --prompt-profiles short \
   --output-tokens 32 \
+  --server-async-prefix-caching off \
   --repeats 3 \
   --warmup-runs 1
 ```

@@ -69,6 +69,26 @@ class ModalAppTests(unittest.TestCase):
                 label="test_override",
             )
 
+    def test_builds_vllm_server_prefix_caching_args(self) -> None:
+        self.assertEqual(
+            modal_app._vllm_server_prefix_caching_args("default"),
+            [],
+        )
+        self.assertEqual(
+            modal_app._vllm_server_prefix_caching_args("on"),
+            ["--enable-prefix-caching"],
+        )
+        self.assertEqual(
+            modal_app._vllm_server_prefix_caching_args("off"),
+            ["--no-enable-prefix-caching"],
+        )
+        self.assertEqual(
+            modal_app._normalize_server_prefix_caching_choice("disabled"),
+            "off",
+        )
+        with self.assertRaisesRegex(ValueError, "default, on, or off"):
+            modal_app._vllm_server_prefix_caching_args("maybe")
+
     def test_parses_vllm_engine_capacity_log_metrics(self) -> None:
         metrics = modal_app._parse_vllm_engine_capacity_log_metrics(
             {
@@ -114,6 +134,48 @@ class ModalAppTests(unittest.TestCase):
         self.assertEqual(metrics["available_kv_cache_memory_gib"], 4.24)
         self.assertEqual(metrics["latest_prefix_cache_hit_rate_pct"], 65.5)
         self.assertEqual(metrics["runtime_metric_count"], 1)
+
+    def test_summarizes_server_async_cache_control_modes(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            off_dir = root / "off"
+            on_dir = root / "on"
+            off_dir.mkdir()
+            on_dir.mkdir()
+            _write_paired_server_async_payload(
+                off_dir,
+                configured_mode="off",
+                command_flag="--no-enable-prefix-caching",
+                observed_cache=False,
+                hit_rate_pct=0.0,
+            )
+            _write_paired_server_async_payload(
+                on_dir,
+                configured_mode="on",
+                command_flag="--enable-prefix-caching",
+                observed_cache=True,
+                hit_rate_pct=74.1,
+            )
+
+            summary = modal_app._summarize_vllm_server_async_log_metrics(
+                [off_dir, on_dir]
+            )
+
+        self.assertEqual(
+            summary["server_enable_prefix_caching_observed_false_count"],
+            1,
+        )
+        self.assertEqual(
+            summary["server_enable_prefix_caching_observed_true_count"],
+            1,
+        )
+        self.assertEqual(
+            summary["server_prefix_caching_configured_modes"],
+            ["off", "on"],
+        )
+        self.assertTrue(summary["any_server_command_has_explicit_prefix_cache_flag"])
+        self.assertFalse(summary["all_server_enable_prefix_caching_observed"])
+        self.assertFalse(summary["all_server_disable_prefix_caching_observed"])
 
     def test_parses_vllm_server_cli_help_prefix_flags(self) -> None:
         parsed = modal_app._parse_vllm_server_cli_help(
@@ -1087,6 +1149,55 @@ def _stability_run_rows(
             }
         )
     return rows
+
+
+def _write_paired_server_async_payload(
+    directory: Path,
+    configured_mode: str,
+    command_flag: str,
+    observed_cache: bool,
+    hit_rate_pct: float,
+) -> None:
+    directory.joinpath("paired-server-async.json").write_text(
+        json.dumps(
+            {
+                "phase_order": "async_first",
+                "model_id": "fake-model",
+                "modal_gpu": "L4",
+                "request_counts": [32],
+                "prompt_profiles": ["shared_prefix"],
+                "output_tokens": [8],
+                "repeats": 1,
+                "max_model_len": 1024,
+                "max_num_batched_tokens": 2048,
+                "default_max_num_batched_tokens": 2048,
+                "max_num_batched_tokens_source": "default",
+                "async_enable_prefix_caching_configured": False,
+                "server_prefix_caching_configured": configured_mode,
+                "server_prefix_caching_flag": [command_flag],
+                "server_command": ["vllm", "serve", "fake-model", command_flag],
+                "server_logs_head": [
+                    f"INFO config: enable_prefix_caching={observed_cache}",
+                    "INFO non-default args: {'max_num_batched_tokens': 2048}",
+                    "INFO GPU KV cache size: 4,096 tokens",
+                    "INFO Maximum concurrency for 1,024 tokens per request: 4.00x",
+                    "INFO Available KV cache memory: 1.0 GiB",
+                ],
+                "server_logs_tail": [
+                    (
+                        "INFO Engine 000: Avg prompt throughput: 10.0 tokens/s, "
+                        "Avg generation throughput: 2.0 tokens/s, Running: 0 reqs, "
+                        "Waiting: 0 reqs, GPU KV cache usage: 0.0%, "
+                        f"Prefix cache hit rate: {hit_rate_pct}%"
+                    )
+                ],
+                "mean_server_to_async_throughput_ratio": 1.0,
+                "mean_server_to_async_latency_ratio": 1.0,
+                "mean_server_to_async_tpot_ratio": 1.0,
+            }
+        ),
+        encoding="utf-8",
+    )
 
 
 class _Object:
