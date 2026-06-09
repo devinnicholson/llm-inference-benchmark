@@ -3654,46 +3654,14 @@ def run_vllm_server_sweep_remote(
     tokenizer = AutoTokenizer.from_pretrained(hf_model)
     tokenizer_load_ms = (time.perf_counter() - started) * 1000
 
-    scenario_specs = []
     prompt_format_started = time.perf_counter()
-    for prompt_profile in prompt_profile_values:
-        for max_new_tokens in output_token_values:
-            for request_count in request_count_values:
-                prompt_records = []
-                prompts = _select_sweep_prompts(
-                    request_count,
-                    prompt_profile,
-                    variant_index=scenario_seed,
-                )
-                for index, prompt in enumerate(prompts):
-                    formatted_prompt, prompt_format = _format_prompt_for_generation(tokenizer, prompt)
-                    prompt_records.append(
-                        {
-                            "request_id": (
-                                f"{prompt_profile}-out{max_new_tokens}-n{request_count}-"
-                                f"{index:02d}"
-                            ),
-                            "prompt": prompt,
-                            "formatted_prompt": formatted_prompt,
-                            "prompt_format": prompt_format,
-                            "prompt_tokens": len(tokenizer.encode(formatted_prompt)),
-                        }
-                    )
-                prompt_tokens = [record["prompt_tokens"] for record in prompt_records]
-                scenario_specs.append(
-                    {
-                        "scenario_id": f"{prompt_profile}_out{max_new_tokens}_n{request_count}",
-                        "prompt_profile": prompt_profile,
-                        "request_count": request_count,
-                        "max_new_tokens": max_new_tokens,
-                        "prompt_format": prompt_records[0]["prompt_format"],
-                        "prompt_tokens_min": min(prompt_tokens),
-                        "prompt_tokens_max": max(prompt_tokens),
-                        "prompt_tokens_mean": sum(prompt_tokens) / len(prompt_tokens),
-                        "total_prompt_tokens": sum(prompt_tokens),
-                        "prompt_records": prompt_records,
-                    }
-                )
+    scenario_specs = _build_vllm_prompt_scenario_specs(
+        tokenizer=tokenizer,
+        request_count_values=request_count_values,
+        prompt_profile_values=prompt_profile_values,
+        output_token_values=output_token_values,
+        variant_index=scenario_seed,
+    )
     prompt_format_ms = (time.perf_counter() - prompt_format_started) * 1000
 
     max_request_count = max(request_count_values)
@@ -4083,41 +4051,14 @@ def _run_vllm_server_async_paired_payload(
     tokenizer = AutoTokenizer.from_pretrained(hf_model)
     tokenizer_load_ms = (time.perf_counter() - started) * 1000
 
-    scenario_specs = []
     prompt_format_started = time.perf_counter()
-    for prompt_profile in prompt_profile_values:
-        for max_new_tokens in output_token_values:
-            for request_count in request_count_values:
-                prompt_records = []
-                for index, prompt in enumerate(_select_sweep_prompts(request_count, prompt_profile)):
-                    formatted_prompt, prompt_format = _format_prompt_for_generation(tokenizer, prompt)
-                    prompt_records.append(
-                        {
-                            "request_id": (
-                                f"{prompt_profile}-out{max_new_tokens}-n{request_count}-"
-                                f"{index:02d}"
-                            ),
-                            "prompt": prompt,
-                            "formatted_prompt": formatted_prompt,
-                            "prompt_format": prompt_format,
-                            "prompt_tokens": len(tokenizer.encode(formatted_prompt)),
-                        }
-                    )
-                prompt_tokens = [record["prompt_tokens"] for record in prompt_records]
-                scenario_specs.append(
-                    {
-                        "scenario_id": f"{prompt_profile}_out{max_new_tokens}_n{request_count}",
-                        "prompt_profile": prompt_profile,
-                        "request_count": request_count,
-                        "max_new_tokens": max_new_tokens,
-                        "prompt_format": prompt_records[0]["prompt_format"],
-                        "prompt_tokens_min": min(prompt_tokens),
-                        "prompt_tokens_max": max(prompt_tokens),
-                        "prompt_tokens_mean": sum(prompt_tokens) / len(prompt_tokens),
-                        "total_prompt_tokens": sum(prompt_tokens),
-                        "prompt_records": prompt_records,
-                    }
-                )
+    scenario_specs = _build_vllm_prompt_scenario_specs(
+        tokenizer=tokenizer,
+        request_count_values=request_count_values,
+        prompt_profile_values=prompt_profile_values,
+        output_token_values=output_token_values,
+        variant_index=scenario_seed,
+    )
     prompt_format_ms = (time.perf_counter() - prompt_format_started) * 1000
 
     max_request_count = max(request_count_values)
@@ -6415,6 +6356,61 @@ def _vllm_server_prefix_caching_args(mode: str) -> list[str]:
     return ["--no-enable-prefix-caching"]
 
 
+def _build_vllm_prompt_scenario_specs(
+    *,
+    tokenizer: Any,
+    request_count_values: list[int],
+    prompt_profile_values: list[str],
+    output_token_values: list[int],
+    variant_index: int,
+) -> list[dict[str, Any]]:
+    scenario_specs = []
+    for prompt_profile in prompt_profile_values:
+        for max_new_tokens in output_token_values:
+            for request_count in request_count_values:
+                prompt_records = []
+                prompts = _select_sweep_prompts(
+                    request_count,
+                    prompt_profile,
+                    variant_index=variant_index,
+                )
+                for index, prompt in enumerate(prompts):
+                    formatted_prompt, prompt_format = _format_prompt_for_generation(
+                        tokenizer,
+                        prompt,
+                    )
+                    prompt_records.append(
+                        {
+                            "request_id": (
+                                f"{prompt_profile}-out{max_new_tokens}-"
+                                f"n{request_count}-{index:02d}"
+                            ),
+                            "prompt": prompt,
+                            "formatted_prompt": formatted_prompt,
+                            "prompt_format": prompt_format,
+                            "prompt_tokens": len(tokenizer.encode(formatted_prompt)),
+                        }
+                    )
+                prompt_tokens = [record["prompt_tokens"] for record in prompt_records]
+                scenario_specs.append(
+                    {
+                        "scenario_id": (
+                            f"{prompt_profile}_out{max_new_tokens}_n{request_count}"
+                        ),
+                        "prompt_profile": prompt_profile,
+                        "request_count": request_count,
+                        "max_new_tokens": max_new_tokens,
+                        "prompt_format": prompt_records[0]["prompt_format"],
+                        "prompt_tokens_min": min(prompt_tokens),
+                        "prompt_tokens_max": max(prompt_tokens),
+                        "prompt_tokens_mean": sum(prompt_tokens) / len(prompt_tokens),
+                        "total_prompt_tokens": sum(prompt_tokens),
+                        "prompt_records": prompt_records,
+                    }
+                )
+    return scenario_specs
+
+
 def _validate_vllm_prompt_profiles(profiles: list[str], label: str = "prompt_profiles") -> None:
     invalid_profiles = [
         profile for profile in profiles
@@ -8135,6 +8131,12 @@ def _compare_vllm_server_async_cache_control_server_absolute(
         "server_p95_stream_tpot_ms",
         "server_batch_wall_ms",
     )
+    counter_names = (
+        "server_prefix_cache_counter_requests",
+        "server_prefix_cache_counter_queries",
+        "server_prefix_cache_counter_hits",
+        "server_prefix_cache_counter_hit_rate_pct",
+    )
     summary_metrics = tuple(
         field
         for metric in metric_names
@@ -8142,6 +8144,11 @@ def _compare_vllm_server_async_cache_control_server_absolute(
             f"cache_on_minus_off_{metric}",
             f"cache_on_div_off_{metric}",
         )
+    ) + (
+        "on_server_prefix_cache_counter_queries",
+        "on_server_prefix_cache_counter_hits",
+        "on_server_prefix_cache_counter_hit_rate_pct",
+        "cache_on_minus_off_server_prefix_cache_counter_hit_rate_pct",
     )
 
     run_rows = []
@@ -8195,9 +8202,20 @@ def _compare_vllm_server_async_cache_control_server_absolute(
                     "server_latest_prefix_cache_hit_rate_pct": log_metrics.get(
                         "latest_prefix_cache_hit_rate_pct"
                     ),
+                    "server_gpu_kv_cache_size_tokens": log_metrics.get(
+                        "gpu_kv_cache_size_tokens"
+                    ),
+                    "server_max_concurrency_for_request": log_metrics.get(
+                        "max_concurrency_for_request"
+                    ),
+                    "server_available_kv_cache_memory_gib": log_metrics.get(
+                        "available_kv_cache_memory_gib"
+                    ),
                 }
                 for metric in metric_names:
                     row[metric] = run.get(metric)
+                for counter_name in counter_names:
+                    row[counter_name] = run.get(counter_name)
                 run_rows.append(row)
 
     by_key: dict[tuple[Any, ...], dict[str, Any]] = {}
@@ -8272,6 +8290,14 @@ def _compare_vllm_server_async_cache_control_server_absolute(
             "request_count": request_count,
             "max_new_tokens": max_new_tokens,
             "repeat_index": repeat_index,
+            "prompt_tokens_mean": off_row["prompt_tokens_mean"],
+            "estimated_prompt_tokens": (
+                off_row["prompt_tokens_mean"] * request_count
+                if off_row["prompt_tokens_mean"] is not None
+                else None
+            ),
+            "max_model_len": off_row["max_model_len"],
+            "max_num_batched_tokens": off_row["max_num_batched_tokens"],
             "off_source_dir": off_row["source_dir"],
             "on_source_dir": on_row["source_dir"],
             "off_server_enable_prefix_caching_observed": off_row[
@@ -8290,6 +8316,24 @@ def _compare_vllm_server_async_cache_control_server_absolute(
                 on_row["server_latest_prefix_cache_hit_rate_pct"],
                 off_row["server_latest_prefix_cache_hit_rate_pct"],
             ),
+            "off_server_gpu_kv_cache_size_tokens": off_row[
+                "server_gpu_kv_cache_size_tokens"
+            ],
+            "on_server_gpu_kv_cache_size_tokens": on_row[
+                "server_gpu_kv_cache_size_tokens"
+            ],
+            "off_server_max_concurrency_for_request": off_row[
+                "server_max_concurrency_for_request"
+            ],
+            "on_server_max_concurrency_for_request": on_row[
+                "server_max_concurrency_for_request"
+            ],
+            "off_server_available_kv_cache_memory_gib": off_row[
+                "server_available_kv_cache_memory_gib"
+            ],
+            "on_server_available_kv_cache_memory_gib": on_row[
+                "server_available_kv_cache_memory_gib"
+            ],
         }
         for metric in metric_names:
             off_value = off_row.get(metric)
@@ -8301,6 +8345,15 @@ def _compare_vllm_server_async_cache_control_server_absolute(
                 off_value,
             )
             contrast[f"cache_on_div_off_{metric}"] = _ratio(
+                on_value,
+                off_value,
+            )
+        for counter_name in counter_names:
+            off_value = off_row.get(counter_name)
+            on_value = on_row.get(counter_name)
+            contrast[f"off_{counter_name}"] = off_value
+            contrast[f"on_{counter_name}"] = on_value
+            contrast[f"cache_on_minus_off_{counter_name}"] = _delta(
                 on_value,
                 off_value,
             )

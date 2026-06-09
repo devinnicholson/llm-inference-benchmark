@@ -503,6 +503,22 @@ class ModalAppTests(unittest.TestCase):
             ]["mean"],
             1.0,
         )
+        self.assertEqual(
+            summary[
+                (
+                    "async_first",
+                    "shared_prefix",
+                    "on_server_prefix_cache_counter_hit_rate_pct",
+                )
+            ]["mean"],
+            50.0,
+        )
+        self.assertEqual(
+            payload["trial_rows"][0][
+                "on_server_prefix_cache_counter_hit_rate_pct"
+            ],
+            50.0,
+        )
 
     def test_compares_prompt_overlap_with_server_cache_control(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -1026,6 +1042,35 @@ class ModalAppTests(unittest.TestCase):
         self.assertNotEqual(
             controls[0].split(" ", 1)[0],
             controls[1].split(" ", 1)[0],
+        )
+
+    def test_prompt_scenario_specs_use_variant_index(self) -> None:
+        class FakeTokenizer:
+            chat_template = None
+
+            def encode(self, text: str) -> list[str]:
+                return text.split()
+
+        first = modal_app._build_vllm_prompt_scenario_specs(
+            tokenizer=FakeTokenizer(),
+            request_count_values=[2],
+            prompt_profile_values=["shared_prefix_long_variant"],
+            output_token_values=[8],
+            variant_index=0,
+        )
+        second = modal_app._build_vllm_prompt_scenario_specs(
+            tokenizer=FakeTokenizer(),
+            request_count_values=[2],
+            prompt_profile_values=["shared_prefix_long_variant"],
+            output_token_values=[8],
+            variant_index=1,
+        )
+
+        self.assertEqual(first[0]["scenario_id"], "shared_prefix_long_variant_out8_n2")
+        self.assertEqual(first[0]["prompt_format"], "plain")
+        self.assertNotEqual(
+            first[0]["prompt_records"][0]["prompt"],
+            second[0]["prompt_records"][0]["prompt"],
         )
 
     def test_no_repeat_variant_profiles_keep_n16_unique(self) -> None:
@@ -1582,7 +1627,23 @@ def _write_paired_server_async_payload(
     server_p95_stream_tpot_ms: float = 5.0,
     server_batch_wall_ms: float = 100.0,
     include_runtime_metrics: bool = True,
+    server_prefix_cache_counter_queries: int | None = None,
+    server_prefix_cache_counter_hits: int | None = None,
 ) -> None:
+    counter_queries = (
+        server_prefix_cache_counter_queries
+        if server_prefix_cache_counter_queries is not None
+        else (100 if observed_cache else 0)
+    )
+    counter_hits = (
+        server_prefix_cache_counter_hits
+        if server_prefix_cache_counter_hits is not None
+        else int(counter_queries * hit_rate_pct / 100)
+    )
+    counter_requests = 1 if counter_queries else 0
+    counter_hit_rate = (
+        counter_hits / counter_queries * 100 if counter_queries else 0.0
+    )
     server_logs_tail = []
     if include_runtime_metrics:
         server_logs_tail.append(
@@ -1641,6 +1702,10 @@ def _write_paired_server_async_payload(
                         ),
                         "server_p95_stream_tpot_ms": server_p95_stream_tpot_ms,
                         "server_batch_wall_ms": server_batch_wall_ms,
+                        "server_prefix_cache_counter_requests": counter_requests,
+                        "server_prefix_cache_counter_queries": counter_queries,
+                        "server_prefix_cache_counter_hits": counter_hits,
+                        "server_prefix_cache_counter_hit_rate_pct": counter_hit_rate,
                     }
                 ],
             }

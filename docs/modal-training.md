@@ -8953,12 +8953,11 @@ repeat so the artifact has variance estimates. The single-run evidence is
 coherent and counter-backed, but the final report should avoid overclaiming
 until this no-warmup result is repeated.
 
-# Training 089 - Seeded No-Warmup Cache-Control Repeat
+# Training 089 - No-Warmup Cache-Control Repeat
 
 ## Goal
 
-Repeat the no-warmup matched/shared matrix with a different prompt family and
-keep the same serving controls:
+Repeat the no-warmup matched/shared matrix and keep the same serving controls:
 
 ```text
 model: Qwen/Qwen2.5-1.5B-Instruct
@@ -8971,10 +8970,11 @@ max_num_batched_tokens: 60640
 scenario seed: 3502
 ```
 
-Training 089 also fixes the server-paired prompt selection path so variant
-prompt profiles pass `scenario_seed` into `_select_sweep_prompts`. Without that,
-the server-paired repeat could silently reuse the default variant family even
-when the CLI seed changed.
+Training 089 was intended to use `scenario_seed=3502` as a prompt-family
+variant. Training 090 later found that the patch only reached the server sweep
+path, while the server/Async paired path still selected variant prompts without
+passing `scenario_seed`. Treat Training 089 as an independent no-warmup repeat
+under the same default variant family, not as prompt-family variance evidence.
 
 ## Commands
 
@@ -9111,7 +9111,7 @@ shared-prefix, n=2:
 ## Interpretation
 
 The repeated no-warmup result preserves the claim boundary from Training 088.
-The matched-unique control remains near flat across two prompt families, while
+The matched-unique control remains near flat across two independent runs, while
 the shared-prefix workload stays in the high-hit-rate and high-speedup regime.
 
 This is the current artifact-level claim:
@@ -9120,13 +9120,13 @@ This is the current artifact-level claim:
 For Qwen/Qwen2.5-1.5B-Instruct on an L4 at n32 with long prefill and
 max_num_batched_tokens=60640, vLLM server prefix caching produces a repeatable
 within-batch speedup when requests share a long exact leading prefix. The
-matched-unique no-warmup control remains near flat across two prompt-family
-seeds, and the measured-window `/metrics` counters explain the difference.
+matched-unique no-warmup control remains near flat across two independent
+runs, and the measured-window `/metrics` counters explain the difference.
 ```
 
 The remaining limitation is sample size: n=2 is enough to catch the original
-warmup confound and show repeatability, but it is still not a broad variance
-study.
+warmup confound and show repeatability, but it is still not a prompt-family
+variance study.
 
 Generated artifacts:
 
@@ -9138,4 +9138,125 @@ results/modal-vllm-server-async-qwen15b-l4-n32-batched-tokens60640-shared-prefix
 results/modal-vllm-server-async-qwen15b-l4-n32-batched-tokens60640-shared-prefix-nowarmup-seed3502-cache-on-r2/paired-server-async.json
 results/modal-vllm-server-async-qwen15b-l4-n32-batched-tokens60640-shared-prefix-nowarmup-seed3502-cache-control-r2/cache-control-phase-order-compare.json
 results/modal-vllm-server-async-qwen15b-l4-n32-batched-tokens60640-nowarmup-server-cache-control-r1-r2/server-cache-control-absolute.json
+```
+
+# Training 090 - Server Cache-Pressure Curve Smoke
+
+## Goal
+
+Start the pressure-curve research track:
+
+```text
+Question: as prompt-token pressure approaches reported GPU KV-cache capacity,
+does vLLM server prefix-cache benefit degrade, stay stable, or improve?
+```
+
+This checkpoint uses two request-count points:
+
+```text
+low pressure:  n=16, estimated prompt pressure about 0.36
+high pressure: n=40, estimated prompt pressure about 0.91
+```
+
+Both points keep the same model, GPU, output length, no-warmup setting, phase
+order, and `max_num_batched_tokens=60640`. The workload isolates cache mode by
+running each profile/request-count/cache-mode cell in a separate server process.
+
+Training 090 also fixes the server/Async paired prompt-selection path so
+variant prompt profiles pass `scenario_seed` into `_select_sweep_prompts`.
+
+## Commands
+
+The eight measured cells all use this shape:
+
+```bash
+modal run modal_app.py --mode vllm-server-async-paired \
+  --modal-gpu L4 \
+  --hf-model Qwen/Qwen2.5-1.5B-Instruct \
+  --prompt-profiles {matched_unique_prefix_mega_long_no_repeat_variant|shared_prefix_mega_long_no_repeat_variant} \
+  --output-tokens 8 \
+  --request-counts {16|40} \
+  --repeats 1 \
+  --scenario-seed 3603 \
+  --warmup-runs 0 \
+  --phase-order async_first \
+  --server-async-max-num-batched-tokens 60640 \
+  --server-async-prefix-caching {off|on} \
+  --output-dir results/modal-vllm-server-async-qwen15b-l4-pressure-curve-n{16|40}-batched-tokens60640-{matched-unique|shared-prefix}-seed3603-cache-{off|on}-r1
+```
+
+Then each off/on pair is compared with
+`vllm-server-async-cache-control-compare`, all four compare artifacts are
+combined with `vllm-server-async-cache-control-server-absolute`, and the final
+pressure table is generated with:
+
+```bash
+python3 scripts/build_server_cache_pressure_curve.py \
+  --server-absolute-json results/modal-vllm-server-async-qwen15b-l4-pressure-curve-n16-n40-batched-tokens60640-seed3603-cache-control-r1/server-cache-control-absolute.json \
+  --output-dir results/modal-vllm-server-async-qwen15b-l4-pressure-curve-n16-n40-batched-tokens60640-seed3603-pressure-curve-r1
+```
+
+## Result
+
+Direct raw server cache-on divided by cache-off:
+
+```text
+matched-unique n16:
+  prompt pressure: 0.362
+  cache-on hit rate: 0.418%
+  output tokens/s ratio: 1.056x
+  p95 latency ratio: 0.947x
+
+matched-unique n40:
+  prompt pressure: 0.906
+  cache-on hit rate: 0.434%
+  output tokens/s ratio: 1.032x
+  p95 latency ratio: 0.969x
+
+shared-prefix n16:
+  prompt pressure: 0.363
+  cache-on hit rate: 93.116%
+  output tokens/s ratio: 6.278x
+  p95 latency ratio: 0.159x
+
+shared-prefix n40:
+  prompt pressure: 0.909
+  cache-on hit rate: 96.984%
+  output tokens/s ratio: 8.447x
+  p95 latency ratio: 0.118x
+```
+
+## Interpretation
+
+This starts the pressure-curve research question and gives the first useful
+negative result: the shared-prefix benefit did not collapse near 0.91 estimated
+prompt-token pressure. In this smoke, the high-pressure shared-prefix cell is
+stronger than the low-pressure shared-prefix cell.
+
+The matched-unique control stays near flat at both pressure points, with
+measured-window cache hit rate below 0.5%. The shared-prefix cells stay in the
+high-hit-rate regime, and the measured-window counters explain the gap.
+
+The next pressure step should deliberately probe the edge: `n=42`, `n=44`, or
+a smaller `gpu_memory_utilization`/KV budget. That is where we expect either
+admission failure, eviction behavior, degraded batching, or a clearer transition
+from "prefix caching helps" to "capacity pressure dominates."
+
+Generated artifacts:
+
+```text
+results/modal-vllm-server-async-qwen15b-l4-pressure-curve-n16-batched-tokens60640-matched-unique-seed3603-cache-off-r1/paired-server-async.json
+results/modal-vllm-server-async-qwen15b-l4-pressure-curve-n16-batched-tokens60640-matched-unique-seed3603-cache-on-r1/paired-server-async.json
+results/modal-vllm-server-async-qwen15b-l4-pressure-curve-n16-batched-tokens60640-matched-unique-seed3603-cache-control-r1/cache-control-phase-order-compare.json
+results/modal-vllm-server-async-qwen15b-l4-pressure-curve-n16-batched-tokens60640-shared-prefix-seed3603-cache-off-r1/paired-server-async.json
+results/modal-vllm-server-async-qwen15b-l4-pressure-curve-n16-batched-tokens60640-shared-prefix-seed3603-cache-on-r1/paired-server-async.json
+results/modal-vllm-server-async-qwen15b-l4-pressure-curve-n16-batched-tokens60640-shared-prefix-seed3603-cache-control-r1/cache-control-phase-order-compare.json
+results/modal-vllm-server-async-qwen15b-l4-pressure-curve-n40-batched-tokens60640-matched-unique-seed3603-cache-off-r1/paired-server-async.json
+results/modal-vllm-server-async-qwen15b-l4-pressure-curve-n40-batched-tokens60640-matched-unique-seed3603-cache-on-r1/paired-server-async.json
+results/modal-vllm-server-async-qwen15b-l4-pressure-curve-n40-batched-tokens60640-matched-unique-seed3603-cache-control-r1/cache-control-phase-order-compare.json
+results/modal-vllm-server-async-qwen15b-l4-pressure-curve-n40-batched-tokens60640-shared-prefix-seed3603-cache-off-r1/paired-server-async.json
+results/modal-vllm-server-async-qwen15b-l4-pressure-curve-n40-batched-tokens60640-shared-prefix-seed3603-cache-on-r1/paired-server-async.json
+results/modal-vllm-server-async-qwen15b-l4-pressure-curve-n40-batched-tokens60640-shared-prefix-seed3603-cache-control-r1/cache-control-phase-order-compare.json
+results/modal-vllm-server-async-qwen15b-l4-pressure-curve-n16-n40-batched-tokens60640-seed3603-cache-control-r1/server-cache-control-absolute.json
+results/modal-vllm-server-async-qwen15b-l4-pressure-curve-n16-n40-batched-tokens60640-seed3603-pressure-curve-r1/server-cache-pressure-curve.md
 ```
