@@ -6982,3 +6982,61 @@ results/prefix-cache-study-mega-long-qwen15b-l4-n16-vs-n32-r8/batch-pressure-com
 
 Add a scheduler/capacity diagnostic that persists vLLM capacity values that are
 currently visible only in Modal console logs.
+
+# Training 073: vLLM Capacity Diagnostic
+
+Training 073 adds a dedicated capacity diagnostic mode because the first
+in-process attempt only persisted configured scheduler knobs. The exact vLLM
+allocator lines, such as `GPU KV cache size`, come from a child process and are
+not visible to the Python logging handler used inside the paired benchmark.
+
+## Goal
+
+Persist the n16/n32 Qwen 1.5B L4 capacity collapse as a reproducible artifact:
+configured scheduler shape, actual GPU KV-cache tokens, available KV memory,
+and max concurrency.
+
+## Command
+
+```bash
+modal run modal_app.py --mode vllm-capacity-diagnostic \
+  --modal-gpu L4 \
+  --hf-model Qwen/Qwen2.5-1.5B-Instruct \
+  --prompt-profiles shared_prefix_mega_long_no_repeat_variant \
+  --output-tokens 8 \
+  --request-counts 16,32 \
+  --scenario-seed 2601 \
+  --warmup-prompt-profile neutral_mega_long \
+  --capacity-prefix-cache-modes false \
+  --gpu-memory-utilization 0.50 \
+  --output-dir results/modal-vllm-capacity-diagnostic-qwen15b-l4-n16-n32-r1
+```
+
+The mode writes a temporary Python probe inside the Modal worker, creates vLLM
+engines in subprocesses, captures stdout/stderr with real file descriptors, and
+parses the allocator lines into JSON/CSV/Markdown.
+
+## Result
+
+| Requests | Max batched tokens | GPU KV tokens | KV memory GiB | Max concurrency |
+| ---: | ---: | ---: | ---: | ---: |
+| 16 | `60,640` | `158,540` | `4.24` | `41.83x` |
+| 32 | `121,280` | `18,854` | `0.50` | `4.97x` |
+
+The diagnostic confirms the behavior that was previously only visible in Modal
+logs: doubling request count doubles configured max batched tokens, but the
+actual GPU KV-cache allocation drops to `0.119x` of the n16 baseline.
+
+Generated artifacts:
+
+```text
+results/modal-vllm-capacity-diagnostic-qwen15b-l4-n16-n32-r1/capacity-diagnostic.md
+results/modal-vllm-capacity-diagnostic-qwen15b-l4-n16-n32-r1/capacity-diagnostic.json
+results/modal-vllm-capacity-diagnostic-qwen15b-l4-n16-n32-r1/capacity-diagnostic.csv
+```
+
+## Next Step
+
+Use this diagnostic to choose the next backend or scheduler comparison. The
+strongest next artifact should hold model, GPU, prompt family, and request
+count fixed while changing the serving path or vLLM scheduling/capacity knob.

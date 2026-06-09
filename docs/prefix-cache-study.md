@@ -316,6 +316,24 @@ TPOT-ratio delta moves from `-0.947` to `-0.683`, a `+0.264` change. That makes
 the next systems question a scheduler/capacity diagnostic rather than another
 plain repeat-count promotion.
 
+Training 073 adds that capacity diagnostic as a first-class artifact:
+
+```text
+results/modal-vllm-capacity-diagnostic-qwen15b-l4-n16-n32-r1/capacity-diagnostic.md
+results/modal-vllm-capacity-diagnostic-qwen15b-l4-n16-n32-r1/capacity-diagnostic.json
+results/modal-vllm-capacity-diagnostic-qwen15b-l4-n16-n32-r1/capacity-diagnostic.csv
+```
+
+The subprocess diagnostic captures vLLM engine-initialization stdout/stderr,
+which preserves allocator lines that the in-process benchmark cannot capture
+without breaking vLLM multiprocessing. It confirms the n16 shape uses
+`60,640` max batched tokens and receives `158,540` GPU KV-cache tokens
+(`41.83x` max concurrency), while the n32 shape uses `121,280` max batched
+tokens but receives only `18,854` GPU KV-cache tokens (`4.97x` max
+concurrency). The important systems finding is the inversion: configured max
+batched tokens doubles, but actual GPU KV-token capacity falls to `0.119x` of
+the n16 baseline.
+
 ## Reproduce
 
 Run the no-repeat n=16 fixed-shape stability pass:
@@ -459,10 +477,13 @@ results/prefix-cache-study-mega-long-qwen15b-l4-n32-merged-r8/intervals.md
 results/prefix-cache-study-mega-long-qwen15b-l4-n16-vs-n32-r8/batch-pressure-comparison.md
 results/prefix-cache-study-mega-long-qwen15b-l4-n16-vs-n32-r8/batch-pressure-comparison.json
 results/prefix-cache-study-mega-long-qwen15b-l4-n16-vs-n32-r8/batch-pressure-comparison.csv
+results/modal-vllm-capacity-diagnostic-qwen15b-l4-n16-n32-r1/capacity-diagnostic.md
+results/modal-vllm-capacity-diagnostic-qwen15b-l4-n16-n32-r1/capacity-diagnostic.json
+results/modal-vllm-capacity-diagnostic-qwen15b-l4-n16-n32-r1/capacity-diagnostic.csv
 ```
 
 ## Next Step
 
-Add a scheduler/capacity diagnostic that persists the vLLM capacity values
-currently visible only in Modal console logs, then use that diagnostic before
-making backend-level claims from the n16/n32 comparison.
+Use the capacity diagnostic to drive the next backend or scheduler comparison:
+hold model, GPU, prompt family, and request count fixed while changing the
+serving path or scheduler knob that controls prefill/KV allocation.

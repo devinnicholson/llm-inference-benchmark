@@ -40,6 +40,9 @@ Latest L4 batch-pressure follow-up:
 Latest L4 batch-pressure comparison:
 [`results/prefix-cache-study-mega-long-qwen15b-l4-n16-vs-n32-r8/batch-pressure-comparison.md`](results/prefix-cache-study-mega-long-qwen15b-l4-n16-vs-n32-r8/batch-pressure-comparison.md)
 
+Latest L4 capacity diagnostic:
+[`results/modal-vllm-capacity-diagnostic-qwen15b-l4-n16-n32-r1/capacity-diagnostic.md`](results/modal-vllm-capacity-diagnostic-qwen15b-l4-n16-n32-r1/capacity-diagnostic.md)
+
 ## Course Track
 
 This repo starts with the 568 path:

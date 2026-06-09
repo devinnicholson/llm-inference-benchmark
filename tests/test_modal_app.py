@@ -21,6 +21,130 @@ class ModalAppTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "T4, L4"):
             modal_app._select_vllm_prefix_cache_paired_remote("A100")
 
+    def test_capacity_diagnostic_gpu_selector_accepts_supported_gpus(self) -> None:
+        self.assertIs(
+            modal_app._select_vllm_capacity_diagnostic_remote("T4"),
+            modal_app.run_vllm_capacity_diagnostic_remote,
+        )
+        self.assertIs(
+            modal_app._select_vllm_capacity_diagnostic_remote("l4"),
+            modal_app.run_vllm_capacity_diagnostic_l4_remote,
+        )
+        with self.assertRaisesRegex(ValueError, "T4, L4"):
+            modal_app._select_vllm_capacity_diagnostic_remote("A100")
+
+    def test_parses_vllm_engine_capacity_log_metrics(self) -> None:
+        metrics = modal_app._parse_vllm_engine_capacity_log_metrics(
+            {
+                "captured_logs": [
+                    "INFO Using max model len 3790",
+                    "INFO Available KV cache memory: 0.5 GiB",
+                    "INFO GPU KV cache size: 18,854 tokens",
+                    "INFO Maximum concurrency for 3,790 tokens per request: 4.97x",
+                ],
+                "stdout": "",
+                "stderr": "",
+            }
+        )
+
+        self.assertEqual(metrics["max_model_len"], 3790)
+        self.assertEqual(metrics["gpu_kv_cache_size_tokens"], 18854)
+        self.assertEqual(metrics["max_concurrency_request_tokens"], 3790)
+        self.assertEqual(metrics["max_concurrency_for_request"], 4.97)
+        self.assertEqual(metrics["available_kv_cache_memory_gib"], 0.5)
+
+    def test_formats_vllm_capacity_diagnostic_markdown(self) -> None:
+        markdown = modal_app._format_vllm_capacity_diagnostic_markdown(
+            {
+                "model_id": "fake-model",
+                "modal_gpu": "L4",
+                "prompt_profiles": ["shared_prefix"],
+                "warmup_prompt_profile": "neutral",
+                "summary": [
+                    {
+                        "request_count": 16,
+                        "enable_prefix_caching": False,
+                        "max_model_len": 3790,
+                        "max_num_batched_tokens": 60640,
+                        "max_num_seqs": 16,
+                        "gpu_kv_cache_size_tokens": 158540,
+                        "available_kv_cache_memory_gib": 4.24,
+                        "max_concurrency_for_request": 41.83,
+                    },
+                    {
+                        "request_count": 32,
+                        "enable_prefix_caching": False,
+                        "max_model_len": 3790,
+                        "max_num_batched_tokens": 121280,
+                        "max_num_seqs": 32,
+                        "gpu_kv_cache_size_tokens": 18854,
+                        "available_kv_cache_memory_gib": 0.5,
+                        "max_concurrency_for_request": 4.97,
+                    },
+                ],
+            }
+        )
+
+        self.assertIn("| 16 | False | 3790 | 60640 | 16 | 158540 | 4.24 | 41.83 |", markdown)
+        self.assertIn("2.000x", markdown)
+        self.assertIn("0.119x", markdown)
+
+    def test_snapshots_vllm_engine_capacity_from_config_fallback(self) -> None:
+        engine_args = _Object(
+            max_model_len=1024,
+            max_num_batched_tokens=8192,
+            max_num_seqs=8,
+            gpu_memory_utilization=0.5,
+        )
+        engine = _Object(
+            engine_core=_Object(
+                engine_core_config=_Object(
+                    model_config=_Object(max_model_len=1024),
+                    scheduler_config=_Object(
+                        max_num_batched_tokens=8192,
+                        max_num_seqs=8,
+                    ),
+                    cache_config=_Object(
+                        block_size=16,
+                        num_gpu_blocks=512,
+                        gpu_memory_utilization=0.5,
+                    ),
+                )
+            )
+        )
+
+        snapshot = modal_app._snapshot_vllm_engine_capacity(
+            engine=engine,
+            engine_args=engine_args,
+            phase_label="cache",
+            engine_init_log_stats={"captured_logs": [], "stdout": "", "stderr": ""},
+            requested_max_model_len=1024,
+            requested_max_num_batched_tokens=8192,
+            requested_max_num_seqs=8,
+            requested_gpu_memory_utilization=0.5,
+        )
+
+        self.assertEqual(snapshot["gpu_kv_cache_size_tokens"], 8192)
+        self.assertEqual(snapshot["derived_gpu_kv_cache_size_tokens"], 8192)
+        self.assertEqual(snapshot["max_concurrency_for_request"], 8.0)
+        self.assertEqual(snapshot["max_num_batched_tokens"], 8192)
+        self.assertEqual(snapshot["max_num_seqs"], 8)
+
+    def test_paired_rows_carry_engine_capacity_fields(self) -> None:
+        cold_run = _paired_capacity_run("cold", gpu_tokens=18854)
+        cache_run = _paired_capacity_run("cache", gpu_tokens=18854)
+
+        paired = modal_app._make_vllm_prefix_cache_paired_rows(
+            [cold_run],
+            [cache_run],
+        )
+
+        row = paired[0]
+        self.assertEqual(row["cold_engine_gpu_kv_cache_size_tokens"], 18854)
+        self.assertEqual(row["cache_engine_gpu_kv_cache_size_tokens"], 18854)
+        self.assertEqual(row["cold_engine_max_num_batched_tokens"], 121280)
+        self.assertEqual(row["cache_engine_max_concurrency_for_request"], 4.97)
+
     def test_isolated_window_summary_estimates_measured_cache_hit_rate(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             metrics_dir = Path(directory)
@@ -875,6 +999,44 @@ def _stability_run_rows(
             }
         )
     return rows
+
+
+class _Object:
+    def __init__(self, **kwargs: object) -> None:
+        self.__dict__.update(kwargs)
+
+
+def _paired_capacity_run(phase: str, gpu_tokens: int) -> dict:
+    return {
+        "scenario_id": "shared_prefix_mega_long_no_repeat_variant_out8_n32",
+        "prompt_profile": "shared_prefix_mega_long_no_repeat_variant",
+        "request_count": 32,
+        "max_new_tokens": 8,
+        "repeat_index": 0,
+        "run_order": 0 if phase == "cold" else 1,
+        "prompt_tokens_mean": 3790.0,
+        "estimated_peak_sequence_tokens": 121280,
+        "aggregate_output_tokens_per_second": 100.0,
+        "p95_first_chunk_ms": 10.0,
+        "p95_latency_ms": 20.0,
+        "p95_stream_tpot_ms": 2.0,
+        "batch_wall_ms": 50.0,
+        "prefix_cache_hit_rate_pct": 0.0,
+        "prefix_cache_counter_requests": 1,
+        "prefix_cache_counter_queries": 100,
+        "prefix_cache_counter_hits": 0,
+        "prefix_cache_counter_hit_rate_pct": 0.0,
+        "gpu_kv_cache_usage_pct": 0.0,
+        "engine_max_model_len": 3790,
+        "engine_max_num_batched_tokens": 121280,
+        "engine_max_num_seqs": 32,
+        "engine_gpu_memory_utilization": 0.5,
+        "engine_gpu_kv_cache_size_tokens": gpu_tokens,
+        "engine_available_kv_cache_memory_gib": 0.5,
+        "engine_max_concurrency_for_request": 4.97,
+        "engine_max_concurrency_request_tokens": 3790,
+        "engine_derived_gpu_kv_cache_size_tokens": gpu_tokens,
+    }
 
 
 class _WhitespaceTokenizer:

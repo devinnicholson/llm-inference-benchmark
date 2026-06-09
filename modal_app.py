@@ -3,6 +3,7 @@ from __future__ import annotations
 import csv
 import hashlib
 import json
+import re
 import statistics
 import time
 from pathlib import Path
@@ -26,6 +27,7 @@ DEFAULT_VLLM_STREAMING_OUTPUT = "results/modal-vllm-streaming"
 DEFAULT_VLLM_CONCURRENT_OUTPUT = "results/modal-vllm-concurrent"
 DEFAULT_VLLM_CACHE_METRICS_PROBE_OUTPUT = "results/modal-vllm-cache-metrics-probe"
 DEFAULT_VLLM_CACHE_METRICS_SMOKE_OUTPUT = "results/modal-vllm-cache-metrics-smoke"
+DEFAULT_VLLM_CAPACITY_DIAGNOSTIC_OUTPUT = "results/modal-vllm-capacity-diagnostic"
 DEFAULT_VLLM_SWEEP_OUTPUT = "results/modal-vllm-sweep"
 DEFAULT_VLLM_SERVER_OUTPUT = "results/modal-vllm-server-streaming"
 DEFAULT_VLLM_SERVER_CONCURRENT_OUTPUT = "results/modal-vllm-server-concurrent"
@@ -629,6 +631,40 @@ def _run_vllm_prefix_cache_paired_payload(
             for logger in capture_loggers:
                 logger.removeHandler(handler)
 
+    def call_with_captured_logs(label: str, func: Any) -> tuple[Any, dict[str, Any]]:
+        captured_logs: list[str] = []
+
+        class CaptureHandler(logging.Handler):
+            def emit(self, record: logging.LogRecord) -> None:
+                captured_logs.append(self.format(record))
+
+        handler = CaptureHandler()
+        handler.setLevel(logging.INFO)
+        handler.setFormatter(logging.Formatter("%(levelname)s %(name)s: %(message)s"))
+        capture_loggers = [
+            logging.getLogger(),
+            logging.getLogger("vllm"),
+            logging.getLogger("vllm.v1"),
+        ]
+        started = time.perf_counter()
+        try:
+            for logger in capture_loggers:
+                logger.addHandler(handler)
+            result = func()
+            return result, {
+                "label": label,
+                "ok": True,
+                "elapsed_ms": (time.perf_counter() - started) * 1000,
+                "return_type": type(result).__name__,
+                "return_repr": repr(result)[:1000],
+                "stdout": "",
+                "stderr": "",
+                "captured_logs": captured_logs[-80:],
+            }
+        finally:
+            for logger in capture_loggers:
+                logger.removeHandler(handler)
+
     def parse_engine_log_metrics(log_stats: list[dict[str, Any]]) -> list[dict[str, Any]]:
         rows = []
         seen_lines = set()
@@ -793,7 +829,20 @@ def _run_vllm_prefix_cache_paired_payload(
             trust_remote_code=False,
             **metrics_args,
         )
-        engine = AsyncLLM.from_engine_args(engine_args)
+        engine, engine_init_log_stats = call_with_captured_logs(
+            f"{phase_label}_engine_init",
+            lambda: AsyncLLM.from_engine_args(engine_args),
+        )
+        engine_capacity = _snapshot_vllm_engine_capacity(
+            engine=engine,
+            engine_args=engine_args,
+            phase_label=phase_label,
+            engine_init_log_stats=engine_init_log_stats,
+            requested_max_model_len=max_model_len,
+            requested_max_num_batched_tokens=max_num_batched_tokens,
+            requested_max_num_seqs=max_request_count,
+            requested_gpu_memory_utilization=0.50,
+        )
         engine_load_ms = (time.perf_counter() - started) * 1000
 
         async def stream_one(
@@ -951,6 +1000,7 @@ def _run_vllm_prefix_cache_paired_payload(
                     cache_metrics,
                     "avg_generation_throughput_tokens_per_s",
                 ),
+                **_vllm_engine_capacity_run_fields(engine_capacity),
                 "requests": request_results,
             }
 
@@ -1030,6 +1080,8 @@ def _run_vllm_prefix_cache_paired_payload(
             "phase_label": phase_label,
             "enable_prefix_caching": enable_prefix_caching,
             "engine_load_ms": engine_load_ms,
+            "engine_capacity": engine_capacity,
+            "engine_init_log_stats": engine_init_log_stats,
             "warmup": warmup_result,
             "initial_prefix_cache_counter": initial_prefix_cache_counter,
             "warmup_prefix_cache_counter": warmup_prefix_cache_counter,
@@ -1109,6 +1161,8 @@ def _run_vllm_prefix_cache_paired_payload(
         "prompt_format_ms": prompt_format_ms,
         "cold_engine_load_ms": cold_result["engine_load_ms"],
         "cache_engine_load_ms": cache_result["engine_load_ms"],
+        "cold_engine_capacity": cold_result["engine_capacity"],
+        "cache_engine_capacity": cache_result["engine_capacity"],
         "cold_warmup": cold_result["warmup"],
         "cache_warmup": cache_result["warmup"],
         "cold_warmup_cache_metrics": cold_result["warmup_cache_metrics"],
@@ -1244,6 +1298,351 @@ def _select_vllm_prefix_cache_paired_remote(modal_gpu: str) -> Any:
         return run_vllm_prefix_cache_paired_remote
     if normalized_gpu == "L4":
         return run_vllm_prefix_cache_paired_l4_remote
+    raise ValueError("modal_gpu must be one of: T4, L4")
+
+
+def _run_vllm_capacity_diagnostic_payload(
+    hf_model: str = DEFAULT_HF_MODEL,
+    request_counts: str = DEFAULT_VLLM_SWEEP_REQUEST_COUNTS,
+    prompt_profiles: str = DEFAULT_VLLM_SWEEP_PROMPT_PROFILES,
+    output_tokens: str = DEFAULT_VLLM_SWEEP_OUTPUT_TOKENS,
+    scenario_seed: int = DEFAULT_VLLM_SWEEP_SEED,
+    warmup_prompt_profile: str = "",
+    prefix_cache_modes: str = "false",
+    gpu_memory_utilization: float = 0.50,
+    modal_gpu_label: str = "T4",
+) -> dict[str, Any]:
+    import platform
+    import subprocess
+    import sys
+    import time
+
+    from transformers import AutoTokenizer
+
+    request_count_values = _split_positive_int_csv(request_counts, "request_counts")
+    prompt_profile_values = [
+        profile.lower().replace("-", "_")
+        for profile in _split_csv(prompt_profiles)
+    ]
+    output_token_values = _split_positive_int_csv(output_tokens, "output_tokens")
+    prefix_cache_values = [
+        _parse_bool_choice(value, "prefix_cache_modes")
+        for value in _split_csv(prefix_cache_modes)
+    ]
+    if gpu_memory_utilization <= 0 or gpu_memory_utilization > 1:
+        raise ValueError("gpu_memory_utilization must be in (0, 1]")
+    _validate_vllm_prompt_profiles(prompt_profile_values)
+    warmup_prompt_profile_value = warmup_prompt_profile.strip().lower().replace("-", "_")
+    shape_profiles = list(prompt_profile_values)
+    if warmup_prompt_profile_value:
+        _validate_vllm_prompt_profiles(
+            [warmup_prompt_profile_value],
+            label="warmup_prompt_profile",
+        )
+        shape_profiles.append(warmup_prompt_profile_value)
+
+    tokenizer = AutoTokenizer.from_pretrained(hf_model)
+
+    def max_prompt_tokens_for_shape(request_count: int) -> int:
+        prompt_token_counts = []
+        for profile in shape_profiles:
+            prompts = _select_sweep_prompts(
+                request_count,
+                profile,
+                variant_index=scenario_seed,
+            )
+            for prompt in prompts:
+                formatted_prompt, _ = _format_prompt_for_generation(tokenizer, prompt)
+                prompt_token_counts.append(len(tokenizer.encode(formatted_prompt)))
+        return max(prompt_token_counts)
+
+    probe_script = r'''
+from __future__ import annotations
+
+import json
+import sys
+
+from vllm.engine.arg_utils import AsyncEngineArgs
+from vllm.v1.engine.async_llm import AsyncLLM
+
+
+def main() -> None:
+    spec = json.loads(sys.argv[1])
+    engine_args = AsyncEngineArgs(
+        model=spec["model"],
+        dtype="half",
+        max_model_len=spec["max_model_len"],
+        max_num_batched_tokens=spec["max_num_batched_tokens"],
+        max_num_seqs=spec["max_num_seqs"],
+        gpu_memory_utilization=spec["gpu_memory_utilization"],
+        enable_prefix_caching=spec["enable_prefix_caching"],
+        enforce_eager=True,
+        trust_remote_code=False,
+        kv_cache_metrics=True,
+        kv_cache_metrics_sample=1.0,
+        disable_log_stats=False,
+    )
+    engine = AsyncLLM.from_engine_args(engine_args)
+    try:
+        print("LLMBENCH_CAPACITY_PROBE_READY")
+    finally:
+        engine.shutdown()
+
+
+if __name__ == "__main__":
+    main()
+'''
+    probe_path = Path("/tmp/vllm_capacity_probe.py")
+    probe_path.write_text(probe_script, encoding="utf-8")
+
+    rows = []
+    for request_count in request_count_values:
+        max_prompt_tokens = max_prompt_tokens_for_shape(request_count)
+        for max_new_tokens in output_token_values:
+            max_model_len = max(1024, max_prompt_tokens + max_new_tokens + 32)
+            max_num_batched_tokens = max(2048, request_count * max_model_len)
+            for enable_prefix_caching in prefix_cache_values:
+                spec = {
+                    "model": hf_model,
+                    "max_model_len": max_model_len,
+                    "max_num_batched_tokens": max_num_batched_tokens,
+                    "max_num_seqs": request_count,
+                    "gpu_memory_utilization": gpu_memory_utilization,
+                    "enable_prefix_caching": enable_prefix_caching,
+                }
+                started = time.perf_counter()
+                proc = subprocess.run(
+                    [sys.executable, str(probe_path), json.dumps(spec)],
+                    capture_output=True,
+                    text=True,
+                    timeout=600,
+                    check=False,
+                )
+                elapsed_ms = (time.perf_counter() - started) * 1000
+                combined_output = "\n".join([proc.stdout, proc.stderr])
+                parsed = _parse_vllm_engine_capacity_log_metrics(
+                    {
+                        "captured_logs": [],
+                        "stdout": combined_output,
+                        "stderr": "",
+                    }
+                )
+                rows.append(
+                    {
+                        "request_count": request_count,
+                        "max_new_tokens": max_new_tokens,
+                        "enable_prefix_caching": enable_prefix_caching,
+                        "max_prompt_tokens": max_prompt_tokens,
+                        "max_model_len": max_model_len,
+                        "max_num_batched_tokens": max_num_batched_tokens,
+                        "max_num_seqs": request_count,
+                        "gpu_memory_utilization": gpu_memory_utilization,
+                        "returncode": proc.returncode,
+                        "ok": proc.returncode == 0,
+                        "elapsed_ms": elapsed_ms,
+                        "gpu_kv_cache_size_tokens": parsed[
+                            "gpu_kv_cache_size_tokens"
+                        ],
+                        "available_kv_cache_memory_gib": parsed[
+                            "available_kv_cache_memory_gib"
+                        ],
+                        "max_concurrency_for_request": parsed[
+                            "max_concurrency_for_request"
+                        ],
+                        "max_concurrency_request_tokens": parsed[
+                            "max_concurrency_request_tokens"
+                        ],
+                        "logged_max_model_len": parsed["max_model_len"],
+                        "stdout_tail": proc.stdout[-12000:],
+                        "stderr_tail": proc.stderr[-12000:],
+                    }
+                )
+
+    return {
+        "schema_version": 1,
+        "execution": "modal",
+        "mode": "vllm-capacity-diagnostic",
+        "backend": "vllm-capacity-diagnostic",
+        "modal_gpu": modal_gpu_label,
+        "model_id": hf_model,
+        "request_counts": request_count_values,
+        "prompt_profiles": prompt_profile_values,
+        "output_tokens": output_token_values,
+        "scenario_seed": int(scenario_seed),
+        "warmup_prompt_profile": warmup_prompt_profile_value or None,
+        "prefix_cache_modes": prefix_cache_values,
+        "gpu_memory_utilization": gpu_memory_utilization,
+        "row_count": len(rows),
+        "rows": rows,
+        "summary": [
+            {
+                key: row[key]
+                for key in (
+                    "request_count",
+                    "max_new_tokens",
+                    "enable_prefix_caching",
+                    "max_model_len",
+                    "max_num_batched_tokens",
+                    "max_num_seqs",
+                    "gpu_memory_utilization",
+                    "gpu_kv_cache_size_tokens",
+                    "available_kv_cache_memory_gib",
+                    "max_concurrency_for_request",
+                    "max_concurrency_request_tokens",
+                    "ok",
+                )
+            }
+            for row in rows
+        ],
+        "vllm_version": _extract_vllm_version_from_probe(rows),
+        "platform": platform.platform(),
+        "python_version": platform.python_version(),
+    }
+
+
+def _extract_vllm_version_from_probe(rows: list[dict[str, Any]]) -> str | None:
+    for row in rows:
+        for text in (row.get("stdout_tail") or "", row.get("stderr_tail") or ""):
+            match = re.search(r"vLLM API server version ([0-9.]+)", text)
+            if match:
+                return match.group(1)
+    return None
+
+
+def _format_vllm_capacity_diagnostic_markdown(payload: dict[str, Any]) -> str:
+    rows = payload.get("summary") or []
+
+    def fmt(value: Any, suffix: str = "") -> str:
+        if value is None:
+            return "n/a"
+        if isinstance(value, bool):
+            return str(value)
+        if isinstance(value, int):
+            return f"{value}{suffix}"
+        if isinstance(value, float):
+            return f"{value:.3f}{suffix}".rstrip("0").rstrip(".")
+        return str(value)
+
+    lines = [
+        "# vLLM Capacity Diagnostic",
+        "",
+        f"Model: `{payload.get('model_id')}`",
+        f"GPU: `{payload.get('modal_gpu')}`",
+        f"Prompt profiles: `{', '.join(payload.get('prompt_profiles') or [])}`",
+        f"Warmup prompt profile: `{payload.get('warmup_prompt_profile')}`",
+        "",
+        "| Requests | Prefix cache | Max model len | Max batched tokens | Max seqs | GPU KV tokens | KV memory GiB | Max concurrency |",
+        "| ---: | --- | ---: | ---: | ---: | ---: | ---: | ---: |",
+    ]
+    for row in rows:
+        lines.append(
+            "| {request_count} | {prefix_cache} | {max_model_len} | {max_num_batched_tokens} | {max_num_seqs} | {gpu_tokens} | {kv_gib} | {concurrency} |".format(
+                request_count=fmt(row.get("request_count")),
+                prefix_cache=fmt(row.get("enable_prefix_caching")),
+                max_model_len=fmt(row.get("max_model_len")),
+                max_num_batched_tokens=fmt(row.get("max_num_batched_tokens")),
+                max_num_seqs=fmt(row.get("max_num_seqs")),
+                gpu_tokens=fmt(row.get("gpu_kv_cache_size_tokens")),
+                kv_gib=fmt(row.get("available_kv_cache_memory_gib")),
+                concurrency=fmt(row.get("max_concurrency_for_request")),
+            )
+        )
+    if len(rows) >= 2:
+        baseline = rows[0]
+        candidate = rows[-1]
+        baseline_tokens = baseline.get("gpu_kv_cache_size_tokens")
+        candidate_tokens = candidate.get("gpu_kv_cache_size_tokens")
+        baseline_batched = baseline.get("max_num_batched_tokens")
+        candidate_batched = candidate.get("max_num_batched_tokens")
+        if (
+            isinstance(baseline_tokens, (int, float))
+            and isinstance(candidate_tokens, (int, float))
+            and baseline_tokens
+            and isinstance(baseline_batched, (int, float))
+            and isinstance(candidate_batched, (int, float))
+            and baseline_batched
+        ):
+            lines.extend(
+                [
+                    "",
+                    "## Reading",
+                    "",
+                    (
+                        "The higher-request-count shape raises configured max batched "
+                        f"tokens by `{candidate_batched / baseline_batched:.3f}x` "
+                        "while reducing available GPU KV-cache tokens to "
+                        f"`{candidate_tokens / baseline_tokens:.3f}x` of the baseline."
+                    ),
+                ]
+            )
+    lines.append("")
+    return "\n".join(lines)
+
+
+@app.function(
+    image=vllm_image,
+    gpu="T4",
+    timeout=1800,
+    volumes={HF_CACHE_PATH: hf_cache_volume, VLLM_CACHE_PATH: vllm_cache_volume},
+)
+def run_vllm_capacity_diagnostic_remote(
+    hf_model: str = DEFAULT_HF_MODEL,
+    request_counts: str = DEFAULT_VLLM_SWEEP_REQUEST_COUNTS,
+    prompt_profiles: str = DEFAULT_VLLM_SWEEP_PROMPT_PROFILES,
+    output_tokens: str = DEFAULT_VLLM_SWEEP_OUTPUT_TOKENS,
+    scenario_seed: int = DEFAULT_VLLM_SWEEP_SEED,
+    warmup_prompt_profile: str = "",
+    prefix_cache_modes: str = "false",
+    gpu_memory_utilization: float = 0.50,
+) -> dict[str, Any]:
+    return _run_vllm_capacity_diagnostic_payload(
+        hf_model=hf_model,
+        request_counts=request_counts,
+        prompt_profiles=prompt_profiles,
+        output_tokens=output_tokens,
+        scenario_seed=scenario_seed,
+        warmup_prompt_profile=warmup_prompt_profile,
+        prefix_cache_modes=prefix_cache_modes,
+        gpu_memory_utilization=gpu_memory_utilization,
+        modal_gpu_label="T4",
+    )
+
+
+@app.function(
+    image=vllm_image,
+    gpu="L4",
+    timeout=1800,
+    volumes={HF_CACHE_PATH: hf_cache_volume, VLLM_CACHE_PATH: vllm_cache_volume},
+)
+def run_vllm_capacity_diagnostic_l4_remote(
+    hf_model: str = DEFAULT_HF_MODEL,
+    request_counts: str = DEFAULT_VLLM_SWEEP_REQUEST_COUNTS,
+    prompt_profiles: str = DEFAULT_VLLM_SWEEP_PROMPT_PROFILES,
+    output_tokens: str = DEFAULT_VLLM_SWEEP_OUTPUT_TOKENS,
+    scenario_seed: int = DEFAULT_VLLM_SWEEP_SEED,
+    warmup_prompt_profile: str = "",
+    prefix_cache_modes: str = "false",
+    gpu_memory_utilization: float = 0.50,
+) -> dict[str, Any]:
+    return _run_vllm_capacity_diagnostic_payload(
+        hf_model=hf_model,
+        request_counts=request_counts,
+        prompt_profiles=prompt_profiles,
+        output_tokens=output_tokens,
+        scenario_seed=scenario_seed,
+        warmup_prompt_profile=warmup_prompt_profile,
+        prefix_cache_modes=prefix_cache_modes,
+        gpu_memory_utilization=gpu_memory_utilization,
+        modal_gpu_label="L4",
+    )
+
+
+def _select_vllm_capacity_diagnostic_remote(modal_gpu: str) -> Any:
+    normalized_gpu = modal_gpu.strip().upper().replace("_", "-")
+    if normalized_gpu == "T4":
+        return run_vllm_capacity_diagnostic_remote
+    if normalized_gpu == "L4":
+        return run_vllm_capacity_diagnostic_l4_remote
     raise ValueError("modal_gpu must be one of: T4, L4")
 
 
@@ -4137,6 +4536,8 @@ def main(
     kv_cache_metrics_sample: float = 1.0,
     kv_cache_block_size: int = 16,
     modal_gpu: str = "T4",
+    capacity_prefix_cache_modes: str = "false",
+    gpu_memory_utilization: float = 0.50,
     cold_sweep_dir: str = DEFAULT_VLLM_SWEEP_OUTPUT,
     prefix_sweep_dir: str = DEFAULT_VLLM_PREFIX_CACHE_SWEEP_OUTPUT,
     async_sweep_dir: str = DEFAULT_VLLM_SWEEP_OUTPUT,
@@ -4281,6 +4682,50 @@ def main(
         for check in payload["constructor_checks"]:
             print(f"constructor_check {check['kwargs']}: accepted={check['accepted']}")
         print(f"json: {json_path}")
+        return
+
+    if mode == "vllm-capacity-diagnostic":
+        capacity_remote = _select_vllm_capacity_diagnostic_remote(modal_gpu)
+        payload = capacity_remote.remote(
+            hf_model=hf_model,
+            request_counts=request_counts,
+            prompt_profiles=prompt_profiles,
+            output_tokens=output_tokens,
+            scenario_seed=scenario_seed,
+            warmup_prompt_profile=warmup_prompt_profile,
+            prefix_cache_modes=capacity_prefix_cache_modes,
+            gpu_memory_utilization=gpu_memory_utilization,
+        )
+        output_path = Path(output_dir or DEFAULT_VLLM_CAPACITY_DIAGNOSTIC_OUTPUT)
+        output_path.mkdir(parents=True, exist_ok=True)
+        json_path = output_path / "capacity-diagnostic.json"
+        csv_path = output_path / "capacity-diagnostic.csv"
+        markdown_path = output_path / "capacity-diagnostic.md"
+        json_path.write_text(
+            json.dumps(payload, indent=2, sort_keys=True) + "\n",
+            encoding="utf-8",
+        )
+        _write_records_csv(csv_path, payload["summary"])
+        markdown_path.write_text(
+            _format_vllm_capacity_diagnostic_markdown(payload),
+            encoding="utf-8",
+        )
+
+        print(f"model: {payload['model_id']}")
+        print(f"modal_gpu: {payload['modal_gpu']}")
+        print(f"rows: {payload['row_count']}")
+        for row in payload["summary"]:
+            print(
+                "capacity "
+                f"n={row['request_count']} "
+                f"prefix_cache={row['enable_prefix_caching']} "
+                f"max_num_batched_tokens={row['max_num_batched_tokens']} "
+                f"gpu_kv_cache_size_tokens={row['gpu_kv_cache_size_tokens']} "
+                f"max_concurrency={row['max_concurrency_for_request']}"
+            )
+        print(f"json: {json_path}")
+        print(f"csv: {csv_path}")
+        print(f"markdown: {markdown_path}")
         return
 
     if mode == "vllm-cache-metrics-smoke":
@@ -4976,6 +5421,12 @@ def main(
                                 "cache_engine_load_ms": single_payload[
                                     "cache_engine_load_ms"
                                 ],
+                                "cold_engine_capacity": single_payload.get(
+                                    "cold_engine_capacity"
+                                ),
+                                "cache_engine_capacity": single_payload.get(
+                                    "cache_engine_capacity"
+                                ),
                                 "nvidia_smi_before": single_payload.get(
                                     "nvidia_smi_before"
                                 ),
@@ -7111,6 +7562,17 @@ def _make_vllm_prefix_cache_paired_rows(
         cache_counter_hit_rate = cache_run.get("prefix_cache_counter_hit_rate_pct")
         cold_gpu_kv_usage = cold_run.get("gpu_kv_cache_usage_pct")
         cache_gpu_kv_usage = cache_run.get("gpu_kv_cache_usage_pct")
+        capacity_fields = (
+            "engine_max_model_len",
+            "engine_max_num_batched_tokens",
+            "engine_max_num_seqs",
+            "engine_gpu_memory_utilization",
+            "engine_gpu_kv_cache_size_tokens",
+            "engine_available_kv_cache_memory_gib",
+            "engine_max_concurrency_for_request",
+            "engine_max_concurrency_request_tokens",
+            "engine_derived_gpu_kv_cache_size_tokens",
+        )
         paired_rows.append(
             {
                 "pair_id": f"{scenario_id}_rep{repeat_index:02d}",
@@ -7214,6 +7676,14 @@ def _make_vllm_prefix_cache_paired_rows(
                     cache_gpu_kv_usage,
                     cold_gpu_kv_usage,
                 ),
+                **{
+                    f"cold_{field}": cold_run.get(field)
+                    for field in capacity_fields
+                },
+                **{
+                    f"cache_{field}": cache_run.get(field)
+                    for field in capacity_fields
+                },
             }
         )
     return paired_rows
@@ -7271,6 +7741,24 @@ def _aggregate_vllm_prefix_cache_paired_scenarios(
             "cold_gpu_kv_cache_usage_pct",
             "cache_gpu_kv_cache_usage_pct",
             "cache_to_cold_gpu_kv_cache_usage_pct_delta",
+            "cold_engine_max_model_len",
+            "cache_engine_max_model_len",
+            "cold_engine_max_num_batched_tokens",
+            "cache_engine_max_num_batched_tokens",
+            "cold_engine_max_num_seqs",
+            "cache_engine_max_num_seqs",
+            "cold_engine_gpu_memory_utilization",
+            "cache_engine_gpu_memory_utilization",
+            "cold_engine_gpu_kv_cache_size_tokens",
+            "cache_engine_gpu_kv_cache_size_tokens",
+            "cold_engine_available_kv_cache_memory_gib",
+            "cache_engine_available_kv_cache_memory_gib",
+            "cold_engine_max_concurrency_for_request",
+            "cache_engine_max_concurrency_for_request",
+            "cold_engine_max_concurrency_request_tokens",
+            "cache_engine_max_concurrency_request_tokens",
+            "cold_engine_derived_gpu_kv_cache_size_tokens",
+            "cache_engine_derived_gpu_kv_cache_size_tokens",
         ):
             scenario.update(_metric_distribution(pairs, field))
         scenarios.append(scenario)
@@ -7318,6 +7806,24 @@ def _vllm_prefix_cache_paired_summary_rows(
         "cold_gpu_kv_cache_usage_pct_median",
         "cache_gpu_kv_cache_usage_pct_median",
         "cache_to_cold_gpu_kv_cache_usage_pct_delta_median",
+        "cold_engine_max_model_len_median",
+        "cache_engine_max_model_len_median",
+        "cold_engine_max_num_batched_tokens_median",
+        "cache_engine_max_num_batched_tokens_median",
+        "cold_engine_max_num_seqs_median",
+        "cache_engine_max_num_seqs_median",
+        "cold_engine_gpu_memory_utilization_median",
+        "cache_engine_gpu_memory_utilization_median",
+        "cold_engine_gpu_kv_cache_size_tokens_median",
+        "cache_engine_gpu_kv_cache_size_tokens_median",
+        "cold_engine_available_kv_cache_memory_gib_median",
+        "cache_engine_available_kv_cache_memory_gib_median",
+        "cold_engine_max_concurrency_for_request_median",
+        "cache_engine_max_concurrency_for_request_median",
+        "cold_engine_max_concurrency_request_tokens_median",
+        "cache_engine_max_concurrency_request_tokens_median",
+        "cold_engine_derived_gpu_kv_cache_size_tokens_median",
+        "cache_engine_derived_gpu_kv_cache_size_tokens_median",
     )
     return [
         {field: scenario.get(field) for field in row_fields}
@@ -7443,6 +7949,298 @@ def _latest_cache_metric_field(
         if value is not None:
             return float(value)
     return None
+
+
+def _parse_vllm_engine_capacity_log_metrics(
+    log_stats: dict[str, Any] | list[dict[str, Any]] | None,
+) -> dict[str, Any]:
+    calls = log_stats if isinstance(log_stats, list) else [log_stats]
+    text_parts: list[str] = []
+    for call in calls:
+        if not isinstance(call, dict):
+            continue
+        for line in call.get("captured_logs", []) or []:
+            text_parts.append(str(line))
+        for key in ("stdout", "stderr", "return_repr"):
+            value = call.get(key)
+            if value:
+                text_parts.append(str(value))
+    text = "\n".join(text_parts)
+
+    def number(pattern: str) -> float | None:
+        match = re.search(pattern, text)
+        if not match:
+            return None
+        return float(match.group(1).replace(",", ""))
+
+    gpu_tokens = number(r"GPU KV cache size:\s*([0-9,]+)\s*tokens")
+    request_tokens = number(
+        r"Maximum concurrency for\s*([0-9,]+)\s*tokens per request:"
+    )
+    max_concurrency = number(
+        r"Maximum concurrency for\s*[0-9,]+\s*tokens per request:\s*([0-9.]+)x"
+    )
+    max_model_len = number(r"Using max model len\s*([0-9,]+)")
+    available_kv_cache_memory_gib = number(
+        r"Available KV cache memory:\s*([0-9.]+)\s*GiB"
+    )
+    return {
+        "gpu_kv_cache_size_tokens": (
+            int(gpu_tokens) if gpu_tokens is not None else None
+        ),
+        "max_concurrency_request_tokens": (
+            int(request_tokens) if request_tokens is not None else None
+        ),
+        "max_concurrency_for_request": max_concurrency,
+        "max_model_len": int(max_model_len) if max_model_len is not None else None,
+        "available_kv_cache_memory_gib": available_kv_cache_memory_gib,
+    }
+
+
+def _safe_get_attr_path(target: Any, attr_path: tuple[str, ...]) -> Any:
+    current = target
+    for attr in attr_path:
+        if current is None:
+            return None
+        if isinstance(current, dict):
+            current = current.get(attr)
+        else:
+            current = getattr(current, attr, None)
+    return current
+
+
+def _json_scalar(value: Any) -> Any:
+    if value is None or isinstance(value, (str, bool)):
+        return value
+    if isinstance(value, int) and not isinstance(value, bool):
+        return int(value)
+    if isinstance(value, float):
+        return float(value)
+    if isinstance(value, (list, tuple)):
+        return [_json_scalar(item) for item in value if _json_scalar(item) is not None]
+    return None
+
+
+def _first_number(*values: Any) -> float | None:
+    for value in values:
+        if isinstance(value, (int, float)) and not isinstance(value, bool):
+            return float(value)
+    return None
+
+
+def _discover_vllm_engine_config_values(
+    *,
+    engine: Any,
+    engine_args: Any,
+) -> dict[str, Any]:
+    paths: dict[str, tuple[Any, tuple[str, ...]]] = {
+        "engine_args.max_model_len": (engine_args, ("max_model_len",)),
+        "engine_args.max_num_batched_tokens": (
+            engine_args,
+            ("max_num_batched_tokens",),
+        ),
+        "engine_args.max_num_seqs": (engine_args, ("max_num_seqs",)),
+        "engine_args.gpu_memory_utilization": (
+            engine_args,
+            ("gpu_memory_utilization",),
+        ),
+        "engine.engine_core.engine_core_config.model_config.max_model_len": (
+            engine,
+            ("engine_core", "engine_core_config", "model_config", "max_model_len"),
+        ),
+        "engine.engine_core.engine_core_config.scheduler_config.max_num_batched_tokens": (
+            engine,
+            (
+                "engine_core",
+                "engine_core_config",
+                "scheduler_config",
+                "max_num_batched_tokens",
+            ),
+        ),
+        "engine.engine_core.engine_core_config.scheduler_config.max_num_seqs": (
+            engine,
+            ("engine_core", "engine_core_config", "scheduler_config", "max_num_seqs"),
+        ),
+        "engine.engine_core.engine_core_config.cache_config.block_size": (
+            engine,
+            ("engine_core", "engine_core_config", "cache_config", "block_size"),
+        ),
+        "engine.engine_core.engine_core_config.cache_config.num_gpu_blocks": (
+            engine,
+            ("engine_core", "engine_core_config", "cache_config", "num_gpu_blocks"),
+        ),
+        "engine.engine_core.engine_core_config.cache_config.gpu_memory_utilization": (
+            engine,
+            (
+                "engine_core",
+                "engine_core_config",
+                "cache_config",
+                "gpu_memory_utilization",
+            ),
+        ),
+        "engine.engine_core.engine_core_config.cache_config.kv_cache_memory_bytes": (
+            engine,
+            (
+                "engine_core",
+                "engine_core_config",
+                "cache_config",
+                "kv_cache_memory_bytes",
+            ),
+        ),
+        "engine.llm_engine.scheduler_config.max_num_batched_tokens": (
+            engine,
+            ("llm_engine", "scheduler_config", "max_num_batched_tokens"),
+        ),
+        "engine.llm_engine.scheduler_config.max_num_seqs": (
+            engine,
+            ("llm_engine", "scheduler_config", "max_num_seqs"),
+        ),
+        "engine.llm_engine.cache_config.block_size": (
+            engine,
+            ("llm_engine", "cache_config", "block_size"),
+        ),
+        "engine.llm_engine.cache_config.num_gpu_blocks": (
+            engine,
+            ("llm_engine", "cache_config", "num_gpu_blocks"),
+        ),
+        "engine.llm_engine.model_config.max_model_len": (
+            engine,
+            ("llm_engine", "model_config", "max_model_len"),
+        ),
+    }
+    discovered = {}
+    for label, (root, attr_path) in paths.items():
+        value = _json_scalar(_safe_get_attr_path(root, attr_path))
+        if value is not None:
+            discovered[label] = value
+    return discovered
+
+
+def _snapshot_vllm_engine_capacity(
+    *,
+    engine: Any,
+    engine_args: Any,
+    phase_label: str,
+    engine_init_log_stats: dict[str, Any] | None,
+    requested_max_model_len: int,
+    requested_max_num_batched_tokens: int,
+    requested_max_num_seqs: int,
+    requested_gpu_memory_utilization: float,
+) -> dict[str, Any]:
+    log_metrics = _parse_vllm_engine_capacity_log_metrics(engine_init_log_stats)
+    discovered = _discover_vllm_engine_config_values(
+        engine=engine,
+        engine_args=engine_args,
+    )
+    block_size = _first_number(
+        discovered.get("engine.engine_core.engine_core_config.cache_config.block_size"),
+        discovered.get("engine.llm_engine.cache_config.block_size"),
+    )
+    num_gpu_blocks = _first_number(
+        discovered.get("engine.engine_core.engine_core_config.cache_config.num_gpu_blocks"),
+        discovered.get("engine.llm_engine.cache_config.num_gpu_blocks"),
+    )
+    derived_gpu_tokens = (
+        int(block_size * num_gpu_blocks)
+        if block_size is not None and num_gpu_blocks is not None
+        else None
+    )
+    gpu_kv_cache_size_tokens = (
+        log_metrics.get("gpu_kv_cache_size_tokens") or derived_gpu_tokens
+    )
+    max_model_len = (
+        log_metrics.get("max_model_len")
+        or _first_number(
+            discovered.get("engine.engine_core.engine_core_config.model_config.max_model_len"),
+            discovered.get("engine.llm_engine.model_config.max_model_len"),
+            discovered.get("engine_args.max_model_len"),
+        )
+        or requested_max_model_len
+    )
+    max_concurrency = log_metrics.get("max_concurrency_for_request")
+    if max_concurrency is None and gpu_kv_cache_size_tokens and max_model_len:
+        max_concurrency = float(gpu_kv_cache_size_tokens) / float(max_model_len)
+
+    max_num_batched_tokens = (
+        _first_number(
+            discovered.get(
+                "engine.engine_core.engine_core_config.scheduler_config.max_num_batched_tokens"
+            ),
+            discovered.get("engine.llm_engine.scheduler_config.max_num_batched_tokens"),
+            discovered.get("engine_args.max_num_batched_tokens"),
+        )
+        or requested_max_num_batched_tokens
+    )
+    max_num_seqs = (
+        _first_number(
+            discovered.get("engine.engine_core.engine_core_config.scheduler_config.max_num_seqs"),
+            discovered.get("engine.llm_engine.scheduler_config.max_num_seqs"),
+            discovered.get("engine_args.max_num_seqs"),
+        )
+        or requested_max_num_seqs
+    )
+    gpu_memory_utilization = (
+        _first_number(
+            discovered.get(
+                "engine.engine_core.engine_core_config.cache_config.gpu_memory_utilization"
+            ),
+            discovered.get("engine_args.gpu_memory_utilization"),
+        )
+        or requested_gpu_memory_utilization
+    )
+    return {
+        "phase_label": phase_label,
+        "requested_max_model_len": int(requested_max_model_len),
+        "requested_max_num_batched_tokens": int(requested_max_num_batched_tokens),
+        "requested_max_num_seqs": int(requested_max_num_seqs),
+        "requested_gpu_memory_utilization": float(requested_gpu_memory_utilization),
+        "max_model_len": int(max_model_len) if max_model_len is not None else None,
+        "max_num_batched_tokens": int(max_num_batched_tokens)
+        if max_num_batched_tokens is not None
+        else None,
+        "max_num_seqs": int(max_num_seqs) if max_num_seqs is not None else None,
+        "gpu_memory_utilization": float(gpu_memory_utilization)
+        if gpu_memory_utilization is not None
+        else None,
+        "gpu_kv_cache_size_tokens": gpu_kv_cache_size_tokens,
+        "available_kv_cache_memory_gib": log_metrics.get(
+            "available_kv_cache_memory_gib"
+        ),
+        "max_concurrency_for_request": max_concurrency,
+        "max_concurrency_request_tokens": (
+            log_metrics.get("max_concurrency_request_tokens") or int(max_model_len)
+        )
+        if max_model_len is not None
+        else None,
+        "derived_gpu_kv_cache_size_tokens": derived_gpu_tokens,
+        "discovered_config_values": discovered,
+        "engine_init_log_stats": engine_init_log_stats,
+    }
+
+
+def _vllm_engine_capacity_run_fields(
+    capacity: dict[str, Any] | None,
+) -> dict[str, Any]:
+    capacity = capacity or {}
+    return {
+        "engine_max_model_len": capacity.get("max_model_len"),
+        "engine_max_num_batched_tokens": capacity.get("max_num_batched_tokens"),
+        "engine_max_num_seqs": capacity.get("max_num_seqs"),
+        "engine_gpu_memory_utilization": capacity.get("gpu_memory_utilization"),
+        "engine_gpu_kv_cache_size_tokens": capacity.get("gpu_kv_cache_size_tokens"),
+        "engine_available_kv_cache_memory_gib": capacity.get(
+            "available_kv_cache_memory_gib"
+        ),
+        "engine_max_concurrency_for_request": capacity.get(
+            "max_concurrency_for_request"
+        ),
+        "engine_max_concurrency_request_tokens": capacity.get(
+            "max_concurrency_request_tokens"
+        ),
+        "engine_derived_gpu_kv_cache_size_tokens": capacity.get(
+            "derived_gpu_kv_cache_size_tokens"
+        ),
+    }
 
 
 def _estimated_window_rate_pct(
