@@ -7040,3 +7040,60 @@ results/modal-vllm-capacity-diagnostic-qwen15b-l4-n16-n32-r1/capacity-diagnostic
 Use this diagnostic to choose the next backend or scheduler comparison. The
 strongest next artifact should hold model, GPU, prompt family, and request
 count fixed while changing the serving path or vLLM scheduling/capacity knob.
+
+# Training 074: Qwen 1.5B L4 n32 Batched-Token Capacity Knob
+
+Training 074 keeps the Qwen 1.5B L4 n32 workload fixed and varies only
+`max_num_batched_tokens`. This separates request-count pressure from the
+scheduler token-budget knob that determines how much memory remains for GPU
+KV-cache allocation.
+
+## Goal
+
+Check whether the n32 capacity collapse is caused by the configured prefill
+batch-token limit rather than by request count alone.
+
+## Command
+
+```bash
+modal run modal_app.py --mode vllm-capacity-diagnostic \
+  --modal-gpu L4 \
+  --hf-model Qwen/Qwen2.5-1.5B-Instruct \
+  --prompt-profiles shared_prefix_mega_long_no_repeat_variant \
+  --output-tokens 8 \
+  --request-counts 32 \
+  --scenario-seed 2701 \
+  --warmup-prompt-profile neutral_mega_long \
+  --capacity-prefix-cache-modes false \
+  --capacity-max-num-batched-tokens 60640,121280 \
+  --gpu-memory-utilization 0.50 \
+  --output-dir results/modal-vllm-capacity-diagnostic-qwen15b-l4-n32-batched-tokens-r1
+```
+
+## Result
+
+| Requests | Max batched tokens | Source | GPU KV tokens | KV memory GiB | Max concurrency |
+| ---: | ---: | --- | ---: | ---: | ---: |
+| 32 | `60,640` | override | `158,540` | `4.24` | `41.83x` |
+| 32 | `121,280` | override | `18,854` | `0.50` | `4.97x` |
+
+With model, GPU, prompt family, output length, request count, and memory
+utilization fixed, lowering `max_num_batched_tokens` from the n32 default back
+to the n16 value restores the larger KV-cache allocation. This makes the
+scheduler token budget the direct capacity-control variable for the next
+benchmark.
+
+Generated artifacts:
+
+```text
+results/modal-vllm-capacity-diagnostic-qwen15b-l4-n32-batched-tokens-r1/capacity-diagnostic.md
+results/modal-vllm-capacity-diagnostic-qwen15b-l4-n32-batched-tokens-r1/capacity-diagnostic.json
+results/modal-vllm-capacity-diagnostic-qwen15b-l4-n32-batched-tokens-r1/capacity-diagnostic.csv
+```
+
+## Next Step
+
+Add the same `max_num_batched_tokens` override to the paired benchmark path and
+run n32 at `60,640`. The key test is whether restoring KV capacity also restores
+the TPOT and latency behavior that weakened in the default n32 batch-pressure
+artifact.

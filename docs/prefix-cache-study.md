@@ -334,6 +334,23 @@ concurrency). The important systems finding is the inversion: configured max
 batched tokens doubles, but actual GPU KV-token capacity falls to `0.119x` of
 the n16 baseline.
 
+Training 074 holds the Qwen 1.5B L4 n32 shape fixed and varies only
+`max_num_batched_tokens`:
+
+```text
+results/modal-vllm-capacity-diagnostic-qwen15b-l4-n32-batched-tokens-r1/capacity-diagnostic.md
+results/modal-vllm-capacity-diagnostic-qwen15b-l4-n32-batched-tokens-r1/capacity-diagnostic.json
+results/modal-vllm-capacity-diagnostic-qwen15b-l4-n32-batched-tokens-r1/capacity-diagnostic.csv
+```
+
+At `request_count=32`, `max_model_len=3790`, `gpu_memory_utilization=0.50`,
+and prefix caching disabled, the diagnostic compares `60,640` and `121,280`
+max batched tokens. The lower setting receives `158,540` GPU KV-cache tokens
+and `41.83x` max concurrency; the default n32 setting receives `18,854` GPU
+KV-cache tokens and `4.97x` max concurrency. That isolates the scheduler
+capacity knob: request count alone is not the sufficient explanation for the
+n32 capacity collapse.
+
 ## Reproduce
 
 Run the no-repeat n=16 fixed-shape stability pass:
@@ -480,10 +497,14 @@ results/prefix-cache-study-mega-long-qwen15b-l4-n16-vs-n32-r8/batch-pressure-com
 results/modal-vllm-capacity-diagnostic-qwen15b-l4-n16-n32-r1/capacity-diagnostic.md
 results/modal-vllm-capacity-diagnostic-qwen15b-l4-n16-n32-r1/capacity-diagnostic.json
 results/modal-vllm-capacity-diagnostic-qwen15b-l4-n16-n32-r1/capacity-diagnostic.csv
+results/modal-vllm-capacity-diagnostic-qwen15b-l4-n32-batched-tokens-r1/capacity-diagnostic.md
+results/modal-vllm-capacity-diagnostic-qwen15b-l4-n32-batched-tokens-r1/capacity-diagnostic.json
+results/modal-vllm-capacity-diagnostic-qwen15b-l4-n32-batched-tokens-r1/capacity-diagnostic.csv
 ```
 
 ## Next Step
 
-Use the capacity diagnostic to drive the next backend or scheduler comparison:
-hold model, GPU, prompt family, and request count fixed while changing the
-serving path or scheduler knob that controls prefill/KV allocation.
+Run a paired n32 benchmark with `max_num_batched_tokens=60640` to test whether
+restoring the n16-size KV allocation also restores TPOT and latency behavior.
+If that holds, the next backend comparison has a concrete scheduler-control
+baseline instead of a request-count confound.

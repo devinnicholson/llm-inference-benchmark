@@ -66,6 +66,7 @@ class ModalAppTests(unittest.TestCase):
                         "enable_prefix_caching": False,
                         "max_model_len": 3790,
                         "max_num_batched_tokens": 60640,
+                        "max_num_batched_tokens_source": "default",
                         "max_num_seqs": 16,
                         "gpu_kv_cache_size_tokens": 158540,
                         "available_kv_cache_memory_gib": 4.24,
@@ -76,6 +77,7 @@ class ModalAppTests(unittest.TestCase):
                         "enable_prefix_caching": False,
                         "max_model_len": 3790,
                         "max_num_batched_tokens": 121280,
+                        "max_num_batched_tokens_source": "override",
                         "max_num_seqs": 32,
                         "gpu_kv_cache_size_tokens": 18854,
                         "available_kv_cache_memory_gib": 0.5,
@@ -85,7 +87,10 @@ class ModalAppTests(unittest.TestCase):
             }
         )
 
-        self.assertIn("| 16 | False | 3790 | 60640 | 16 | 158540 | 4.24 | 41.83 |", markdown)
+        self.assertIn(
+            "| 16 | False | 3790 | 60640 | default | 16 | 158540 | 4.24 | 41.83 |",
+            markdown,
+        )
         self.assertIn("2.000x", markdown)
         self.assertIn("0.119x", markdown)
 

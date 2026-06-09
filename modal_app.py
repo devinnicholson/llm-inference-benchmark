@@ -1309,6 +1309,7 @@ def _run_vllm_capacity_diagnostic_payload(
     scenario_seed: int = DEFAULT_VLLM_SWEEP_SEED,
     warmup_prompt_profile: str = "",
     prefix_cache_modes: str = "false",
+    max_num_batched_tokens_values: str = "",
     gpu_memory_utilization: float = 0.50,
     modal_gpu_label: str = "T4",
 ) -> dict[str, Any]:
@@ -1329,6 +1330,14 @@ def _run_vllm_capacity_diagnostic_payload(
         _parse_bool_choice(value, "prefix_cache_modes")
         for value in _split_csv(prefix_cache_modes)
     ]
+    override_max_num_batched_tokens_values = (
+        _split_positive_int_csv(
+            max_num_batched_tokens_values,
+            "max_num_batched_tokens_values",
+        )
+        if max_num_batched_tokens_values.strip()
+        else []
+    )
     if gpu_memory_utilization <= 0 or gpu_memory_utilization > 1:
         raise ValueError("gpu_memory_utilization must be in (0, 1]")
     _validate_vllm_prompt_profiles(prompt_profile_values)
@@ -1400,63 +1409,80 @@ if __name__ == "__main__":
         max_prompt_tokens = max_prompt_tokens_for_shape(request_count)
         for max_new_tokens in output_token_values:
             max_model_len = max(1024, max_prompt_tokens + max_new_tokens + 32)
-            max_num_batched_tokens = max(2048, request_count * max_model_len)
-            for enable_prefix_caching in prefix_cache_values:
-                spec = {
-                    "model": hf_model,
-                    "max_model_len": max_model_len,
-                    "max_num_batched_tokens": max_num_batched_tokens,
-                    "max_num_seqs": request_count,
-                    "gpu_memory_utilization": gpu_memory_utilization,
-                    "enable_prefix_caching": enable_prefix_caching,
-                }
-                started = time.perf_counter()
-                proc = subprocess.run(
-                    [sys.executable, str(probe_path), json.dumps(spec)],
-                    capture_output=True,
-                    text=True,
-                    timeout=600,
-                    check=False,
+            default_max_num_batched_tokens = max(2048, request_count * max_model_len)
+            max_num_batched_token_options = (
+                override_max_num_batched_tokens_values
+                if override_max_num_batched_tokens_values
+                else [default_max_num_batched_tokens]
+            )
+            for max_num_batched_tokens in max_num_batched_token_options:
+                max_num_batched_tokens_source = (
+                    "override"
+                    if override_max_num_batched_tokens_values
+                    else "default"
                 )
-                elapsed_ms = (time.perf_counter() - started) * 1000
-                combined_output = "\n".join([proc.stdout, proc.stderr])
-                parsed = _parse_vllm_engine_capacity_log_metrics(
-                    {
-                        "captured_logs": [],
-                        "stdout": combined_output,
-                        "stderr": "",
-                    }
-                )
-                rows.append(
-                    {
-                        "request_count": request_count,
-                        "max_new_tokens": max_new_tokens,
-                        "enable_prefix_caching": enable_prefix_caching,
-                        "max_prompt_tokens": max_prompt_tokens,
+                for enable_prefix_caching in prefix_cache_values:
+                    spec = {
+                        "model": hf_model,
                         "max_model_len": max_model_len,
                         "max_num_batched_tokens": max_num_batched_tokens,
                         "max_num_seqs": request_count,
                         "gpu_memory_utilization": gpu_memory_utilization,
-                        "returncode": proc.returncode,
-                        "ok": proc.returncode == 0,
-                        "elapsed_ms": elapsed_ms,
-                        "gpu_kv_cache_size_tokens": parsed[
-                            "gpu_kv_cache_size_tokens"
-                        ],
-                        "available_kv_cache_memory_gib": parsed[
-                            "available_kv_cache_memory_gib"
-                        ],
-                        "max_concurrency_for_request": parsed[
-                            "max_concurrency_for_request"
-                        ],
-                        "max_concurrency_request_tokens": parsed[
-                            "max_concurrency_request_tokens"
-                        ],
-                        "logged_max_model_len": parsed["max_model_len"],
-                        "stdout_tail": proc.stdout[-12000:],
-                        "stderr_tail": proc.stderr[-12000:],
+                        "enable_prefix_caching": enable_prefix_caching,
                     }
-                )
+                    started = time.perf_counter()
+                    proc = subprocess.run(
+                        [sys.executable, str(probe_path), json.dumps(spec)],
+                        capture_output=True,
+                        text=True,
+                        timeout=600,
+                        check=False,
+                    )
+                    elapsed_ms = (time.perf_counter() - started) * 1000
+                    combined_output = "\n".join([proc.stdout, proc.stderr])
+                    parsed = _parse_vllm_engine_capacity_log_metrics(
+                        {
+                            "captured_logs": [],
+                            "stdout": combined_output,
+                            "stderr": "",
+                        }
+                    )
+                    rows.append(
+                        {
+                            "request_count": request_count,
+                            "max_new_tokens": max_new_tokens,
+                            "enable_prefix_caching": enable_prefix_caching,
+                            "max_prompt_tokens": max_prompt_tokens,
+                            "max_model_len": max_model_len,
+                            "max_num_batched_tokens": max_num_batched_tokens,
+                            "default_max_num_batched_tokens": (
+                                default_max_num_batched_tokens
+                            ),
+                            "max_num_batched_tokens_source": (
+                                max_num_batched_tokens_source
+                            ),
+                            "max_num_seqs": request_count,
+                            "gpu_memory_utilization": gpu_memory_utilization,
+                            "returncode": proc.returncode,
+                            "ok": proc.returncode == 0,
+                            "elapsed_ms": elapsed_ms,
+                            "gpu_kv_cache_size_tokens": parsed[
+                                "gpu_kv_cache_size_tokens"
+                            ],
+                            "available_kv_cache_memory_gib": parsed[
+                                "available_kv_cache_memory_gib"
+                            ],
+                            "max_concurrency_for_request": parsed[
+                                "max_concurrency_for_request"
+                            ],
+                            "max_concurrency_request_tokens": parsed[
+                                "max_concurrency_request_tokens"
+                            ],
+                            "logged_max_model_len": parsed["max_model_len"],
+                            "stdout_tail": proc.stdout[-12000:],
+                            "stderr_tail": proc.stderr[-12000:],
+                        }
+                    )
 
     return {
         "schema_version": 1,
@@ -1471,6 +1497,7 @@ if __name__ == "__main__":
         "scenario_seed": int(scenario_seed),
         "warmup_prompt_profile": warmup_prompt_profile_value or None,
         "prefix_cache_modes": prefix_cache_values,
+        "max_num_batched_tokens_values": override_max_num_batched_tokens_values,
         "gpu_memory_utilization": gpu_memory_utilization,
         "row_count": len(rows),
         "rows": rows,
@@ -1483,6 +1510,8 @@ if __name__ == "__main__":
                     "enable_prefix_caching",
                     "max_model_len",
                     "max_num_batched_tokens",
+                    "default_max_num_batched_tokens",
+                    "max_num_batched_tokens_source",
                     "max_num_seqs",
                     "gpu_memory_utilization",
                     "gpu_kv_cache_size_tokens",
@@ -1531,16 +1560,17 @@ def _format_vllm_capacity_diagnostic_markdown(payload: dict[str, Any]) -> str:
         f"Prompt profiles: `{', '.join(payload.get('prompt_profiles') or [])}`",
         f"Warmup prompt profile: `{payload.get('warmup_prompt_profile')}`",
         "",
-        "| Requests | Prefix cache | Max model len | Max batched tokens | Max seqs | GPU KV tokens | KV memory GiB | Max concurrency |",
-        "| ---: | --- | ---: | ---: | ---: | ---: | ---: | ---: |",
+        "| Requests | Prefix cache | Max model len | Max batched tokens | Source | Max seqs | GPU KV tokens | KV memory GiB | Max concurrency |",
+        "| ---: | --- | ---: | ---: | --- | ---: | ---: | ---: | ---: |",
     ]
     for row in rows:
         lines.append(
-            "| {request_count} | {prefix_cache} | {max_model_len} | {max_num_batched_tokens} | {max_num_seqs} | {gpu_tokens} | {kv_gib} | {concurrency} |".format(
+            "| {request_count} | {prefix_cache} | {max_model_len} | {max_num_batched_tokens} | {source} | {max_num_seqs} | {gpu_tokens} | {kv_gib} | {concurrency} |".format(
                 request_count=fmt(row.get("request_count")),
                 prefix_cache=fmt(row.get("enable_prefix_caching")),
                 max_model_len=fmt(row.get("max_model_len")),
                 max_num_batched_tokens=fmt(row.get("max_num_batched_tokens")),
+                source=fmt(row.get("max_num_batched_tokens_source") or "default"),
                 max_num_seqs=fmt(row.get("max_num_seqs")),
                 gpu_tokens=fmt(row.get("gpu_kv_cache_size_tokens")),
                 kv_gib=fmt(row.get("available_kv_cache_memory_gib")),
@@ -1593,6 +1623,7 @@ def run_vllm_capacity_diagnostic_remote(
     scenario_seed: int = DEFAULT_VLLM_SWEEP_SEED,
     warmup_prompt_profile: str = "",
     prefix_cache_modes: str = "false",
+    max_num_batched_tokens_values: str = "",
     gpu_memory_utilization: float = 0.50,
 ) -> dict[str, Any]:
     return _run_vllm_capacity_diagnostic_payload(
@@ -1603,6 +1634,7 @@ def run_vllm_capacity_diagnostic_remote(
         scenario_seed=scenario_seed,
         warmup_prompt_profile=warmup_prompt_profile,
         prefix_cache_modes=prefix_cache_modes,
+        max_num_batched_tokens_values=max_num_batched_tokens_values,
         gpu_memory_utilization=gpu_memory_utilization,
         modal_gpu_label="T4",
     )
@@ -1622,6 +1654,7 @@ def run_vllm_capacity_diagnostic_l4_remote(
     scenario_seed: int = DEFAULT_VLLM_SWEEP_SEED,
     warmup_prompt_profile: str = "",
     prefix_cache_modes: str = "false",
+    max_num_batched_tokens_values: str = "",
     gpu_memory_utilization: float = 0.50,
 ) -> dict[str, Any]:
     return _run_vllm_capacity_diagnostic_payload(
@@ -1632,6 +1665,7 @@ def run_vllm_capacity_diagnostic_l4_remote(
         scenario_seed=scenario_seed,
         warmup_prompt_profile=warmup_prompt_profile,
         prefix_cache_modes=prefix_cache_modes,
+        max_num_batched_tokens_values=max_num_batched_tokens_values,
         gpu_memory_utilization=gpu_memory_utilization,
         modal_gpu_label="L4",
     )
@@ -4537,6 +4571,7 @@ def main(
     kv_cache_block_size: int = 16,
     modal_gpu: str = "T4",
     capacity_prefix_cache_modes: str = "false",
+    capacity_max_num_batched_tokens: str = "",
     gpu_memory_utilization: float = 0.50,
     cold_sweep_dir: str = DEFAULT_VLLM_SWEEP_OUTPUT,
     prefix_sweep_dir: str = DEFAULT_VLLM_PREFIX_CACHE_SWEEP_OUTPUT,
@@ -4694,6 +4729,7 @@ def main(
             scenario_seed=scenario_seed,
             warmup_prompt_profile=warmup_prompt_profile,
             prefix_cache_modes=capacity_prefix_cache_modes,
+            max_num_batched_tokens_values=capacity_max_num_batched_tokens,
             gpu_memory_utilization=gpu_memory_utilization,
         )
         output_path = Path(output_dir or DEFAULT_VLLM_CAPACITY_DIAGNOSTIC_OUTPUT)
@@ -4720,6 +4756,7 @@ def main(
                 f"n={row['request_count']} "
                 f"prefix_cache={row['enable_prefix_caching']} "
                 f"max_num_batched_tokens={row['max_num_batched_tokens']} "
+                f"source={row['max_num_batched_tokens_source']} "
                 f"gpu_kv_cache_size_tokens={row['gpu_kv_cache_size_tokens']} "
                 f"max_concurrency={row['max_concurrency_for_request']}"
             )

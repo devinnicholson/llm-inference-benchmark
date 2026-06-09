@@ -1,0 +1,3 @@
+request_count,max_new_tokens,enable_prefix_caching,max_model_len,max_num_batched_tokens,default_max_num_batched_tokens,max_num_batched_tokens_source,max_num_seqs,gpu_memory_utilization,gpu_kv_cache_size_tokens,available_kv_cache_memory_gib,max_concurrency_for_request,max_concurrency_request_tokens,ok
+32,8,False,3790,60640,121280,override,32,0.5,158540,4.24,41.83,3790,True
+32,8,False,3790,121280,121280,override,32,0.5,18854,0.5,4.97,3790,True
