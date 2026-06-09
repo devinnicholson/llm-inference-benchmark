@@ -64,6 +64,13 @@ DEFAULT_VLLM_SERVER_ASYNC_CACHE_CONTROL_COMPARE_DIRS = (
     "results/modal-vllm-server-async-qwen15b-l4-n32-batched-tokens60640-server-cache-on-smoke-r1,"
     "results/modal-vllm-server-async-qwen15b-l4-n32-batched-tokens60640-server-cache-on-server-first-smoke-r1"
 )
+DEFAULT_VLLM_SERVER_ASYNC_CACHE_CONTROL_MULTITRIAL_OUTPUT = (
+    "results/modal-vllm-server-async-cache-control-multitrial"
+)
+DEFAULT_VLLM_SERVER_ASYNC_CACHE_CONTROL_COMPARE_AGGREGATE_DIRS = (
+    "results/modal-vllm-server-async-qwen15b-l4-n32-batched-tokens60640-server-cache-control-phase-order-r1,"
+    "results/modal-vllm-server-async-qwen15b-l4-n32-batched-tokens60640-server-cache-control-phase-order-r2"
+)
 DEFAULT_VLLM_SERVER_ASYNC_LOG_SUMMARY_OUTPUT = (
     "results/modal-vllm-server-async-log-summary"
 )
@@ -4769,6 +4776,7 @@ def main(
     phase_order_compare_dirs: str = DEFAULT_VLLM_SERVER_ASYNC_PHASE_ORDER_COMPARE_DIRS,
     server_async_log_summary_dirs: str = DEFAULT_VLLM_SERVER_ASYNC_LOG_SUMMARY_DIRS,
     server_async_cache_control_dirs: str = DEFAULT_VLLM_SERVER_ASYNC_CACHE_CONTROL_COMPARE_DIRS,
+    server_async_cache_control_compare_dirs: str = DEFAULT_VLLM_SERVER_ASYNC_CACHE_CONTROL_COMPARE_AGGREGATE_DIRS,
     short_multitrial_dir: str = DEFAULT_VLLM_SERVER_ASYNC_MULTITRIAL_OUTPUT,
     long_phase_order_compare_dir: str = DEFAULT_VLLM_SERVER_ASYNC_LONG_PHASE_ORDER_COMPARE_OUTPUT,
     prefix_cache_cold_first_paired_dir: str = DEFAULT_VLLM_PREFIX_CACHE_PAIRED_OUTPUT,
@@ -5381,6 +5389,41 @@ def main(
         print(f"json: {json_path}")
         print(f"matrix_csv: {matrix_csv_path}")
         print(f"contrast_csv: {contrast_csv_path}")
+        print(f"summary_csv: {summary_csv_path}")
+        return
+
+    if mode == "vllm-server-async-cache-control-multitrial":
+        payload = _aggregate_vllm_server_async_cache_control_trials(
+            [
+                Path(path)
+                for path in _split_csv(server_async_cache_control_compare_dirs)
+            ]
+        )
+        output_path = Path(
+            output_dir or DEFAULT_VLLM_SERVER_ASYNC_CACHE_CONTROL_MULTITRIAL_OUTPUT
+        )
+        output_path.mkdir(parents=True, exist_ok=True)
+        json_path = output_path / "cache-control-multitrial.json"
+        trials_csv_path = output_path / "cache-control-multitrial-trials.csv"
+        summary_csv_path = output_path / "cache-control-multitrial-summary.csv"
+        json_path.write_text(
+            json.dumps(payload, indent=2, sort_keys=True) + "\n",
+            encoding="utf-8",
+        )
+        _write_records_csv(trials_csv_path, payload["trial_rows"])
+        _write_records_csv(summary_csv_path, payload["summary"])
+
+        print(f"trials: {payload['trial_count']}")
+        for row in payload["summary"]:
+            if row["metric"] != "cache_on_minus_off_throughput_ratio":
+                continue
+            print(
+                f"{row['phase_order']}: throughput_delta_mean="
+                f"{row['mean']:.3f} bootstrap_p05={row['bootstrap_mean_p05']:.3f} "
+                f"bootstrap_p95={row['bootstrap_mean_p95']:.3f}"
+            )
+        print(f"json: {json_path}")
+        print(f"trials_csv: {trials_csv_path}")
         print(f"summary_csv: {summary_csv_path}")
         return
 
@@ -6108,7 +6151,8 @@ def main(
             "'vllm-server-async-phase-order-compare', "
             "'vllm-server-async-multitrial-aggregate', "
             "'vllm-server-async-workload-compare', "
-            "'vllm-server-async-cache-control-compare', 'vllm-sweep', or "
+            "'vllm-server-async-cache-control-compare', "
+            "'vllm-server-async-cache-control-multitrial', 'vllm-sweep', or "
             "'vllm-prefix-cache-isolated-window-summary', "
             "'vllm-prefix-cache-isolated-stability-summary', "
             "'vllm-prefix-cache-prompt-audit', "
@@ -7703,6 +7747,111 @@ def _compare_vllm_server_async_cache_control_matrix(
         "cache_mode_summary": cache_mode_summary,
         "phase_order_cache_contrasts": phase_order_cache_contrasts,
         "log_summary": log_summary,
+    }
+
+
+def _aggregate_vllm_server_async_cache_control_trials(
+    compare_dirs: list[Path],
+) -> dict[str, Any]:
+    if not compare_dirs:
+        raise ValueError("compare_dirs must not be empty")
+
+    metric_fields = (
+        "cache_on_minus_off_prefix_cache_hit_rate_pct",
+        "cache_on_minus_off_throughput_ratio",
+        "cache_on_div_off_throughput_ratio",
+        "cache_on_minus_off_latency_ratio",
+        "cache_on_div_off_latency_ratio",
+        "cache_on_minus_off_tpot_ratio",
+        "off_throughput_ratio",
+        "on_throughput_ratio",
+        "off_latency_ratio",
+        "on_latency_ratio",
+        "off_latest_prefix_cache_hit_rate_pct",
+        "on_latest_prefix_cache_hit_rate_pct",
+    )
+    trial_rows = []
+    compare_payloads = []
+    for trial_index, compare_dir in enumerate(compare_dirs, start=1):
+        compare_json = compare_dir / "cache-control-phase-order-compare.json"
+        payload = json.loads(compare_json.read_text(encoding="utf-8"))
+        compare_payloads.append(payload)
+        for contrast in payload.get("phase_order_cache_contrasts", []):
+            trial_row: dict[str, Any] = {
+                "trial_index": trial_index,
+                "trial_label": compare_dir.name,
+                "compare_json": str(compare_json),
+                "phase_order": contrast["phase_order"],
+                "off_source_dir": contrast["off_source_dir"],
+                "on_source_dir": contrast["on_source_dir"],
+                "off_server_enable_prefix_caching_observed": contrast[
+                    "off_server_enable_prefix_caching_observed"
+                ],
+                "on_server_enable_prefix_caching_observed": contrast[
+                    "on_server_enable_prefix_caching_observed"
+                ],
+            }
+            for field in metric_fields:
+                trial_row[field] = contrast.get(field)
+            trial_rows.append(trial_row)
+
+    phase_orders = sorted({row["phase_order"] for row in trial_rows})
+    summary = []
+    for phase_order in phase_orders:
+        phase_rows = [
+            row for row in trial_rows
+            if row["phase_order"] == phase_order
+        ]
+        for metric in metric_fields:
+            stats = _metric_distribution(phase_rows, metric)
+            values = [
+                float(row[metric])
+                for row in phase_rows
+                if row.get(metric) is not None
+            ]
+            interval = _bootstrap_mean_interval(values)
+            summary.append(
+                {
+                    "phase_order": phase_order,
+                    "metric": metric,
+                    "trial_count": len(values),
+                    "mean": stats[f"{metric}_mean"],
+                    "min": stats[f"{metric}_min"],
+                    "max": stats[f"{metric}_max"],
+                    "median": stats[f"{metric}_median"],
+                    "p95": stats[f"{metric}_p95"],
+                    "cv": stats[f"{metric}_cv"],
+                    "bootstrap_mean_p05": interval["mean_p05"],
+                    "bootstrap_mean_p50": interval["mean_p50"],
+                    "bootstrap_mean_p95": interval["mean_p95"],
+                }
+            )
+
+    return {
+        "schema_version": 1,
+        "mode": "vllm-server-async-cache-control-multitrial",
+        "trial_count": len(compare_dirs),
+        "compare_dirs": [str(path) for path in compare_dirs],
+        "phase_orders": phase_orders,
+        "trial_rows": trial_rows,
+        "summary": summary,
+        "all_off_server_disable_observed": (
+            all(
+                row["off_server_enable_prefix_caching_observed"] is False
+                for row in trial_rows
+            )
+            if trial_rows
+            else None
+        ),
+        "all_on_server_enable_observed": (
+            all(
+                row["on_server_enable_prefix_caching_observed"] is True
+                for row in trial_rows
+            )
+            if trial_rows
+            else None
+        ),
+        "compare_payloads": compare_payloads,
     }
 
 

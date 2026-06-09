@@ -7837,3 +7837,200 @@ Promote the cache-control matrix from one repeat per cell to repeated trials.
 The next artifact should merge several fresh four-cell matrices or run repeated
 cells directly, then report confidence intervals for cache-on minus cache-off
 under both phase orders.
+
+# Training 082 - Server Cache-Control Multitrial Aggregate
+
+## Goal
+
+Add a second independent four-cell server cache-control matrix and aggregate it
+with Training 081. This turns the serving-path cache-control result from a
+single matrix into a two-trial artifact with explicit trial rows, summary
+statistics, and bootstrap mean intervals.
+
+The two trials use the same shape:
+
+- model: Qwen/Qwen2.5-1.5B-Instruct
+- GPU: L4
+- request count: 32
+- output tokens: 8
+- prompt profiles:
+  `shared_prefix_mega_long_no_repeat_variant,matched_unique_prefix_mega_long_no_repeat_variant`
+- `max_num_batched_tokens=60640`
+- one repeat per matrix cell
+
+Training 081 used scenario seed 3201. Training 082 adds scenario seed 3301.
+
+## Commands
+
+```bash
+modal run modal_app.py --mode vllm-server-async-paired \
+  --modal-gpu L4 \
+  --hf-model Qwen/Qwen2.5-1.5B-Instruct \
+  --prompt-profiles shared_prefix_mega_long_no_repeat_variant,matched_unique_prefix_mega_long_no_repeat_variant \
+  --output-tokens 8 \
+  --request-counts 32 \
+  --repeats 1 \
+  --scenario-seed 3301 \
+  --warmup-runs 1 \
+  --phase-order async_first \
+  --server-async-max-num-batched-tokens 60640 \
+  --server-async-prefix-caching off \
+  --output-dir results/modal-vllm-server-async-qwen15b-l4-n32-batched-tokens60640-server-cache-off-smoke-r2
+
+modal run modal_app.py --mode vllm-server-async-paired \
+  --modal-gpu L4 \
+  --hf-model Qwen/Qwen2.5-1.5B-Instruct \
+  --prompt-profiles shared_prefix_mega_long_no_repeat_variant,matched_unique_prefix_mega_long_no_repeat_variant \
+  --output-tokens 8 \
+  --request-counts 32 \
+  --repeats 1 \
+  --scenario-seed 3301 \
+  --warmup-runs 1 \
+  --phase-order server_first \
+  --server-async-max-num-batched-tokens 60640 \
+  --server-async-prefix-caching off \
+  --output-dir results/modal-vllm-server-async-qwen15b-l4-n32-batched-tokens60640-server-cache-off-server-first-smoke-r2
+
+modal run modal_app.py --mode vllm-server-async-paired \
+  --modal-gpu L4 \
+  --hf-model Qwen/Qwen2.5-1.5B-Instruct \
+  --prompt-profiles shared_prefix_mega_long_no_repeat_variant,matched_unique_prefix_mega_long_no_repeat_variant \
+  --output-tokens 8 \
+  --request-counts 32 \
+  --repeats 1 \
+  --scenario-seed 3301 \
+  --warmup-runs 1 \
+  --phase-order async_first \
+  --server-async-max-num-batched-tokens 60640 \
+  --server-async-prefix-caching on \
+  --output-dir results/modal-vllm-server-async-qwen15b-l4-n32-batched-tokens60640-server-cache-on-smoke-r2
+
+modal run modal_app.py --mode vllm-server-async-paired \
+  --modal-gpu L4 \
+  --hf-model Qwen/Qwen2.5-1.5B-Instruct \
+  --prompt-profiles shared_prefix_mega_long_no_repeat_variant,matched_unique_prefix_mega_long_no_repeat_variant \
+  --output-tokens 8 \
+  --request-counts 32 \
+  --repeats 1 \
+  --scenario-seed 3301 \
+  --warmup-runs 1 \
+  --phase-order server_first \
+  --server-async-max-num-batched-tokens 60640 \
+  --server-async-prefix-caching on \
+  --output-dir results/modal-vllm-server-async-qwen15b-l4-n32-batched-tokens60640-server-cache-on-server-first-smoke-r2
+
+modal run modal_app.py --mode vllm-server-async-cache-control-compare \
+  --server-async-cache-control-dirs results/modal-vllm-server-async-qwen15b-l4-n32-batched-tokens60640-server-cache-off-smoke-r2,results/modal-vllm-server-async-qwen15b-l4-n32-batched-tokens60640-server-cache-off-server-first-smoke-r2,results/modal-vllm-server-async-qwen15b-l4-n32-batched-tokens60640-server-cache-on-smoke-r2,results/modal-vllm-server-async-qwen15b-l4-n32-batched-tokens60640-server-cache-on-server-first-smoke-r2 \
+  --output-dir results/modal-vllm-server-async-qwen15b-l4-n32-batched-tokens60640-server-cache-control-phase-order-r2
+
+modal run modal_app.py --mode vllm-server-async-cache-control-multitrial \
+  --server-async-cache-control-compare-dirs results/modal-vllm-server-async-qwen15b-l4-n32-batched-tokens60640-server-cache-control-phase-order-r1,results/modal-vllm-server-async-qwen15b-l4-n32-batched-tokens60640-server-cache-control-phase-order-r2 \
+  --output-dir results/modal-vllm-server-async-qwen15b-l4-n32-batched-tokens60640-server-cache-control-multitrial-r2
+```
+
+## Result
+
+The r2 four-cell matrix again separates explicit server prefix-cache behavior
+from phase order.
+
+```text
+cache off / async_first:
+  observed enable_prefix_caching=False
+  latest prefix-cache hit rate: 0.0%
+  mean server/async throughput ratio: 0.951
+  mean server/async latency ratio: 1.057
+
+cache off / server_first:
+  observed enable_prefix_caching=False
+  latest prefix-cache hit rate: 0.0%
+  mean server/async throughput ratio: 0.976
+  mean server/async latency ratio: 1.030
+
+cache on / async_first:
+  observed enable_prefix_caching=True
+  latest prefix-cache hit rate: 48.4%
+  mean server/async throughput ratio: 10.744
+  mean server/async latency ratio: 0.094
+
+cache on / server_first:
+  observed enable_prefix_caching=True
+  latest prefix-cache hit rate: 65.5%
+  mean server/async throughput ratio: 12.087
+  mean server/async latency ratio: 0.085
+```
+
+R2 cache-on minus cache-off by phase order:
+
+```text
+async_first:
+  throughput-ratio delta: +9.793
+  latency-ratio delta: -0.963
+  prefix-cache hit-rate delta: +48.4 pp
+  cache-on/off throughput ratio: 11.297x
+  cache-on/off latency ratio: 0.089x
+
+server_first:
+  throughput-ratio delta: +11.111
+  latency-ratio delta: -0.945
+  prefix-cache hit-rate delta: +65.5 pp
+  cache-on/off throughput ratio: 12.381x
+  cache-on/off latency ratio: 0.082x
+```
+
+Aggregating Training 081 and Training 082 gives two trial rows per phase order.
+The bootstrap intervals here are two-trial smoke intervals, not final
+publication-grade confidence intervals.
+
+```text
+async_first:
+  throughput-ratio delta mean: +10.146
+  throughput-ratio delta bootstrap p05/p95: +9.793 / +10.499
+  latency-ratio delta mean: -0.970
+  latency-ratio delta bootstrap p05/p95: -0.977 / -0.963
+  prefix-cache hit-rate delta mean: +61.25 pp
+  prefix-cache hit-rate delta bootstrap p05/p95: +48.4 / +74.1 pp
+
+server_first:
+  throughput-ratio delta mean: +11.267
+  throughput-ratio delta bootstrap p05/p95: +11.111 / +11.423
+  latency-ratio delta mean: -0.942
+  latency-ratio delta bootstrap p05/p95: -0.945 / -0.938
+  prefix-cache hit-rate delta mean: +56.95 pp
+  prefix-cache hit-rate delta bootstrap p05/p95: +48.4 / +65.5 pp
+```
+
+The result is now stronger than a single smoke matrix: explicit server
+cache-off remains near no-cache `AsyncLLM` in both phase orders, explicit
+server cache-on remains an order-of-magnitude serving-path win in both phase
+orders, and the observed vLLM logs confirm the intended prefix-cache setting in
+each trial row.
+
+Generated artifacts:
+
+```text
+results/modal-vllm-server-async-qwen15b-l4-n32-batched-tokens60640-server-cache-off-smoke-r2/paired-server-async.json
+results/modal-vllm-server-async-qwen15b-l4-n32-batched-tokens60640-server-cache-off-smoke-r2/paired-server-async-summary.csv
+results/modal-vllm-server-async-qwen15b-l4-n32-batched-tokens60640-server-cache-off-smoke-r2/paired-server-async-runs.csv
+results/modal-vllm-server-async-qwen15b-l4-n32-batched-tokens60640-server-cache-off-server-first-smoke-r2/paired-server-async.json
+results/modal-vllm-server-async-qwen15b-l4-n32-batched-tokens60640-server-cache-off-server-first-smoke-r2/paired-server-async-summary.csv
+results/modal-vllm-server-async-qwen15b-l4-n32-batched-tokens60640-server-cache-off-server-first-smoke-r2/paired-server-async-runs.csv
+results/modal-vllm-server-async-qwen15b-l4-n32-batched-tokens60640-server-cache-on-smoke-r2/paired-server-async.json
+results/modal-vllm-server-async-qwen15b-l4-n32-batched-tokens60640-server-cache-on-smoke-r2/paired-server-async-summary.csv
+results/modal-vllm-server-async-qwen15b-l4-n32-batched-tokens60640-server-cache-on-smoke-r2/paired-server-async-runs.csv
+results/modal-vllm-server-async-qwen15b-l4-n32-batched-tokens60640-server-cache-on-server-first-smoke-r2/paired-server-async.json
+results/modal-vllm-server-async-qwen15b-l4-n32-batched-tokens60640-server-cache-on-server-first-smoke-r2/paired-server-async-summary.csv
+results/modal-vllm-server-async-qwen15b-l4-n32-batched-tokens60640-server-cache-on-server-first-smoke-r2/paired-server-async-runs.csv
+results/modal-vllm-server-async-qwen15b-l4-n32-batched-tokens60640-server-cache-control-phase-order-r2/cache-control-phase-order-compare.json
+results/modal-vllm-server-async-qwen15b-l4-n32-batched-tokens60640-server-cache-control-phase-order-r2/cache-control-matrix.csv
+results/modal-vllm-server-async-qwen15b-l4-n32-batched-tokens60640-server-cache-control-phase-order-r2/cache-control-contrasts.csv
+results/modal-vllm-server-async-qwen15b-l4-n32-batched-tokens60640-server-cache-control-phase-order-r2/cache-control-mode-summary.csv
+results/modal-vllm-server-async-qwen15b-l4-n32-batched-tokens60640-server-cache-control-multitrial-r2/cache-control-multitrial.json
+results/modal-vllm-server-async-qwen15b-l4-n32-batched-tokens60640-server-cache-control-multitrial-r2/cache-control-multitrial-trials.csv
+results/modal-vllm-server-async-qwen15b-l4-n32-batched-tokens60640-server-cache-control-multitrial-r2/cache-control-multitrial-summary.csv
+```
+
+## Next Step
+
+When work resumes, promote this to r4 or r8 and decide whether to keep the
+current paired server-vs-async framing or shift to a server-only cache-off vs
+cache-on throughput study with tighter repeated measurements.

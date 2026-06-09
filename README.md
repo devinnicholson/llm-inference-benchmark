@@ -56,7 +56,10 @@ Latest L4 serving-path cache-control smoke:
 [`results/modal-vllm-server-async-qwen15b-l4-n32-batched-tokens60640-server-cache-control-log-summary-r1/server-async-log-summary.csv`](results/modal-vllm-server-async-qwen15b-l4-n32-batched-tokens60640-server-cache-control-log-summary-r1/server-async-log-summary.csv)
 
 Latest L4 serving-path cache-control phase-order matrix:
-[`results/modal-vllm-server-async-qwen15b-l4-n32-batched-tokens60640-server-cache-control-phase-order-r1/cache-control-phase-order-compare.json`](results/modal-vllm-server-async-qwen15b-l4-n32-batched-tokens60640-server-cache-control-phase-order-r1/cache-control-phase-order-compare.json)
+[`results/modal-vllm-server-async-qwen15b-l4-n32-batched-tokens60640-server-cache-control-phase-order-r2/cache-control-phase-order-compare.json`](results/modal-vllm-server-async-qwen15b-l4-n32-batched-tokens60640-server-cache-control-phase-order-r2/cache-control-phase-order-compare.json)
+
+Latest L4 serving-path cache-control multitrial aggregate:
+[`results/modal-vllm-server-async-qwen15b-l4-n32-batched-tokens60640-server-cache-control-multitrial-r2/cache-control-multitrial.json`](results/modal-vllm-server-async-qwen15b-l4-n32-batched-tokens60640-server-cache-control-multitrial-r2/cache-control-multitrial.json)
 
 Latest vLLM server CLI evidence:
 [`results/modal-vllm-server-cli-help-v021/vllm-server-cli-help.json`](results/modal-vllm-server-cli-help-v021/vllm-server-cli-help.json)

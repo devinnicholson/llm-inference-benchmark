@@ -268,6 +268,54 @@ class ModalAppTests(unittest.TestCase):
             0.1,
         )
 
+    def test_aggregates_server_async_cache_control_trials(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            compare_dirs = []
+            for trial_index, async_delta, server_delta in (
+                (1, 9.0, 10.0),
+                (2, 11.0, 12.0),
+            ):
+                compare_dir = root / f"trial-{trial_index}"
+                compare_dir.mkdir()
+                _write_cache_control_compare_payload(
+                    compare_dir,
+                    async_delta=async_delta,
+                    server_delta=server_delta,
+                )
+                compare_dirs.append(compare_dir)
+
+            payload = modal_app._aggregate_vllm_server_async_cache_control_trials(
+                compare_dirs
+            )
+
+        self.assertEqual(payload["trial_count"], 2)
+        self.assertEqual(len(payload["trial_rows"]), 4)
+        self.assertTrue(payload["all_off_server_disable_observed"])
+        self.assertTrue(payload["all_on_server_enable_observed"])
+        summary = {
+            (row["phase_order"], row["metric"]): row
+            for row in payload["summary"]
+        }
+        self.assertEqual(
+            summary[
+                ("async_first", "cache_on_minus_off_throughput_ratio")
+            ]["mean"],
+            10.0,
+        )
+        self.assertEqual(
+            summary[
+                ("server_first", "cache_on_minus_off_throughput_ratio")
+            ]["mean"],
+            11.0,
+        )
+        self.assertEqual(
+            summary[
+                ("async_first", "cache_on_minus_off_latency_ratio")
+            ]["trial_count"],
+            2,
+        )
+
     def test_parses_vllm_server_cli_help_prefix_flags(self) -> None:
         parsed = modal_app._parse_vllm_server_cli_help(
             "  --enable-prefix-caching\n"
@@ -1293,6 +1341,71 @@ def _write_paired_server_async_payload(
         ),
         encoding="utf-8",
     )
+
+
+def _write_cache_control_compare_payload(
+    directory: Path,
+    async_delta: float,
+    server_delta: float,
+) -> None:
+    directory.joinpath("cache-control-phase-order-compare.json").write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "mode": "vllm-server-async-cache-control-compare",
+                "row_count": 4,
+                "cache_modes": ["off", "on"],
+                "phase_orders": ["async_first", "server_first"],
+                "phase_order_cache_contrasts": [
+                    _cache_control_contrast_row(
+                        "async_first",
+                        throughput_delta=async_delta,
+                        latency_delta=-0.9,
+                    ),
+                    _cache_control_contrast_row(
+                        "server_first",
+                        throughput_delta=server_delta,
+                        latency_delta=-0.8,
+                    ),
+                ],
+                "matrix_rows": [],
+                "cache_mode_summary": [],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+
+def _cache_control_contrast_row(
+    phase_order: str,
+    throughput_delta: float,
+    latency_delta: float,
+) -> dict:
+    off_throughput = 1.0
+    on_throughput = off_throughput + throughput_delta
+    off_latency = 1.0
+    on_latency = off_latency + latency_delta
+    return {
+        "phase_order": phase_order,
+        "off_source_dir": f"off-{phase_order}",
+        "on_source_dir": f"on-{phase_order}",
+        "off_server_enable_prefix_caching_observed": False,
+        "on_server_enable_prefix_caching_observed": True,
+        "off_latest_prefix_cache_hit_rate_pct": 0.0,
+        "on_latest_prefix_cache_hit_rate_pct": 50.0,
+        "cache_on_minus_off_prefix_cache_hit_rate_pct": 50.0,
+        "off_throughput_ratio": off_throughput,
+        "on_throughput_ratio": on_throughput,
+        "cache_on_minus_off_throughput_ratio": throughput_delta,
+        "cache_on_div_off_throughput_ratio": on_throughput / off_throughput,
+        "off_latency_ratio": off_latency,
+        "on_latency_ratio": on_latency,
+        "cache_on_minus_off_latency_ratio": latency_delta,
+        "cache_on_div_off_latency_ratio": on_latency / off_latency,
+        "off_tpot_ratio": 0.5,
+        "on_tpot_ratio": 0.05,
+        "cache_on_minus_off_tpot_ratio": -0.45,
+    }
 
 
 class _Object:
