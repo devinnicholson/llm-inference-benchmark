@@ -8772,3 +8772,183 @@ Rerun `matched_unique_prefix_mega_long_no_repeat_variant` and
 `shared_prefix_mega_long_no_repeat_variant` with `--warmup-runs 0`. That will
 separate the remaining within-batch/shared-prefix cache effect from the
 same-prompt warmup artifact.
+
+# Training 088 - Matched Versus Shared No-Warmup Server Cache-Control
+
+## Goal
+
+Rerun the matched-unique and shared-prefix server cache-control cells with
+`--warmup-runs 0`. Training 087 showed that removing same-prompt warmup collapses
+the neutral cache-on effect. This checkpoint tests whether the intended
+shared-prefix workload still produces a direct vLLM server prefix-cache signal
+while the matched-unique control stays flat.
+
+## Commands
+
+```bash
+modal run modal_app.py --mode vllm-server-async-paired \
+  --modal-gpu L4 \
+  --hf-model Qwen/Qwen2.5-1.5B-Instruct \
+  --prompt-profiles matched_unique_prefix_mega_long_no_repeat_variant \
+  --output-tokens 8 \
+  --request-counts 32 \
+  --repeats 1 \
+  --scenario-seed 3401 \
+  --warmup-runs 0 \
+  --phase-order async_first \
+  --server-async-max-num-batched-tokens 60640 \
+  --server-async-prefix-caching off \
+  --output-dir results/modal-vllm-server-async-qwen15b-l4-n32-batched-tokens60640-matched-unique-nowarmup-cache-off-r1
+
+modal run modal_app.py --mode vllm-server-async-paired \
+  --modal-gpu L4 \
+  --hf-model Qwen/Qwen2.5-1.5B-Instruct \
+  --prompt-profiles matched_unique_prefix_mega_long_no_repeat_variant \
+  --output-tokens 8 \
+  --request-counts 32 \
+  --repeats 1 \
+  --scenario-seed 3401 \
+  --warmup-runs 0 \
+  --phase-order async_first \
+  --server-async-max-num-batched-tokens 60640 \
+  --server-async-prefix-caching on \
+  --output-dir results/modal-vllm-server-async-qwen15b-l4-n32-batched-tokens60640-matched-unique-nowarmup-cache-on-r1
+
+modal run modal_app.py --mode vllm-server-async-paired \
+  --modal-gpu L4 \
+  --hf-model Qwen/Qwen2.5-1.5B-Instruct \
+  --prompt-profiles shared_prefix_mega_long_no_repeat_variant \
+  --output-tokens 8 \
+  --request-counts 32 \
+  --repeats 1 \
+  --scenario-seed 3401 \
+  --warmup-runs 0 \
+  --phase-order async_first \
+  --server-async-max-num-batched-tokens 60640 \
+  --server-async-prefix-caching off \
+  --output-dir results/modal-vllm-server-async-qwen15b-l4-n32-batched-tokens60640-shared-prefix-nowarmup-cache-off-r1
+
+modal run modal_app.py --mode vllm-server-async-paired \
+  --modal-gpu L4 \
+  --hf-model Qwen/Qwen2.5-1.5B-Instruct \
+  --prompt-profiles shared_prefix_mega_long_no_repeat_variant \
+  --output-tokens 8 \
+  --request-counts 32 \
+  --repeats 1 \
+  --scenario-seed 3401 \
+  --warmup-runs 0 \
+  --phase-order async_first \
+  --server-async-max-num-batched-tokens 60640 \
+  --server-async-prefix-caching on \
+  --output-dir results/modal-vllm-server-async-qwen15b-l4-n32-batched-tokens60640-shared-prefix-nowarmup-cache-on-r1
+
+modal run modal_app.py --mode vllm-server-async-cache-control-compare \
+  --server-async-cache-control-dirs results/modal-vllm-server-async-qwen15b-l4-n32-batched-tokens60640-matched-unique-nowarmup-cache-off-r1,results/modal-vllm-server-async-qwen15b-l4-n32-batched-tokens60640-matched-unique-nowarmup-cache-on-r1 \
+  --output-dir results/modal-vllm-server-async-qwen15b-l4-n32-batched-tokens60640-matched-unique-nowarmup-cache-control-r1
+
+modal run modal_app.py --mode vllm-server-async-cache-control-compare \
+  --server-async-cache-control-dirs results/modal-vllm-server-async-qwen15b-l4-n32-batched-tokens60640-shared-prefix-nowarmup-cache-off-r1,results/modal-vllm-server-async-qwen15b-l4-n32-batched-tokens60640-shared-prefix-nowarmup-cache-on-r1 \
+  --output-dir results/modal-vllm-server-async-qwen15b-l4-n32-batched-tokens60640-shared-prefix-nowarmup-cache-control-r1
+
+modal run modal_app.py --mode vllm-server-async-cache-control-server-absolute \
+  --server-async-cache-control-server-absolute-compare-dirs results/modal-vllm-server-async-qwen15b-l4-n32-batched-tokens60640-neutral-mega-nowarmup-cache-control-r1,results/modal-vllm-server-async-qwen15b-l4-n32-batched-tokens60640-matched-unique-nowarmup-cache-control-r1,results/modal-vllm-server-async-qwen15b-l4-n32-batched-tokens60640-shared-prefix-nowarmup-cache-control-r1 \
+  --output-dir results/modal-vllm-server-async-qwen15b-l4-n32-batched-tokens60640-nowarmup-server-cache-control-r1
+```
+
+## Result
+
+No-warmup measured-window prefix-cache counters:
+
+```text
+matched-unique cache-off:
+  queries: 0
+  hits: 0
+  hit rate: 0.000%
+
+matched-unique cache-on:
+  queries: 114,927
+  hits: 496
+  hit rate: 0.432%
+
+shared-prefix cache-off:
+  queries: 0
+  hits: 0
+  hit rate: 0.000%
+
+shared-prefix cache-on:
+  queries: 114,991
+  hits: 110,736
+  hit rate: 96.300%
+```
+
+Server/async cache-on divided by cache-off:
+
+```text
+matched-unique throughput ratio: 0.991x
+matched-unique latency ratio: 1.007x
+
+shared-prefix throughput ratio: 8.967x
+shared-prefix latency ratio: 0.111x
+```
+
+Direct raw server cache-on divided by cache-off:
+
+```text
+matched-unique:
+  output tokens/s ratio: 1.002x
+  p95 latency ratio: 0.998x
+  p95 first-content ratio: 0.997x
+  p95 stream TPOT ratio: 1.657x
+
+neutral:
+  output tokens/s ratio: 1.129x
+  p95 latency ratio: 0.886x
+  p95 first-content ratio: 0.886x
+  p95 stream TPOT ratio: 0.428x
+
+shared-prefix:
+  output tokens/s ratio: 8.820x
+  p95 latency ratio: 0.113x
+  p95 first-content ratio: 0.094x
+  p95 stream TPOT ratio: 0.032x
+```
+
+## Interpretation
+
+This restores the intended claim boundary. With same-prompt warmup removed, the
+matched-unique control is flat and has almost no measured-window prefix-cache
+hits. The shared-prefix workload still has a high measured-window prefix-cache
+hit rate and a large raw server throughput/latency improvement.
+
+The current strongest statement is:
+
+```text
+For Qwen/Qwen2.5-1.5B-Instruct on an L4 at n32 with long prefill and
+max_num_batched_tokens=60640, vLLM server prefix caching produces a large
+within-batch speedup only when requests share a long exact leading prefix. The
+effect disappears for the matched-unique no-warmup control and is small for the
+neutral no-warmup control.
+```
+
+This statement is stronger than the earlier timing-only claim because it is now
+backed by measured-window server counters from `/metrics`, not just latency and
+throughput ratios.
+
+Generated artifacts:
+
+```text
+results/modal-vllm-server-async-qwen15b-l4-n32-batched-tokens60640-matched-unique-nowarmup-cache-off-r1/paired-server-async.json
+results/modal-vllm-server-async-qwen15b-l4-n32-batched-tokens60640-matched-unique-nowarmup-cache-on-r1/paired-server-async.json
+results/modal-vllm-server-async-qwen15b-l4-n32-batched-tokens60640-matched-unique-nowarmup-cache-control-r1/cache-control-phase-order-compare.json
+results/modal-vllm-server-async-qwen15b-l4-n32-batched-tokens60640-shared-prefix-nowarmup-cache-off-r1/paired-server-async.json
+results/modal-vllm-server-async-qwen15b-l4-n32-batched-tokens60640-shared-prefix-nowarmup-cache-on-r1/paired-server-async.json
+results/modal-vllm-server-async-qwen15b-l4-n32-batched-tokens60640-shared-prefix-nowarmup-cache-control-r1/cache-control-phase-order-compare.json
+results/modal-vllm-server-async-qwen15b-l4-n32-batched-tokens60640-nowarmup-server-cache-control-r1/server-cache-control-absolute.json
+```
+
+## Next Step
+
+Repeat the no-warmup matched/shared matrix with at least one additional seed or
+repeat so the artifact has variance estimates. The single-run evidence is
+coherent and counter-backed, but the final report should avoid overclaiming
+until this no-warmup result is repeated.
