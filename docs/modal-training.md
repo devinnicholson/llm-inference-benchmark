@@ -9741,3 +9741,129 @@ results/modal-vllm-server-async-qwen15b-l4-kvbudget-gpu035-n32-batched-tokens606
 results/modal-vllm-server-async-qwen15b-l4-kvbudget-gpu035-n32-batched-tokens60640-seed3805-seed3906-cache-control-r1/server-cache-control-absolute.json
 results/modal-vllm-server-async-qwen15b-l4-kvbudget-gpu035-n32-batched-tokens60640-seed3805-seed3906-pressure-curve-r1/server-cache-pressure-curve.md
 ```
+
+# Training 095 - Replicate Mid-Pressure KV-Budget Result
+
+## Goal
+
+Repeat the Training 092 `gpu_memory_utilization=0.40` point with the same fresh
+prompt seed used in Training 094:
+
+```text
+Does the mid-pressure point replicate with matched-unique near 1.0x and
+shared-prefix still around 8x-9x?
+```
+
+This checkpoint continues the replicated pressure curve. Training 094 validated
+the high-pressure `0.35` point; this run validates the less constrained `0.40`
+point with seed `3906`.
+
+## Commands
+
+The four replicated measured cells use this shape:
+
+```bash
+modal run modal_app.py --mode vllm-server-async-paired \
+  --modal-gpu L4 \
+  --hf-model Qwen/Qwen2.5-1.5B-Instruct \
+  --prompt-profiles {matched_unique_prefix_mega_long_no_repeat_variant|shared_prefix_mega_long_no_repeat_variant} \
+  --request-counts 32 \
+  --output-tokens 8 \
+  --repeats 1 \
+  --scenario-seed 3906 \
+  --warmup-runs 0 \
+  --phase-order async_first \
+  --server-async-max-num-batched-tokens 60640 \
+  --server-async-prefix-caching {off|on} \
+  --gpu-memory-utilization 0.40 \
+  --output-dir results/modal-vllm-server-async-qwen15b-l4-kvbudget-gpu040-n32-batched-tokens60640-{matched-unique|shared-prefix}-seed3906-cache-{off|on}-r1
+```
+
+The seed `3906` off/on pairs are compared with
+`vllm-server-async-cache-control-compare`. The `0.40` seed `3805` and seed
+`3906` compare artifacts are then combined with:
+
+```bash
+modal run modal_app.py --mode vllm-server-async-cache-control-server-absolute \
+  --server-async-cache-control-server-absolute-compare-dirs results/modal-vllm-server-async-qwen15b-l4-kvbudget-gpu040-n32-batched-tokens60640-matched-unique-seed3805-cache-control-r1,results/modal-vllm-server-async-qwen15b-l4-kvbudget-gpu040-n32-batched-tokens60640-shared-prefix-seed3805-cache-control-r1,results/modal-vllm-server-async-qwen15b-l4-kvbudget-gpu040-n32-batched-tokens60640-matched-unique-seed3906-cache-control-r1,results/modal-vllm-server-async-qwen15b-l4-kvbudget-gpu040-n32-batched-tokens60640-shared-prefix-seed3906-cache-control-r1 \
+  --output-dir results/modal-vllm-server-async-qwen15b-l4-kvbudget-gpu040-n32-batched-tokens60640-seed3805-seed3906-cache-control-r1
+```
+
+The replicated `0.35` and `0.40` pressure table is generated with:
+
+```bash
+modal run modal_app.py --mode vllm-server-async-cache-control-server-absolute \
+  --server-async-cache-control-server-absolute-compare-dirs results/modal-vllm-server-async-qwen15b-l4-kvbudget-gpu040-n32-batched-tokens60640-matched-unique-seed3805-cache-control-r1,results/modal-vllm-server-async-qwen15b-l4-kvbudget-gpu040-n32-batched-tokens60640-shared-prefix-seed3805-cache-control-r1,results/modal-vllm-server-async-qwen15b-l4-kvbudget-gpu040-n32-batched-tokens60640-matched-unique-seed3906-cache-control-r1,results/modal-vllm-server-async-qwen15b-l4-kvbudget-gpu040-n32-batched-tokens60640-shared-prefix-seed3906-cache-control-r1,results/modal-vllm-server-async-qwen15b-l4-kvbudget-gpu035-n32-batched-tokens60640-matched-unique-seed3805-cache-control-r1,results/modal-vllm-server-async-qwen15b-l4-kvbudget-gpu035-n32-batched-tokens60640-shared-prefix-seed3805-cache-control-r1,results/modal-vllm-server-async-qwen15b-l4-kvbudget-gpu035-n32-batched-tokens60640-matched-unique-seed3906-cache-control-r1,results/modal-vllm-server-async-qwen15b-l4-kvbudget-gpu035-n32-batched-tokens60640-shared-prefix-seed3906-cache-control-r1 \
+  --output-dir results/modal-vllm-server-async-qwen15b-l4-kvbudget-gpu040-gpu035-n32-batched-tokens60640-seed3805-seed3906-cache-control-r1
+
+python3 scripts/build_server_cache_pressure_curve.py \
+  --server-absolute-json results/modal-vllm-server-async-qwen15b-l4-kvbudget-gpu040-gpu035-n32-batched-tokens60640-seed3805-seed3906-cache-control-r1/server-cache-control-absolute.json \
+  --output-dir results/modal-vllm-server-async-qwen15b-l4-kvbudget-gpu040-gpu035-n32-batched-tokens60640-seed3805-seed3906-pressure-curve-r1
+```
+
+## Result
+
+The replicated `gpu_memory_utilization=0.40` logs report:
+
+```text
+matched-unique: 76,112 KV tokens, 20.86 max concurrency at 3,648 tokens/request
+shared-prefix:  75,882 KV tokens, 20.86 max concurrency at 3,637 tokens/request
+```
+
+Seed `3906` direct raw server cache-on divided by cache-off:
+
+```text
+matched-unique:
+  cache-on/off throughput contrast: -0.001x
+  cache-on/off latency contrast: 0.000x
+
+shared-prefix:
+  cache-on/off throughput contrast: +8.913x
+  cache-on/off latency contrast: -0.800x
+```
+
+The two-seed aggregate at `gpu_memory_utilization=0.40` is:
+
+```text
+matched-unique:
+  output tokens/s ratio: 0.984x
+  bootstrap p05/p95: 0.963x to 1.005x
+
+shared-prefix:
+  output tokens/s ratio: 8.638x
+  bootstrap p05/p95: 8.100x to 9.177x
+```
+
+The combined replicated pressure curve now has two budget points:
+
+```text
+matched-unique gpu=0.35 pressure=3.298 throughput=0.995x p95 latency=1.006x
+matched-unique gpu=0.40 pressure=1.510 throughput=0.984x p95 latency=1.016x
+shared-prefix  gpu=0.35 pressure=3.303 throughput=8.467x p95 latency=0.119x
+shared-prefix  gpu=0.40 pressure=1.512 throughput=8.638x p95 latency=0.116x
+```
+
+## Interpretation
+
+The mid-pressure result replicated. The shared-prefix benefit remains in the
+same range as the high-pressure point, and the matched-unique control again
+stays near 1.0x. With two seeds at both `0.35` and `0.40`, the evidence is now
+less dependent on one prompt batch or one Modal run.
+
+The replicated curve does not show a collapse between estimated prompt pressure
+`1.51` and `3.30`. The next step is to replicate the `0.45` point with seed
+`3906`, which would give a two-seed curve across the full current budget sweep.
+
+Generated artifacts:
+
+```text
+results/modal-vllm-server-async-qwen15b-l4-kvbudget-gpu040-n32-batched-tokens60640-matched-unique-seed3906-cache-off-r1/paired-server-async.json
+results/modal-vllm-server-async-qwen15b-l4-kvbudget-gpu040-n32-batched-tokens60640-matched-unique-seed3906-cache-on-r1/paired-server-async.json
+results/modal-vllm-server-async-qwen15b-l4-kvbudget-gpu040-n32-batched-tokens60640-matched-unique-seed3906-cache-control-r1/cache-control-phase-order-compare.json
+results/modal-vllm-server-async-qwen15b-l4-kvbudget-gpu040-n32-batched-tokens60640-shared-prefix-seed3906-cache-off-r1/paired-server-async.json
+results/modal-vllm-server-async-qwen15b-l4-kvbudget-gpu040-n32-batched-tokens60640-shared-prefix-seed3906-cache-on-r1/paired-server-async.json
+results/modal-vllm-server-async-qwen15b-l4-kvbudget-gpu040-n32-batched-tokens60640-shared-prefix-seed3906-cache-control-r1/cache-control-phase-order-compare.json
+results/modal-vllm-server-async-qwen15b-l4-kvbudget-gpu040-n32-batched-tokens60640-seed3805-seed3906-cache-control-r1/server-cache-control-absolute.json
+results/modal-vllm-server-async-qwen15b-l4-kvbudget-gpu040-gpu035-n32-batched-tokens60640-seed3805-seed3906-cache-control-r1/server-cache-control-absolute.json
+results/modal-vllm-server-async-qwen15b-l4-kvbudget-gpu040-gpu035-n32-batched-tokens60640-seed3805-seed3906-pressure-curve-r1/server-cache-pressure-curve.md
+```
