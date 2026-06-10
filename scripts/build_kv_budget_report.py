@@ -248,7 +248,71 @@ def _headline(rows: list[dict[str, Any]], startup: dict[str, Any]) -> dict[str, 
         "shared_throughput_ratio_max": max(
             row["throughput_ratio"] for row in shared_rows
         ),
+        "shared_p95_latency_ratio_min": min(
+            row["p95_latency_ratio"] for row in shared_rows
+        ),
+        "shared_p95_latency_ratio_max": max(
+            row["p95_latency_ratio"] for row in shared_rows
+        ),
     }
+
+
+def _claims(
+    rows: list[dict[str, Any]],
+    startup: dict[str, Any],
+    headline: dict[str, Any],
+) -> list[dict[str, str]]:
+    min_success_trials = startup["min_successful_trial_count"]
+    successful_budgets = sorted(
+        {row["gpu_memory_utilization"] for row in rows}
+    )
+    return [
+        {
+            "claim": "The current workload has a measured startup floor between 0.30 and 0.325 GPU memory utilization.",
+            "evidence": (
+                f"0.30 fails before artifact write; "
+                f"0.325 succeeds with {min_success_trials} measured profile trials."
+            ),
+            "support_level": "direct measurement",
+            "caveat": "The interval is bounded by tested points, not by a full binary search.",
+        },
+        {
+            "claim": "Prefix caching is not a generic throughput boost for every prompt shape.",
+            "evidence": (
+                "Matched-unique cache-on/cache-off throughput stays between "
+                f"{_fmt(headline['matched_throughput_ratio_min'], 'x')} and "
+                f"{_fmt(headline['matched_throughput_ratio_max'], 'x')}."
+            ),
+            "support_level": "negative control",
+            "caveat": "The control result applies to this no-repeat prompt generator and server configuration.",
+        },
+        {
+            "claim": "Shared-prefix reuse remains valuable at the lowest successful KV budget.",
+            "evidence": (
+                f"At 0.325 GPU memory utilization, shared-prefix pressure is "
+                f"{_fmt(headline['shared_floor_prompt_pressure'])}x, hit rate is "
+                f"{_fmt(headline['shared_floor_hit_rate_pct'], '%')}, throughput is "
+                f"{_fmt(headline['shared_floor_throughput_ratio'], 'x')}, and p95 latency is "
+                f"{_fmt(headline['shared_floor_p95_latency_ratio'], 'x')}."
+            ),
+            "support_level": "two-seed replicated",
+            "caveat": "This is strongest for the synthetic high-overlap workload; broader traffic mixes still need testing.",
+        },
+        {
+            "claim": "The shared-prefix effect is stable across the successful budget curve.",
+            "evidence": (
+                "Across GPU memory utilization "
+                f"{_fmt(min(successful_budgets))} to {_fmt(max(successful_budgets))}, "
+                "shared-prefix throughput ranges from "
+                f"{_fmt(headline['shared_throughput_ratio_min'], 'x')} to "
+                f"{_fmt(headline['shared_throughput_ratio_max'], 'x')}, and p95 latency ranges from "
+                f"{_fmt(headline['shared_p95_latency_ratio_min'], 'x')} to "
+                f"{_fmt(headline['shared_p95_latency_ratio_max'], 'x')}."
+            ),
+            "support_level": "replicated sweep",
+            "caveat": "All points use one model, one GPU class, one request count, and one output-token setting.",
+        },
+    ]
 
 
 def build_report(
@@ -259,6 +323,7 @@ def build_report(
     failure = _load_failure(failure_json)
     startup = _startup_floor(rows, failure)
     headline = _headline(rows, startup)
+    claims = _claims(rows, startup, headline)
     return {
         "schema_version": 1,
         "mode": "kv-budget-report",
@@ -269,8 +334,16 @@ def build_report(
         "row_count": len(rows),
         "startup_floor": startup,
         "headline": headline,
+        "claims": claims,
         "rows": rows,
-        "markdown": _format_markdown(rows, startup, headline, pressure_curve_json, failure_json),
+        "markdown": _format_markdown(
+            rows,
+            startup,
+            headline,
+            claims,
+            pressure_curve_json,
+            failure_json,
+        ),
     }
 
 
@@ -278,6 +351,7 @@ def _format_markdown(
     rows: list[dict[str, Any]],
     startup: dict[str, Any],
     headline: dict[str, Any],
+    claims: list[dict[str, str]],
     pressure_curve_json: Path,
     failure_json: Path | None,
 ) -> str:
@@ -317,6 +391,23 @@ def _format_markdown(
                 f"{_fmt(headline['matched_throughput_ratio_min'], 'x')} to "
                 f"{_fmt(headline['matched_throughput_ratio_max'], 'x')}."
             ),
+            "",
+            "## Claim/Evidence Matrix",
+            "",
+            "| Claim | Evidence | Support | Caveat |",
+            "| --- | --- | --- | --- |",
+        ]
+    )
+    for claim in claims:
+        lines.append(
+            "| "
+            f"{claim['claim']} | "
+            f"{claim['evidence']} | "
+            f"{claim['support_level']} | "
+            f"{claim['caveat']} |"
+        )
+    lines.extend(
+        [
             "",
             "## Startup Floor",
             "",

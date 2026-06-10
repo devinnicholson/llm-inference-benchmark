@@ -104,8 +104,11 @@ class KvBudgetReportTests(unittest.TestCase):
             0.325,
         )
         self.assertEqual(report["headline"]["shared_floor_throughput_ratio"], 10.0)
+        self.assertEqual(len(report["claims"]), 4)
+        self.assertEqual(report["claims"][0]["support_level"], "direct measurement")
         self.assertEqual(report["rows"][0]["profile_label"], "matched_unique")
         self.assertIn("# KV-Budget Report", report["markdown"])
+        self.assertIn("## Claim/Evidence Matrix", report["markdown"])
         self.assertIn("`gpu_memory_utilization=0.300` fails", report["markdown"])
 
 

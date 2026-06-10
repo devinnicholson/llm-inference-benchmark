@@ -10373,3 +10373,61 @@ results/modal-vllm-server-async-qwen15b-l4-kvbudget-report-r1/kv-budget-report.m
 results/modal-vllm-server-async-qwen15b-l4-kvbudget-report-r1/kv-budget-report.json
 results/modal-vllm-server-async-qwen15b-l4-kvbudget-report-r1/kv-budget-report.csv
 ```
+
+# Training 101 - Add KV-Budget Claim Matrix
+
+## Goal
+
+Extend the KV-budget report from a numeric table into a claim/evidence matrix.
+The matrix makes each defensible statement explicit:
+
+```text
+claim -> evidence -> support level -> caveat
+```
+
+This helps separate measured facts from interpretation and keeps the artifact
+honest about what is proven versus what still needs broader experiments.
+
+## Command
+
+```bash
+python3 scripts/build_kv_budget_report.py
+```
+
+## Result
+
+The report now includes four evidence-backed claims:
+
+```text
+1. The current workload has a measured startup floor between 0.30 and 0.325.
+2. Prefix caching is not a generic throughput boost for every prompt shape.
+3. Shared-prefix reuse remains valuable at the lowest successful KV budget.
+4. The shared-prefix effect is stable across the successful budget curve.
+```
+
+The strongest claim remains the floor-adjacent shared-prefix point:
+
+```text
+gpu_memory_utilization: 0.325
+prompt pressure: 8.091
+prefix-cache hit rate: 96.204%
+throughput ratio: 10.741x
+p95 latency ratio: 0.095x
+support level: two-seed replicated
+```
+
+## Interpretation
+
+This checkpoint improves the research artifact rather than adding new
+measurements. The matrix makes the current result easier to defend because it
+states the exact evidence and caveat for each claim. It also highlights the
+next experimental gaps: the startup floor is bounded but not binary-searched,
+and the replicated curve still covers one model, one GPU class, one request
+count, and one output-token setting.
+
+Generated artifacts:
+
+```text
+results/modal-vllm-server-async-qwen15b-l4-kvbudget-report-r1/kv-budget-report.md
+results/modal-vllm-server-async-qwen15b-l4-kvbudget-report-r1/kv-budget-report.json
+```

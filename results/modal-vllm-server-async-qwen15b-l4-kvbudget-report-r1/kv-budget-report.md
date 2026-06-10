@@ -11,6 +11,15 @@ At the lowest successful budget, the shared-prefix workload reaches 8.091x estim
 
 Matched-unique control throughput stays near neutral across the successful curve: 0.975x to 0.995x.
 
+## Claim/Evidence Matrix
+
+| Claim | Evidence | Support | Caveat |
+| --- | --- | --- | --- |
+| The current workload has a measured startup floor between 0.30 and 0.325 GPU memory utilization. | 0.30 fails before artifact write; 0.325 succeeds with 4 measured profile trials. | direct measurement | The interval is bounded by tested points, not by a full binary search. |
+| Prefix caching is not a generic throughput boost for every prompt shape. | Matched-unique cache-on/cache-off throughput stays between 0.975x and 0.995x. | negative control | The control result applies to this no-repeat prompt generator and server configuration. |
+| Shared-prefix reuse remains valuable at the lowest successful KV budget. | At 0.325 GPU memory utilization, shared-prefix pressure is 8.091x, hit rate is 96.204%, throughput is 10.741x, and p95 latency is 0.095x. | two-seed replicated | This is strongest for the synthetic high-overlap workload; broader traffic mixes still need testing. |
+| The shared-prefix effect is stable across the successful budget curve. | Across GPU memory utilization 0.325 to 0.450, shared-prefix throughput ranges from 8.467x to 10.741x, and p95 latency ranges from 0.095x to 0.119x. | replicated sweep | All points use one model, one GPU class, one request count, and one output-token setting. |
+
 ## Startup Floor
 
 | GPU Mem | Status | Phase | Available KV Memory | Interpretation |
