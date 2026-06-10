@@ -1,0 +1,19 @@
+{
+  "mode": "vllm-server-async-paired",
+  "model": "Qwen/Qwen2.5-1.5B-Instruct",
+  "modal_gpu": "L4",
+  "gpu_memory_utilization": 0.30,
+  "prompt_profile": "matched_unique_prefix_mega_long_no_repeat_variant",
+  "request_count": 32,
+  "output_tokens": 8,
+  "scenario_seed": 3906,
+  "phase_order": "async_first",
+  "server_async_max_num_batched_tokens": 60640,
+  "server_async_prefix_caching": "off",
+  "status": "failed_before_artifact_write",
+  "failure_phase": "AsyncLLM engine KV-cache initialization",
+  "available_kv_cache_memory_gib": -0.17,
+  "error_type": "ValueError",
+  "error_message": "No available memory for the cache blocks. Try increasing gpu_memory_utilization when initializing the engine.",
+  "interpretation": "For this Qwen2.5-1.5B L4 n32 workload shape, gpu_memory_utilization=0.30 is below the vLLM startup floor before any measured cache-control comparison can run."
+}

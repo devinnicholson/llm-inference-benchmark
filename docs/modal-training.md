@@ -9994,3 +9994,70 @@ results/modal-vllm-server-async-qwen15b-l4-kvbudget-gpu045-n32-batched-tokens606
 results/modal-vllm-server-async-qwen15b-l4-kvbudget-gpu045-gpu040-gpu035-n32-batched-tokens60640-seed3805-seed3906-cache-control-r1/server-cache-control-absolute.json
 results/modal-vllm-server-async-qwen15b-l4-kvbudget-gpu045-gpu040-gpu035-n32-batched-tokens60640-seed3805-seed3906-pressure-curve-r1/server-cache-pressure-curve.md
 ```
+
+# Training 097 - KV-Budget Startup Failure Bound
+
+## Goal
+
+Probe below the replicated curve:
+
+```text
+Does the current Qwen2.5-1.5B L4 n32 workload initialize at
+gpu_memory_utilization=0.30?
+```
+
+This checkpoint intentionally starts with one matched-unique cache-off cell.
+If the engine cannot allocate KV cache at this budget, running the remaining
+cache-control cells is not meaningful.
+
+## Command
+
+```bash
+modal run modal_app.py --mode vllm-server-async-paired \
+  --modal-gpu L4 \
+  --hf-model Qwen/Qwen2.5-1.5B-Instruct \
+  --prompt-profiles matched_unique_prefix_mega_long_no_repeat_variant \
+  --request-counts 32 \
+  --output-tokens 8 \
+  --repeats 1 \
+  --scenario-seed 3906 \
+  --warmup-runs 0 \
+  --phase-order async_first \
+  --server-async-max-num-batched-tokens 60640 \
+  --server-async-prefix-caching off \
+  --gpu-memory-utilization 0.30 \
+  --output-dir results/modal-vllm-server-async-qwen15b-l4-kvbudget-gpu030-n32-batched-tokens60640-matched-unique-seed3906-cache-off-r1
+```
+
+## Result
+
+The run failed during AsyncLLM engine startup before any paired measurement
+artifact was written:
+
+```text
+Available KV cache memory: -0.17 GiB
+ValueError: No available memory for the cache blocks.
+```
+
+The remote traceback points to vLLM KV-cache initialization:
+`get_kv_cache_configs` -> `_check_enough_kv_cache_memory`.
+
+## Interpretation
+
+For this workload shape, `gpu_memory_utilization=0.30` is below the startup
+floor. The replicated curve therefore has a practical lower bound between
+`0.30` and `0.35` for Qwen2.5-1.5B on L4 with n32, output length 8, and
+`max_num_batched_tokens=60640`.
+
+This is useful because the `0.35` point is not merely "somewhat high pressure";
+it is close to the lowest budget that still initializes with the current
+configuration. The next useful step is either a narrow binary search between
+`0.30` and `0.35`, or instrumenting the existing successful curve rather than
+spending more GPU time on below-floor points.
+
+Generated artifacts:
+
+```text
+results/modal-vllm-server-async-qwen15b-l4-kvbudget-gpu030-n32-batched-tokens60640-feasibility-failure-r1/failure.json
+results/modal-vllm-server-async-qwen15b-l4-kvbudget-gpu030-n32-batched-tokens60640-feasibility-failure-r1/failure.md
+```
