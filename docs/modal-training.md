@@ -9617,3 +9617,127 @@ results/modal-vllm-server-async-qwen15b-l4-kvbudget-gpu035-n32-batched-tokens606
 results/modal-vllm-server-async-qwen15b-l4-kvbudget-gpu045-gpu040-gpu035-n32-batched-tokens60640-seed3805-cache-control-r1/server-cache-control-absolute.json
 results/modal-vllm-server-async-qwen15b-l4-kvbudget-gpu045-gpu040-gpu035-n32-batched-tokens60640-seed3805-pressure-curve-r1/server-cache-pressure-curve.md
 ```
+
+# Training 094 - Replicate KV-Budget Floor Result
+
+## Goal
+
+Repeat the Training 093 floor point with a fresh prompt seed:
+
+```text
+At gpu_memory_utilization=0.35 and n=32, does the shared-prefix cache benefit
+replicate while the matched-unique control stays neutral?
+```
+
+This checkpoint holds the pressure setting fixed and changes only
+`scenario-seed` from `3805` to `3906`. The goal is not to extend the budget
+curve; it is to test whether the strongest single-seed result survives a
+second independently generated prompt batch.
+
+## Commands
+
+The four replicated measured cells use this shape:
+
+```bash
+modal run modal_app.py --mode vllm-server-async-paired \
+  --modal-gpu L4 \
+  --hf-model Qwen/Qwen2.5-1.5B-Instruct \
+  --prompt-profiles {matched_unique_prefix_mega_long_no_repeat_variant|shared_prefix_mega_long_no_repeat_variant} \
+  --request-counts 32 \
+  --output-tokens 8 \
+  --repeats 1 \
+  --scenario-seed 3906 \
+  --warmup-runs 0 \
+  --phase-order async_first \
+  --server-async-max-num-batched-tokens 60640 \
+  --server-async-prefix-caching {off|on} \
+  --gpu-memory-utilization 0.35 \
+  --output-dir results/modal-vllm-server-async-qwen15b-l4-kvbudget-gpu035-n32-batched-tokens60640-{matched-unique|shared-prefix}-seed3906-cache-{off|on}-r1
+```
+
+The seed `3906` off/on pairs are compared with
+`vllm-server-async-cache-control-compare`. The seed `3805` and seed `3906`
+compare artifacts are then combined with:
+
+```bash
+modal run modal_app.py --mode vllm-server-async-cache-control-server-absolute \
+  --server-async-cache-control-server-absolute-compare-dirs results/modal-vllm-server-async-qwen15b-l4-kvbudget-gpu035-n32-batched-tokens60640-matched-unique-seed3805-cache-control-r1,results/modal-vllm-server-async-qwen15b-l4-kvbudget-gpu035-n32-batched-tokens60640-shared-prefix-seed3805-cache-control-r1,results/modal-vllm-server-async-qwen15b-l4-kvbudget-gpu035-n32-batched-tokens60640-matched-unique-seed3906-cache-control-r1,results/modal-vllm-server-async-qwen15b-l4-kvbudget-gpu035-n32-batched-tokens60640-shared-prefix-seed3906-cache-control-r1 \
+  --output-dir results/modal-vllm-server-async-qwen15b-l4-kvbudget-gpu035-n32-batched-tokens60640-seed3805-seed3906-cache-control-r1
+```
+
+The replicated pressure table is generated with:
+
+```bash
+python3 scripts/build_server_cache_pressure_curve.py \
+  --server-absolute-json results/modal-vllm-server-async-qwen15b-l4-kvbudget-gpu035-n32-batched-tokens60640-seed3805-seed3906-cache-control-r1/server-cache-control-absolute.json \
+  --output-dir results/modal-vllm-server-async-qwen15b-l4-kvbudget-gpu035-n32-batched-tokens60640-seed3805-seed3906-pressure-curve-r1
+```
+
+## Result
+
+The replicated `gpu_memory_utilization=0.35` logs report:
+
+```text
+matched-unique: 34,848 KV tokens, 9.55 max concurrency at 3,648 tokens/request
+shared-prefix:  34,742 KV tokens, 9.55 max concurrency at 3,637 tokens/request
+```
+
+Seed `3906` direct raw server cache-on divided by cache-off:
+
+```text
+matched-unique:
+  cache-on/off throughput contrast: +0.015x
+  cache-on/off latency contrast: -0.015x
+
+shared-prefix:
+  cache-on/off throughput contrast: +7.420x
+  cache-on/off latency contrast: -0.836x
+```
+
+The two-seed aggregate at `gpu_memory_utilization=0.35` is:
+
+```text
+matched-unique:
+  prompt pressure: 3.298
+  output tokens/s ratio: 0.995x
+  p95 latency ratio: 1.006x
+  trial count: 2
+
+shared-prefix:
+  prompt pressure: 3.303
+  output tokens/s ratio: 8.467x
+  p95 latency ratio: 0.119x
+  trial count: 2
+```
+
+The aggregate `server-cache-control-absolute` bootstrap interval for shared
+throughput ratio is `7.824x` to `9.109x`. Matched-unique stays neutral at
+`0.992x` to `0.997x`.
+
+## Interpretation
+
+The floor result replicated. Under a reported KV capacity of about 9.55
+full-length requests for a 32-request batch, shared-prefix caching still gives
+an order-of-magnitude class server throughput and latency improvement. The
+matched-unique control remains effectively 1.0x, which supports the claim that
+the measured gain is from reusable prefix blocks rather than simply enabling
+prefix caching.
+
+This makes the `gpu_memory_utilization=0.35` point strong enough to use as a
+high-pressure anchor in the research writeup. The next useful step is to turn
+this into a broader replicated curve, likely by repeating the `0.40` and
+`0.45` points with seed `3906`, or by adding a lower-budget failure-bound probe
+if vLLM will still initialize.
+
+Generated artifacts:
+
+```text
+results/modal-vllm-server-async-qwen15b-l4-kvbudget-gpu035-n32-batched-tokens60640-matched-unique-seed3906-cache-off-r1/paired-server-async.json
+results/modal-vllm-server-async-qwen15b-l4-kvbudget-gpu035-n32-batched-tokens60640-matched-unique-seed3906-cache-on-r1/paired-server-async.json
+results/modal-vllm-server-async-qwen15b-l4-kvbudget-gpu035-n32-batched-tokens60640-matched-unique-seed3906-cache-control-r1/cache-control-phase-order-compare.json
+results/modal-vllm-server-async-qwen15b-l4-kvbudget-gpu035-n32-batched-tokens60640-shared-prefix-seed3906-cache-off-r1/paired-server-async.json
+results/modal-vllm-server-async-qwen15b-l4-kvbudget-gpu035-n32-batched-tokens60640-shared-prefix-seed3906-cache-on-r1/paired-server-async.json
+results/modal-vllm-server-async-qwen15b-l4-kvbudget-gpu035-n32-batched-tokens60640-shared-prefix-seed3906-cache-control-r1/cache-control-phase-order-compare.json
+results/modal-vllm-server-async-qwen15b-l4-kvbudget-gpu035-n32-batched-tokens60640-seed3805-seed3906-cache-control-r1/server-cache-control-absolute.json
+results/modal-vllm-server-async-qwen15b-l4-kvbudget-gpu035-n32-batched-tokens60640-seed3805-seed3906-pressure-curve-r1/server-cache-pressure-curve.md
+```

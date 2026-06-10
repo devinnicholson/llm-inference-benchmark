@@ -74,7 +74,7 @@ Latest server `/metrics` no-warmup cache-control:
 [`results/modal-vllm-server-async-qwen15b-l4-n32-batched-tokens60640-nowarmup-server-cache-control-r1-r2/server-cache-control-absolute.json`](results/modal-vllm-server-async-qwen15b-l4-n32-batched-tokens60640-nowarmup-server-cache-control-r1-r2/server-cache-control-absolute.json)
 
 Latest server cache-pressure curve:
-[`results/modal-vllm-server-async-qwen15b-l4-pressure-curve-n16-n40-batched-tokens60640-seed3603-pressure-curve-r1/server-cache-pressure-curve.md`](results/modal-vllm-server-async-qwen15b-l4-pressure-curve-n16-n40-batched-tokens60640-seed3603-pressure-curve-r1/server-cache-pressure-curve.md)
+[`results/modal-vllm-server-async-qwen15b-l4-kvbudget-gpu035-n32-batched-tokens60640-seed3805-seed3906-pressure-curve-r1/server-cache-pressure-curve.md`](results/modal-vllm-server-async-qwen15b-l4-kvbudget-gpu035-n32-batched-tokens60640-seed3805-seed3906-pressure-curve-r1/server-cache-pressure-curve.md)
 
 Latest vLLM server CLI evidence:
 [`results/modal-vllm-server-cli-help-v021/vllm-server-cli-help.json`](results/modal-vllm-server-cli-help-v021/vllm-server-cli-help.json)
