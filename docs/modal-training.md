@@ -10431,3 +10431,111 @@ Generated artifacts:
 results/modal-vllm-server-async-qwen15b-l4-kvbudget-report-r1/kv-budget-report.md
 results/modal-vllm-server-async-qwen15b-l4-kvbudget-report-r1/kv-budget-report.json
 ```
+
+# Training 102 - Probe Request Count at KV-Budget Floor
+
+## Goal
+
+Add one new measurement dimension at the lowest successful KV budget:
+
+```text
+At gpu_memory_utilization=0.325, does the shared-prefix cache benefit change
+when request count moves from n=16 to the existing n=32 floor point?
+```
+
+This is a one-seed n=16 probe against the already replicated n=32 floor point.
+It tests whether the cache effect scales with total prompt pressure while the
+matched-unique negative control remains near neutral.
+
+## Commands
+
+The four measured n=16 cells use this shape:
+
+```bash
+modal run modal_app.py --mode vllm-server-async-paired \
+  --modal-gpu L4 \
+  --hf-model Qwen/Qwen2.5-1.5B-Instruct \
+  --prompt-profiles {matched_unique_prefix_mega_long_no_repeat_variant|shared_prefix_mega_long_no_repeat_variant} \
+  --request-counts 16 \
+  --output-tokens 8 \
+  --repeats 1 \
+  --scenario-seed 4107 \
+  --warmup-runs 0 \
+  --phase-order async_first \
+  --server-async-max-num-batched-tokens 60640 \
+  --server-async-prefix-caching {off|on} \
+  --gpu-memory-utilization 0.325 \
+  --output-dir results/modal-vllm-server-async-qwen15b-l4-kvbudget-gpu0325-n16-batched-tokens60640-{matched-unique|shared-prefix}-seed4107-cache-{off|on}-r1
+```
+
+The off/on pairs are compared with
+`vllm-server-async-cache-control-compare`, combined with
+`vllm-server-async-cache-control-server-absolute`, converted to a pressure
+curve, and then compared against the existing n=32 floor point:
+
+```bash
+python3 scripts/build_server_cache_pressure_curve.py \
+  --server-absolute-json results/modal-vllm-server-async-qwen15b-l4-kvbudget-gpu0325-n16-batched-tokens60640-seed4107-cache-control-r1/server-cache-control-absolute.json \
+  --output-dir results/modal-vllm-server-async-qwen15b-l4-kvbudget-gpu0325-n16-batched-tokens60640-seed4107-pressure-curve-r1
+
+python3 scripts/build_kv_budget_request_count_comparison.py
+```
+
+## Result
+
+The n=16 floor probe reports:
+
+```text
+matched-unique:
+  KV tokens: 14,224
+  max concurrency: 3.90x at 3,648 tokens/request
+  prompt pressure: 4.036
+  cache-on/cache-off throughput ratio: 0.938x
+  cache-on/cache-off p95 latency ratio: 1.066x
+
+shared-prefix:
+  KV tokens: 14,181
+  max concurrency: 3.90x at 3,637 tokens/request
+  prompt pressure: 4.053
+  cache-on/cache-off throughput ratio: 4.619x
+  cache-on/cache-off p95 latency ratio: 0.216x
+```
+
+Compared with the existing n=32 replicated floor point:
+
+```text
+matched-unique n=16 -> n=32:
+  prompt pressure ratio: 2.002x
+  throughput ratio: 0.938x -> 0.975x
+
+shared-prefix n=16 -> n=32:
+  prompt pressure ratio: 1.996x
+  throughput ratio: 4.619x -> 10.741x
+  p95 latency ratio: 0.216x -> 0.095x
+```
+
+## Interpretation
+
+The n=16 probe reinforces that the shared-prefix benefit is tied to reusable
+prefill work and total prompt pressure, not to a generic cache-on speedup. The
+matched-unique control remains near neutral at both request counts. The
+shared-prefix workload is already favorable at n=16, then becomes much stronger
+at n=32 as prompt pressure roughly doubles.
+
+This checkpoint is still a probe: n=16 currently has one seed, while n=32 has
+two seeds. A later replication pass should add a second n=16 seed before making
+the request-count scaling claim as strong as the main floor result.
+
+Generated artifacts:
+
+```text
+results/modal-vllm-server-async-qwen15b-l4-kvbudget-gpu0325-n16-batched-tokens60640-matched-unique-seed4107-cache-off-r1/paired-server-async.json
+results/modal-vllm-server-async-qwen15b-l4-kvbudget-gpu0325-n16-batched-tokens60640-matched-unique-seed4107-cache-on-r1/paired-server-async.json
+results/modal-vllm-server-async-qwen15b-l4-kvbudget-gpu0325-n16-batched-tokens60640-matched-unique-seed4107-cache-control-r1/cache-control-phase-order-compare.json
+results/modal-vllm-server-async-qwen15b-l4-kvbudget-gpu0325-n16-batched-tokens60640-shared-prefix-seed4107-cache-off-r1/paired-server-async.json
+results/modal-vllm-server-async-qwen15b-l4-kvbudget-gpu0325-n16-batched-tokens60640-shared-prefix-seed4107-cache-on-r1/paired-server-async.json
+results/modal-vllm-server-async-qwen15b-l4-kvbudget-gpu0325-n16-batched-tokens60640-shared-prefix-seed4107-cache-control-r1/cache-control-phase-order-compare.json
+results/modal-vllm-server-async-qwen15b-l4-kvbudget-gpu0325-n16-batched-tokens60640-seed4107-cache-control-r1/server-cache-control-absolute.json
+results/modal-vllm-server-async-qwen15b-l4-kvbudget-gpu0325-n16-batched-tokens60640-seed4107-pressure-curve-r1/server-cache-pressure-curve.md
+results/modal-vllm-server-async-qwen15b-l4-kvbudget-gpu0325-n16-vs-n32-request-count-r1/kv-budget-request-count-comparison.md
+```
