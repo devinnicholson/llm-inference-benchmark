@@ -76,6 +76,9 @@ Latest server `/metrics` no-warmup cache-control:
 Latest server cache-pressure curve:
 [`results/modal-vllm-server-async-qwen15b-l4-kvbudget-gpu045-gpu040-gpu035-gpu0325-n32-batched-tokens60640-seed3805-seed3906-pressure-curve-r1/server-cache-pressure-curve.md`](results/modal-vllm-server-async-qwen15b-l4-kvbudget-gpu045-gpu040-gpu035-gpu0325-n32-batched-tokens60640-seed3805-seed3906-pressure-curve-r1/server-cache-pressure-curve.md)
 
+Latest server KV-budget report:
+[`results/modal-vllm-server-async-qwen15b-l4-kvbudget-report-r1/kv-budget-report.md`](results/modal-vllm-server-async-qwen15b-l4-kvbudget-report-r1/kv-budget-report.md)
+
 Latest server KV-budget failure-bound probe:
 [`results/modal-vllm-server-async-qwen15b-l4-kvbudget-gpu030-n32-batched-tokens60640-feasibility-failure-r1/failure.md`](results/modal-vllm-server-async-qwen15b-l4-kvbudget-gpu030-n32-batched-tokens60640-feasibility-failure-r1/failure.md)
 

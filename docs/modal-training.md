@@ -10306,3 +10306,70 @@ results/modal-vllm-server-async-qwen15b-l4-kvbudget-gpu0325-n32-batched-tokens60
 results/modal-vllm-server-async-qwen15b-l4-kvbudget-gpu045-gpu040-gpu035-gpu0325-n32-batched-tokens60640-seed3805-seed3906-cache-control-r1/server-cache-control-absolute.json
 results/modal-vllm-server-async-qwen15b-l4-kvbudget-gpu045-gpu040-gpu035-gpu0325-n32-batched-tokens60640-seed3805-seed3906-pressure-curve-r1/server-cache-pressure-curve.md
 ```
+
+# Training 100 - Publish KV-Budget Report Table
+
+## Goal
+
+Convert the replicated KV-budget pressure curve and the `0.30` startup failure
+probe into a compact report artifact:
+
+```text
+What is the successful KV-budget range, and how does the cache-on/cache-off
+effect change as the prompt workload moves from near-capacity to far beyond
+reported KV-cache capacity?
+```
+
+This is a local analysis checkpoint. It does not add new GPU measurements; it
+makes the existing evidence easier to review and reuse.
+
+## Command
+
+```bash
+python3 scripts/build_kv_budget_report.py
+```
+
+Inputs:
+
+```text
+results/modal-vllm-server-async-qwen15b-l4-kvbudget-gpu045-gpu040-gpu035-gpu0325-n32-batched-tokens60640-seed3805-seed3906-pressure-curve-r1/server-cache-pressure-curve.json
+results/modal-vllm-server-async-qwen15b-l4-kvbudget-gpu030-n32-batched-tokens60640-feasibility-failure-r1/failure.json
+```
+
+## Result
+
+The report records the startup floor and successful budget curve in one place:
+
+```text
+gpu_memory_utilization=0.300 fails during vLLM KV-cache initialization
+gpu_memory_utilization=0.325 is the lowest successful replicated point
+
+shared-prefix at gpu=0.325:
+  prompt pressure: 8.091
+  prefix-cache hit rate: 96.204%
+  cache-on/cache-off throughput ratio: 10.741x
+  cache-on/cache-off p95 latency ratio: 0.095x
+
+matched-unique across successful budgets:
+  cache-on/cache-off throughput ratio range: 0.975x to 0.995x
+```
+
+## Interpretation
+
+This checkpoint turns the pressure curve into a report-ready artifact. The
+startup floor is now explicit: `0.30` is below the vLLM initialization threshold
+for this L4/Qwen2.5-1.5B/n32 shape, while `0.325` is measurable and replicated.
+
+The main systems result remains sharp: prefix caching is not a generic speedup
+under this workload. The matched-unique control remains close to neutral, while
+the shared-prefix workload keeps a large throughput and latency advantage even
+when estimated prompt pressure is roughly `8.1x` the parsed KV-cache token
+capacity.
+
+Generated artifacts:
+
+```text
+results/modal-vllm-server-async-qwen15b-l4-kvbudget-report-r1/kv-budget-report.md
+results/modal-vllm-server-async-qwen15b-l4-kvbudget-report-r1/kv-budget-report.json
+results/modal-vllm-server-async-qwen15b-l4-kvbudget-report-r1/kv-budget-report.csv
+```
