@@ -1,0 +1,51 @@
+{
+  "markdown": "# Server Cache Pressure Curve\n\nSource: `results/modal-vllm-server-async-qwen15b-l4-kvbudget-gpu0325-n32-batched-tokens60640-seed3805-seed3906-cache-control-r1/server-cache-control-absolute.json`\n\n| Phase | Profile | GPU Mem | n | Prompt Pressure | Hit Rate | Throughput Ratio | p95 Latency Ratio | TTFT Ratio | TPOT Ratio |\n| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |\n| `async_first` | `matched_unique_prefix_mega_long_no_repeat_variant` | 0.325 | 32 | 8.080 | 0.442% | 0.975x | 1.026x | 1.026x | 1.038x |\n| `async_first` | `shared_prefix_mega_long_no_repeat_variant` | 0.325 | 32 | 8.091 | 96.204% | 10.741x | 0.095x | 0.085x | 0.313x |\n\n## Notes\n\nPrompt pressure is estimated prompt tokens divided by the parsed server GPU KV-cache token capacity. Values near 1.0 are close to the reported KV capacity for the configured model length.\n",
+  "mode": "server-cache-pressure-curve",
+  "row_count": 2,
+  "rows": [
+    {
+      "estimated_prompt_token_pressure_ratio": 8.079895818668168,
+      "estimated_prompt_tokens": 114783.0,
+      "gpu_memory_utilization_mean": 0.325,
+      "max_new_tokens": 8,
+      "max_num_batched_tokens_mean": 60640.0,
+      "on_prefix_cache_hit_rate_pct_mean": 0.4424876746310058,
+      "on_prefix_cache_hits_mean": 1936.0,
+      "on_prefix_cache_queries_mean": 437527.0,
+      "on_server_gpu_kv_cache_size_tokens_mean": 14206.0,
+      "on_server_max_concurrency_for_request_mean": 3.9,
+      "p95_first_content_ratio_mean": 1.0258555523042983,
+      "p95_latency_ratio_mean": 1.0255991745941577,
+      "p95_stream_tpot_ratio_mean": 1.0376958050358913,
+      "phase_order": "async_first",
+      "prompt_profile": "matched_unique_prefix_mega_long_no_repeat_variant",
+      "prompt_tokens_mean": 3586.96875,
+      "request_count": 32,
+      "throughput_ratio_mean": 0.9754267402601208,
+      "trial_count": 2
+    },
+    {
+      "estimated_prompt_token_pressure_ratio": 8.090950720349431,
+      "estimated_prompt_tokens": 114847.0,
+      "gpu_memory_utilization_mean": 0.325,
+      "max_new_tokens": 8,
+      "max_num_batched_tokens_mean": 60640.0,
+      "on_prefix_cache_hit_rate_pct_mean": 96.20439606375295,
+      "on_prefix_cache_hits_mean": 110488.0,
+      "on_prefix_cache_queries_mean": 114847.0,
+      "on_server_gpu_kv_cache_size_tokens_mean": 14194.5,
+      "on_server_max_concurrency_for_request_mean": 3.91,
+      "p95_first_content_ratio_mean": 0.08513714114283255,
+      "p95_latency_ratio_mean": 0.09461492737939965,
+      "p95_stream_tpot_ratio_mean": 0.3132940375410598,
+      "phase_order": "async_first",
+      "prompt_profile": "shared_prefix_mega_long_no_repeat_variant",
+      "prompt_tokens_mean": 3588.96875,
+      "request_count": 32,
+      "throughput_ratio_mean": 10.740620647504809,
+      "trial_count": 2
+    }
+  ],
+  "schema_version": 1,
+  "source_json": "results/modal-vllm-server-async-qwen15b-l4-kvbudget-gpu0325-n32-batched-tokens60640-seed3805-seed3906-cache-control-r1/server-cache-control-absolute.json"
+}

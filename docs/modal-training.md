@@ -10181,3 +10181,128 @@ results/modal-vllm-server-async-qwen15b-l4-kvbudget-gpu0325-n32-batched-tokens60
 results/modal-vllm-server-async-qwen15b-l4-kvbudget-gpu045-gpu040-gpu035-gpu0325-n32-batched-tokens60640-seed3805-seed3906-floor0325-cache-control-r1/server-cache-control-absolute.json
 results/modal-vllm-server-async-qwen15b-l4-kvbudget-gpu045-gpu040-gpu035-gpu0325-n32-batched-tokens60640-seed3805-seed3906-floor0325-pressure-curve-r1/server-cache-pressure-curve.md
 ```
+
+# Training 099 - Replicate Near-Floor KV-Budget Point
+
+## Goal
+
+Repeat Training 098 with seed `3805`:
+
+```text
+Does the floor-adjacent 0.325 point replicate, or was the 12x shared-prefix
+speedup a single-seed outlier?
+```
+
+This checkpoint makes every successful budget point in the current curve
+two-seed replicated: `0.325`, `0.35`, `0.40`, and `0.45`.
+
+## Commands
+
+The four replicated measured cells use this shape:
+
+```bash
+modal run modal_app.py --mode vllm-server-async-paired \
+  --modal-gpu L4 \
+  --hf-model Qwen/Qwen2.5-1.5B-Instruct \
+  --prompt-profiles {matched_unique_prefix_mega_long_no_repeat_variant|shared_prefix_mega_long_no_repeat_variant} \
+  --request-counts 32 \
+  --output-tokens 8 \
+  --repeats 1 \
+  --scenario-seed 3805 \
+  --warmup-runs 0 \
+  --phase-order async_first \
+  --server-async-max-num-batched-tokens 60640 \
+  --server-async-prefix-caching {off|on} \
+  --gpu-memory-utilization 0.325 \
+  --output-dir results/modal-vllm-server-async-qwen15b-l4-kvbudget-gpu0325-n32-batched-tokens60640-{matched-unique|shared-prefix}-seed3805-cache-{off|on}-r1
+```
+
+The seed `3805` off/on pairs are compared with
+`vllm-server-async-cache-control-compare`. The `0.325` seed `3805` and seed
+`3906` compare artifacts are then combined with
+`vllm-server-async-cache-control-server-absolute`. The final four-budget curve
+uses all off/on compare artifacts from `0.325`, `0.35`, `0.40`, and `0.45`.
+
+## Result
+
+The replicated `gpu_memory_utilization=0.325` logs report:
+
+```text
+matched-unique seed=3805: 14,188 KV tokens, 3.90 max concurrency at 3,639 tokens/request
+shared-prefix seed=3805:  14,208 KV tokens, 3.92 max concurrency at 3,628 tokens/request
+```
+
+Seed `3805` direct raw server cache-on divided by cache-off:
+
+```text
+matched-unique:
+  cache-on/off throughput contrast: -0.039x
+  cache-on/off latency contrast: +0.030x
+
+shared-prefix:
+  cache-on/off throughput contrast: +10.161x
+  cache-on/off latency contrast: -0.766x
+```
+
+The two-seed aggregate for `gpu_memory_utilization=0.325` is:
+
+```text
+matched-unique:
+  prompt pressure: 8.080
+  output tokens/s ratio: 0.975x
+  bootstrap p05/p95: 0.968x to 0.983x
+
+shared-prefix:
+  prompt pressure: 8.091
+  output tokens/s ratio: 10.741x
+  bootstrap p05/p95: 9.025x to 12.456x
+```
+
+The fully replicated four-budget curve is:
+
+```text
+matched-unique gpu=0.325 pressure=8.080 throughput=0.975x p95 latency=1.026x
+matched-unique gpu=0.350 pressure=3.298 throughput=0.995x p95 latency=1.006x
+matched-unique gpu=0.400 pressure=1.510 throughput=0.984x p95 latency=1.016x
+matched-unique gpu=0.450 pressure=0.979 throughput=0.995x p95 latency=1.005x
+shared-prefix  gpu=0.325 pressure=8.091 throughput=10.741x p95 latency=0.095x
+shared-prefix  gpu=0.350 pressure=3.303 throughput=8.467x p95 latency=0.119x
+shared-prefix  gpu=0.400 pressure=1.512 throughput=8.638x p95 latency=0.116x
+shared-prefix  gpu=0.450 pressure=0.981 throughput=9.125x p95 latency=0.109x
+```
+
+Across all 16 trial contrasts, matched-unique averages `0.987x`
+cache-on/cache-off throughput, while shared-prefix averages `9.243x`.
+
+## Interpretation
+
+The floor-adjacent point replicated. The shared-prefix effect remains larger
+than the rest of the curve at `0.325`, but it is no longer a single-run result:
+the second seed still gives a double-digit cache-on/cache-off throughput
+contrast in the direct comparison, and the two-seed server-only aggregate is
+`10.741x`.
+
+The practical lower bound is now clear for this workload shape: `0.30` fails
+before measurement, while `0.325` initializes and preserves a strong cache
+benefit at roughly `8.1x` estimated prompt pressure. This is a strong candidate
+for the headline stress-test point in the writeup.
+
+The next useful step is to stop extending the curve and improve the artifact:
+add a report-ready summary table that joins startup floor, KV capacity, prompt
+pressure, cache hit rate, throughput ratio, and latency ratio across all
+budget points.
+
+Generated artifacts:
+
+```text
+results/modal-vllm-server-async-qwen15b-l4-kvbudget-gpu0325-n32-batched-tokens60640-matched-unique-seed3805-cache-off-r1/paired-server-async.json
+results/modal-vllm-server-async-qwen15b-l4-kvbudget-gpu0325-n32-batched-tokens60640-matched-unique-seed3805-cache-on-r1/paired-server-async.json
+results/modal-vllm-server-async-qwen15b-l4-kvbudget-gpu0325-n32-batched-tokens60640-matched-unique-seed3805-cache-control-r1/cache-control-phase-order-compare.json
+results/modal-vllm-server-async-qwen15b-l4-kvbudget-gpu0325-n32-batched-tokens60640-shared-prefix-seed3805-cache-off-r1/paired-server-async.json
+results/modal-vllm-server-async-qwen15b-l4-kvbudget-gpu0325-n32-batched-tokens60640-shared-prefix-seed3805-cache-on-r1/paired-server-async.json
+results/modal-vllm-server-async-qwen15b-l4-kvbudget-gpu0325-n32-batched-tokens60640-shared-prefix-seed3805-cache-control-r1/cache-control-phase-order-compare.json
+results/modal-vllm-server-async-qwen15b-l4-kvbudget-gpu0325-n32-batched-tokens60640-seed3805-seed3906-cache-control-r1/server-cache-control-absolute.json
+results/modal-vllm-server-async-qwen15b-l4-kvbudget-gpu0325-n32-batched-tokens60640-seed3805-seed3906-pressure-curve-r1/server-cache-pressure-curve.md
+results/modal-vllm-server-async-qwen15b-l4-kvbudget-gpu045-gpu040-gpu035-gpu0325-n32-batched-tokens60640-seed3805-seed3906-cache-control-r1/server-cache-control-absolute.json
+results/modal-vllm-server-async-qwen15b-l4-kvbudget-gpu045-gpu040-gpu035-gpu0325-n32-batched-tokens60640-seed3805-seed3906-pressure-curve-r1/server-cache-pressure-curve.md
+```
