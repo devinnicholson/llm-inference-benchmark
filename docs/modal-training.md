@@ -10539,3 +10539,117 @@ results/modal-vllm-server-async-qwen15b-l4-kvbudget-gpu0325-n16-batched-tokens60
 results/modal-vllm-server-async-qwen15b-l4-kvbudget-gpu0325-n16-batched-tokens60640-seed4107-pressure-curve-r1/server-cache-pressure-curve.md
 results/modal-vllm-server-async-qwen15b-l4-kvbudget-gpu0325-n16-vs-n32-request-count-r1/kv-budget-request-count-comparison.md
 ```
+
+# Training 103 - Replicate n=16 Request-Count Floor Point
+
+## Goal
+
+Repeat the n=16 floor probe with seed `4208` so the request-count comparison is
+two-seed replicated on both sides:
+
+```text
+Does the n=16 request-count result replicate, or was the seed 4107 shared-prefix
+effect a one-run artifact?
+```
+
+This checkpoint finishes the current request-count thread and stops after the
+replicated artifact is committed.
+
+## Commands
+
+The four measured seed `4208` cells use the same shape as Training 102, with
+only the seed and output directories changed:
+
+```bash
+modal run modal_app.py --mode vllm-server-async-paired \
+  --modal-gpu L4 \
+  --hf-model Qwen/Qwen2.5-1.5B-Instruct \
+  --prompt-profiles {matched_unique_prefix_mega_long_no_repeat_variant|shared_prefix_mega_long_no_repeat_variant} \
+  --request-counts 16 \
+  --output-tokens 8 \
+  --repeats 1 \
+  --scenario-seed 4208 \
+  --warmup-runs 0 \
+  --phase-order async_first \
+  --server-async-max-num-batched-tokens 60640 \
+  --server-async-prefix-caching {off|on} \
+  --gpu-memory-utilization 0.325 \
+  --output-dir results/modal-vllm-server-async-qwen15b-l4-kvbudget-gpu0325-n16-batched-tokens60640-{matched-unique|shared-prefix}-seed4208-cache-{off|on}-r1
+```
+
+The seed `4208` off/on pairs are compared, then seed `4107` and seed `4208` are
+combined:
+
+```bash
+modal run modal_app.py --mode vllm-server-async-cache-control-server-absolute \
+  --server-async-cache-control-server-absolute-compare-dirs results/modal-vllm-server-async-qwen15b-l4-kvbudget-gpu0325-n16-batched-tokens60640-matched-unique-seed4107-cache-control-r1,results/modal-vllm-server-async-qwen15b-l4-kvbudget-gpu0325-n16-batched-tokens60640-shared-prefix-seed4107-cache-control-r1,results/modal-vllm-server-async-qwen15b-l4-kvbudget-gpu0325-n16-batched-tokens60640-matched-unique-seed4208-cache-control-r1,results/modal-vllm-server-async-qwen15b-l4-kvbudget-gpu0325-n16-batched-tokens60640-shared-prefix-seed4208-cache-control-r1 \
+  --output-dir results/modal-vllm-server-async-qwen15b-l4-kvbudget-gpu0325-n16-batched-tokens60640-seed4107-seed4208-cache-control-r1
+
+python3 scripts/build_server_cache_pressure_curve.py \
+  --server-absolute-json results/modal-vllm-server-async-qwen15b-l4-kvbudget-gpu0325-n16-batched-tokens60640-seed4107-seed4208-cache-control-r1/server-cache-control-absolute.json \
+  --output-dir results/modal-vllm-server-async-qwen15b-l4-kvbudget-gpu0325-n16-batched-tokens60640-seed4107-seed4208-pressure-curve-r1
+
+python3 scripts/build_kv_budget_request_count_comparison.py
+```
+
+## Result
+
+Seed `4208` direct server-only cache-on/cache-off ratios:
+
+```text
+matched-unique:
+  throughput ratio: 1.050x
+
+shared-prefix:
+  throughput ratio: 7.362x
+```
+
+The two-seed n=16 aggregate is:
+
+```text
+matched-unique:
+  prompt pressure: 4.036
+  throughput ratio: 0.994x
+  p95 latency ratio: 1.009x
+
+shared-prefix:
+  prompt pressure: 4.062
+  throughput ratio: 5.991x
+  p95 latency ratio: 0.176x
+```
+
+The two-seed request-count comparison is now:
+
+```text
+matched-unique n=16 -> n=32:
+  prompt pressure ratio: 2.002x
+  throughput ratio: 0.994x -> 0.975x
+
+shared-prefix n=16 -> n=32:
+  prompt pressure ratio: 1.992x
+  throughput ratio: 5.991x -> 10.741x
+  p95 latency ratio: 0.176x -> 0.095x
+```
+
+## Interpretation
+
+The n=16 request-count point replicated. Matched-unique remains near neutral,
+while shared-prefix remains strongly favorable. The final request-count
+comparison is now balanced: n=16 and n=32 both have two seeds. Doubling request
+count roughly doubles prompt pressure; the negative control does not improve,
+but the shared-prefix cache benefit grows from `5.991x` to `10.741x`.
+
+Generated artifacts:
+
+```text
+results/modal-vllm-server-async-qwen15b-l4-kvbudget-gpu0325-n16-batched-tokens60640-matched-unique-seed4208-cache-off-r1/paired-server-async.json
+results/modal-vllm-server-async-qwen15b-l4-kvbudget-gpu0325-n16-batched-tokens60640-matched-unique-seed4208-cache-on-r1/paired-server-async.json
+results/modal-vllm-server-async-qwen15b-l4-kvbudget-gpu0325-n16-batched-tokens60640-matched-unique-seed4208-cache-control-r1/cache-control-phase-order-compare.json
+results/modal-vllm-server-async-qwen15b-l4-kvbudget-gpu0325-n16-batched-tokens60640-shared-prefix-seed4208-cache-off-r1/paired-server-async.json
+results/modal-vllm-server-async-qwen15b-l4-kvbudget-gpu0325-n16-batched-tokens60640-shared-prefix-seed4208-cache-on-r1/paired-server-async.json
+results/modal-vllm-server-async-qwen15b-l4-kvbudget-gpu0325-n16-batched-tokens60640-shared-prefix-seed4208-cache-control-r1/cache-control-phase-order-compare.json
+results/modal-vllm-server-async-qwen15b-l4-kvbudget-gpu0325-n16-batched-tokens60640-seed4208-cache-control-r1/server-cache-control-absolute.json
+results/modal-vllm-server-async-qwen15b-l4-kvbudget-gpu0325-n16-batched-tokens60640-seed4107-seed4208-cache-control-r1/server-cache-control-absolute.json
+results/modal-vllm-server-async-qwen15b-l4-kvbudget-gpu0325-n16-batched-tokens60640-seed4107-seed4208-pressure-curve-r1/server-cache-pressure-curve.md
+results/modal-vllm-server-async-qwen15b-l4-kvbudget-gpu0325-n16-seed4107-seed4208-vs-n32-request-count-r1/kv-budget-request-count-comparison.md
+```

@@ -1,0 +1,3 @@
+profile_label,low_request_count,high_request_count,low_source_label,high_source_label,low_trial_count,high_trial_count,prompt_pressure_delta,prompt_pressure_ratio,throughput_ratio_delta,throughput_ratio_ratio,p95_latency_ratio_delta,hit_rate_delta_pct
+matched_unique,16,32,n16_seed4107_seed4208,n32_seed3805_seed3906,2,2,4.043789399749249,2.0019035625013046,-0.018537720306723626,0.9813497151637074,0.016473699867340263,0.004014908168351594
+shared_prefix,16,32,n16_seed4107_seed4208,n32_seed3805_seed3906,2,2,4.028825341321154,1.9918023116964723,4.7496681102451905,1.7928068334218157,-0.08129252922698559,3.087482255267915

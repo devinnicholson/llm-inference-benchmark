@@ -80,7 +80,7 @@ Latest server KV-budget report:
 [`results/modal-vllm-server-async-qwen15b-l4-kvbudget-report-r1/kv-budget-report.md`](results/modal-vllm-server-async-qwen15b-l4-kvbudget-report-r1/kv-budget-report.md)
 
 Latest server KV-budget request-count comparison:
-[`results/modal-vllm-server-async-qwen15b-l4-kvbudget-gpu0325-n16-vs-n32-request-count-r1/kv-budget-request-count-comparison.md`](results/modal-vllm-server-async-qwen15b-l4-kvbudget-gpu0325-n16-vs-n32-request-count-r1/kv-budget-request-count-comparison.md)
+[`results/modal-vllm-server-async-qwen15b-l4-kvbudget-gpu0325-n16-seed4107-seed4208-vs-n32-request-count-r1/kv-budget-request-count-comparison.md`](results/modal-vllm-server-async-qwen15b-l4-kvbudget-gpu0325-n16-seed4107-seed4208-vs-n32-request-count-r1/kv-budget-request-count-comparison.md)
 
 Latest server KV-budget failure-bound probe:
 [`results/modal-vllm-server-async-qwen15b-l4-kvbudget-gpu030-n32-batched-tokens60640-feasibility-failure-r1/failure.md`](results/modal-vllm-server-async-qwen15b-l4-kvbudget-gpu030-n32-batched-tokens60640-feasibility-failure-r1/failure.md)

@@ -10,7 +10,7 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_N16_PRESSURE_CURVE_JSON = (
     ROOT
-    / "results/modal-vllm-server-async-qwen15b-l4-kvbudget-gpu0325-n16-batched-tokens60640-seed4107-pressure-curve-r1"
+    / "results/modal-vllm-server-async-qwen15b-l4-kvbudget-gpu0325-n16-batched-tokens60640-seed4107-seed4208-pressure-curve-r1"
     / "server-cache-pressure-curve.json"
 )
 DEFAULT_N32_PRESSURE_CURVE_JSON = (
@@ -20,7 +20,7 @@ DEFAULT_N32_PRESSURE_CURVE_JSON = (
 )
 DEFAULT_OUTPUT_DIR = (
     ROOT
-    / "results/modal-vllm-server-async-qwen15b-l4-kvbudget-gpu0325-n16-vs-n32-request-count-r1"
+    / "results/modal-vllm-server-async-qwen15b-l4-kvbudget-gpu0325-n16-seed4107-seed4208-vs-n32-request-count-r1"
 )
 
 
@@ -324,8 +324,8 @@ def _format_markdown(
             "",
             (
                 "This comparison isolates request count at the lowest successful "
-                "KV-budget point. The n=16 row is a one-seed probe; the n=32 row "
-                "is the existing two-seed replicated floor point."
+                "KV-budget point. The row trial counts are shown explicitly so "
+                "single-seed probes and replicated points can be distinguished."
             ),
             "",
         ]
@@ -359,7 +359,7 @@ def main() -> None:
         type=Path,
         default=DEFAULT_N32_PRESSURE_CURVE_JSON,
     )
-    parser.add_argument("--low-label", default="n16_seed4107")
+    parser.add_argument("--low-label", default="n16_seed4107_seed4208")
     parser.add_argument("--high-label", default="n32_seed3805_seed3906")
     parser.add_argument("--gpu-memory-utilization", type=float, default=0.325)
     parser.add_argument("--output-dir", type=Path, default=DEFAULT_OUTPUT_DIR)
