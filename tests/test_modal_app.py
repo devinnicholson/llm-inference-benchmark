@@ -43,7 +43,11 @@ class ModalAppTests(unittest.TestCase):
             modal_app._select_vllm_server_async_paired_remote("l4"),
             modal_app.run_vllm_server_async_paired_l4_remote,
         )
-        with self.assertRaisesRegex(ValueError, "T4, L4"):
+        self.assertIs(
+            modal_app._select_vllm_server_async_paired_remote("l4:2"),
+            modal_app.run_vllm_server_async_paired_l4x2_remote,
+        )
+        with self.assertRaisesRegex(ValueError, "T4, L4, L4:2"):
             modal_app._select_vllm_server_async_paired_remote("A100")
 
     def test_server_async_paired_exposes_gpu_memory_utilization(self) -> None:
@@ -55,6 +59,7 @@ class ModalAppTests(unittest.TestCase):
         for remote in (
             modal_app.run_vllm_server_async_paired_remote,
             modal_app.run_vllm_server_async_paired_l4_remote,
+            modal_app.run_vllm_server_async_paired_l4x2_remote,
         ):
             remote_signature = inspect.signature(remote.get_raw_f())
             self.assertIn("gpu_memory_utilization", remote_signature.parameters)
@@ -65,6 +70,14 @@ class ModalAppTests(unittest.TestCase):
         ):
             modal_app._run_vllm_server_async_paired_payload(
                 gpu_memory_utilization=0,
+            )
+
+        with self.assertRaisesRegex(
+            ValueError,
+            "tensor_parallel_size must be positive",
+        ):
+            modal_app._run_vllm_server_async_paired_payload(
+                tensor_parallel_size=0,
             )
 
     def test_resolves_max_num_batched_tokens_override(self) -> None:

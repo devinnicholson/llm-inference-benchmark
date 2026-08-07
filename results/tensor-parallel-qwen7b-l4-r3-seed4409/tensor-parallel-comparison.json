@@ -1,0 +1,186 @@
+{
+  "capacity": {
+    "single": {
+      "available_kv_cache_memory_gib": 4.38,
+      "custom_all_reduce_disabled": false,
+      "gpu_count": 1,
+      "gpu_kv_cache_size_tokens": 81785.0,
+      "gpu_names": [
+        "NVIDIA L4"
+      ],
+      "max_concurrency_for_request": 22.39,
+      "p2p_unavailable": false
+    },
+    "tensor": {
+      "available_kv_cache_memory_gib": 11.93,
+      "custom_all_reduce_disabled": true,
+      "gpu_count": 2,
+      "gpu_kv_cache_size_tokens": 445331.0,
+      "gpu_names": [
+        "NVIDIA L4",
+        "NVIDIA L4"
+      ],
+      "max_concurrency_for_request": 121.91,
+      "p2p_unavailable": true
+    },
+    "tensor_div_single_kv_cache_tokens": 5.445142752338448
+  },
+  "markdown": "# Tensor-Parallel Serving Comparison\n\nModel: `Qwen/Qwen2.5-7B-Instruct` on one NVIDIA L4 versus 2 tensor-parallel L4s.\n\nMatched workload: `shared_prefix_mega_long_no_repeat_variant`, n=16, output tokens=8, scheduler budget=8192, repeats=3.\n\n## Capacity\n\n| Topology | KV cache tokens | Max concurrency | P2P/custom all-reduce |\n| --- | ---: | ---: | --- |\n| 1x L4 / TP1 | 81785 | 22.39x | n/a |\n| 2x L4 / TP2 | 445331 | 121.91x | unavailable; NCCL fallback |\n\n## Request-path results\n\n| Backend | Metric | TP1 median | TP2 median | TP2 / TP1 | 90% bootstrap interval |\n| --- | --- | ---: | ---: | ---: | ---: |\n| `server` | `throughput` | 8.195 | 11.103 | 1.356x | [1.333, 1.365] |\n| `server` | `p95_ttft` | 15161.300 | 11276.046 | 0.743x | [0.738, 0.756] |\n| `server` | `p95_latency` | 15615.836 | 11523.049 | 0.737x | [0.732, 0.750] |\n| `server` | `p95_tpot` | 1834.954 | 1368.216 | 0.746x | [0.739, 0.763] |\n| `async_llm` | `throughput` | 8.304 | 11.254 | 1.354x | [1.269, 1.397] |\n| `async_llm` | `p95_ttft` | 14845.749 | 11013.472 | 0.742x | [0.740, 0.792] |\n| `async_llm` | `p95_latency` | 15282.491 | 11260.202 | 0.737x | [0.716, 0.786] |\n| `async_llm` | `p95_tpot` | 1999.992 | 1352.098 | 0.693x | [0.675, 0.728] |\n\nFor throughput, values above 1.0 favor TP2. For TTFT, latency, and TPOT, values below 1.0 favor TP2.\n\n## Interpretation boundary\n\nThis is a controlled topology experiment, not a production-scale claim. The bootstrap interval resamples matched repeat indices and does not capture variation across hosts, regions, or GPU interconnects.\n",
+  "matched_configuration": {
+    "async_enable_prefix_caching_configured": false,
+    "gpu_memory_utilization": 0.9,
+    "max_model_len": 3653,
+    "max_num_batched_tokens": 8192,
+    "max_num_seqs": 16,
+    "model_id": "Qwen/Qwen2.5-7B-Instruct",
+    "output_tokens": [
+      8
+    ],
+    "phase_order": "async_first",
+    "prompt_profiles": [
+      "shared_prefix_mega_long_no_repeat_variant"
+    ],
+    "repeats": 3,
+    "request_counts": [
+      16
+    ],
+    "scenario_seed": 4409,
+    "server_prefix_caching_configured": "off",
+    "vllm_version": "0.21.0",
+    "warmup_runs": 1
+  },
+  "mode": "tensor-parallel-comparison",
+  "rows": [
+    {
+      "backend": "server",
+      "favorable": true,
+      "favorable_direction": "higher",
+      "metric": "throughput",
+      "paired_observations": 3,
+      "percent_change": 35.58813358732718,
+      "scenario_id": "shared_prefix_mega_long_no_repeat_variant_out8_n16",
+      "single_median": 8.194734483511409,
+      "tensor_div_single_bootstrap_90_high": 1.3652921058212752,
+      "tensor_div_single_bootstrap_90_low": 1.3325928647975926,
+      "tensor_div_single_median": 1.3558813358732718,
+      "tensor_median": 11.103343513668332,
+      "unit": "output tokens/s"
+    },
+    {
+      "backend": "server",
+      "favorable": true,
+      "favorable_direction": "lower",
+      "metric": "p95_ttft",
+      "paired_observations": 3,
+      "percent_change": -25.67549889744146,
+      "scenario_id": "shared_prefix_mega_long_no_repeat_variant_out8_n16",
+      "single_median": 15161.299987000006,
+      "tensor_div_single_bootstrap_90_high": 0.7564472277747777,
+      "tensor_div_single_bootstrap_90_low": 0.7379246113788918,
+      "tensor_div_single_median": 0.7432450110255854,
+      "tensor_median": 11276.045909999993,
+      "unit": "ms"
+    },
+    {
+      "backend": "server",
+      "favorable": true,
+      "favorable_direction": "lower",
+      "metric": "p95_latency",
+      "paired_observations": 3,
+      "percent_change": -26.25948251300445,
+      "scenario_id": "shared_prefix_mega_long_no_repeat_variant_out8_n16",
+      "single_median": 15615.836085000012,
+      "tensor_div_single_bootstrap_90_high": 0.7503470005436814,
+      "tensor_div_single_bootstrap_90_low": 0.7323128182166145,
+      "tensor_div_single_median": 0.7374051748699555,
+      "tensor_median": 11523.049238999989,
+      "unit": "ms"
+    },
+    {
+      "backend": "server",
+      "favorable": true,
+      "favorable_direction": "lower",
+      "metric": "p95_tpot",
+      "paired_observations": 3,
+      "percent_change": -25.43592326878523,
+      "scenario_id": "shared_prefix_mega_long_no_repeat_variant_out8_n16",
+      "single_median": 1834.9537229999962,
+      "tensor_div_single_bootstrap_90_high": 0.7631292789936329,
+      "tensor_div_single_bootstrap_90_low": 0.7394317412286935,
+      "tensor_div_single_median": 0.7456407673121477,
+      "tensor_median": 1368.2163019999994,
+      "unit": "ms/token"
+    },
+    {
+      "backend": "async_llm",
+      "favorable": true,
+      "favorable_direction": "higher",
+      "metric": "throughput",
+      "paired_observations": 3,
+      "percent_change": 35.433936408402666,
+      "scenario_id": "shared_prefix_mega_long_no_repeat_variant_out8_n16",
+      "single_median": 8.303686933957193,
+      "tensor_div_single_bootstrap_90_high": 1.3974286886534282,
+      "tensor_div_single_bootstrap_90_low": 1.2686164922815746,
+      "tensor_div_single_median": 1.3543393640840267,
+      "tensor_median": 11.253747080158172,
+      "unit": "output tokens/s"
+    },
+    {
+      "backend": "async_llm",
+      "favorable": true,
+      "favorable_direction": "lower",
+      "metric": "p95_ttft",
+      "paired_observations": 3,
+      "percent_change": -25.768789863696174,
+      "scenario_id": "shared_prefix_mega_long_no_repeat_variant_out8_n16",
+      "single_median": 14845.748622000003,
+      "tensor_div_single_bootstrap_90_high": 0.7923290536233887,
+      "tensor_div_single_bootstrap_90_low": 0.7403857520682925,
+      "tensor_div_single_median": 0.7423121013630383,
+      "tensor_median": 11013.471998,
+      "unit": "ms"
+    },
+    {
+      "backend": "async_llm",
+      "favorable": true,
+      "favorable_direction": "lower",
+      "metric": "p95_latency",
+      "paired_observations": 3,
+      "percent_change": -26.339783114735027,
+      "scenario_id": "shared_prefix_mega_long_no_repeat_variant_out8_n16",
+      "single_median": 15282.491438999983,
+      "tensor_div_single_bootstrap_90_high": 0.785982437480493,
+      "tensor_div_single_bootstrap_90_low": 0.7160806529805093,
+      "tensor_div_single_median": 0.7366021688526497,
+      "tensor_median": 11260.202145999983,
+      "unit": "ms"
+    },
+    {
+      "backend": "async_llm",
+      "favorable": true,
+      "favorable_direction": "lower",
+      "metric": "p95_tpot",
+      "paired_observations": 3,
+      "percent_change": -30.67700222547517,
+      "scenario_id": "shared_prefix_mega_long_no_repeat_variant_out8_n16",
+      "single_median": 1999.9923865714288,
+      "tensor_div_single_bootstrap_90_high": 0.7281625470892071,
+      "tensor_div_single_bootstrap_90_low": 0.6754515391081652,
+      "tensor_div_single_median": 0.6932299777452483,
+      "tensor_median": 1352.0982724285732,
+      "unit": "ms/token"
+    }
+  ],
+  "schema_version": 1,
+  "sources": {
+    "single": "results/modal-vllm-qwen7b-l4-tp1-batched8192-r3-seed4409/paired-server-async.json",
+    "tensor": "results/modal-vllm-qwen7b-l4x2-tp2-batched8192-r3-seed4409/paired-server-async.json"
+  },
+  "topology": {
+    "single_gpu_count": 1,
+    "single_tensor_parallel_size": 1,
+    "tensor_gpu_count": 2,
+    "tensor_parallel_size": 2
+  }
+}

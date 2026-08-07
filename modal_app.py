@@ -4000,6 +4000,7 @@ def _run_vllm_server_async_paired_payload(
     server_prefix_caching: str = "default",
     gpu_memory_utilization: float = 0.50,
     modal_gpu_label: str = "T4",
+    tensor_parallel_size: int = 1,
 ) -> dict[str, Any]:
     request_count_values = _split_positive_int_csv(request_counts, "request_counts")
     prompt_profile_values = [
@@ -4015,6 +4016,8 @@ def _run_vllm_server_async_paired_payload(
         raise ValueError("ready_timeout_s must be positive")
     if gpu_memory_utilization <= 0 or gpu_memory_utilization > 1:
         raise ValueError("gpu_memory_utilization must be in (0, 1]")
+    if tensor_parallel_size <= 0:
+        raise ValueError("tensor_parallel_size must be positive")
     phase_order = phase_order.lower().replace("-", "_")
     if phase_order not in {"async_first", "server_first"}:
         raise ValueError("phase_order must be async_first or server_first")
@@ -4094,6 +4097,7 @@ def _run_vllm_server_async_paired_payload(
         started = time.perf_counter()
         engine_args = AsyncEngineArgs(
             model=hf_model,
+            tensor_parallel_size=tensor_parallel_size,
             dtype="half",
             max_model_len=max_model_len,
             max_num_batched_tokens=max_num_batched_tokens,
@@ -4284,6 +4288,10 @@ def _run_vllm_server_async_paired_payload(
             str(gpu_memory_utilization),
             "--enforce-eager",
         ]
+        if tensor_parallel_size > 1:
+            command.extend(
+                ["--tensor-parallel-size", str(tensor_parallel_size)]
+            )
         command.extend(
             _vllm_server_prefix_caching_args(server_prefix_caching_mode)
         )
@@ -4626,6 +4634,7 @@ def _run_vllm_server_async_paired_payload(
         "mode": "vllm-server-async-paired",
         "backend": "vllm-paired-async-and-openai-server",
         "modal_gpu": modal_gpu_label,
+        "tensor_parallel_size": tensor_parallel_size,
         "model_id": hf_model,
         "request_counts": request_count_values,
         "prompt_profiles": prompt_profile_values,
@@ -4683,7 +4692,8 @@ def _run_vllm_server_async_paired_payload(
             "One Modal worker runs in-process AsyncLLM and the OpenAI-compatible "
             f"vLLM server in phase order {phase_order} with the same scenario plan. "
             "Paired rows compare matching scenario_id and repeat_index. The "
-            f"server prefix-cache mode is {server_prefix_caching_mode}."
+            f"server prefix-cache mode is {server_prefix_caching_mode}; tensor "
+            f"parallel size is {tensor_parallel_size}."
         ),
     }
 
@@ -4722,6 +4732,7 @@ def run_vllm_server_async_paired_remote(
         server_prefix_caching=server_prefix_caching,
         gpu_memory_utilization=gpu_memory_utilization,
         modal_gpu_label="T4",
+        tensor_parallel_size=1,
     )
 
 
@@ -4759,6 +4770,45 @@ def run_vllm_server_async_paired_l4_remote(
         server_prefix_caching=server_prefix_caching,
         gpu_memory_utilization=gpu_memory_utilization,
         modal_gpu_label="L4",
+        tensor_parallel_size=1,
+    )
+
+
+@app.function(
+    image=vllm_image,
+    gpu="L4:2",
+    timeout=3600,
+    volumes={HF_CACHE_PATH: hf_cache_volume, VLLM_CACHE_PATH: vllm_cache_volume},
+)
+def run_vllm_server_async_paired_l4x2_remote(
+    hf_model: str = DEFAULT_HF_MODEL,
+    request_counts: str = DEFAULT_VLLM_SWEEP_REQUEST_COUNTS,
+    prompt_profiles: str = DEFAULT_VLLM_SWEEP_PROMPT_PROFILES,
+    output_tokens: str = DEFAULT_VLLM_SWEEP_OUTPUT_TOKENS,
+    repeats: int = DEFAULT_VLLM_SWEEP_REPEATS,
+    scenario_seed: int = DEFAULT_VLLM_SWEEP_SEED,
+    warmup_runs: int = 1,
+    phase_order: str = "async_first",
+    ready_timeout_s: int = 600,
+    max_num_batched_tokens_override: int = 0,
+    server_prefix_caching: str = "default",
+    gpu_memory_utilization: float = 0.50,
+) -> dict[str, Any]:
+    return _run_vllm_server_async_paired_payload(
+        hf_model=hf_model,
+        request_counts=request_counts,
+        prompt_profiles=prompt_profiles,
+        output_tokens=output_tokens,
+        repeats=repeats,
+        scenario_seed=scenario_seed,
+        warmup_runs=warmup_runs,
+        phase_order=phase_order,
+        ready_timeout_s=ready_timeout_s,
+        max_num_batched_tokens_override=max_num_batched_tokens_override,
+        server_prefix_caching=server_prefix_caching,
+        gpu_memory_utilization=gpu_memory_utilization,
+        modal_gpu_label="L4:2",
+        tensor_parallel_size=2,
     )
 
 
@@ -4768,7 +4818,9 @@ def _select_vllm_server_async_paired_remote(modal_gpu: str) -> Any:
         return run_vllm_server_async_paired_remote
     if normalized_gpu == "L4":
         return run_vllm_server_async_paired_l4_remote
-    raise ValueError("modal_gpu must be one of: T4, L4")
+    if normalized_gpu == "L4:2":
+        return run_vllm_server_async_paired_l4x2_remote
+    raise ValueError("modal_gpu must be one of: T4, L4, L4:2")
 
 
 @app.local_entrypoint()
