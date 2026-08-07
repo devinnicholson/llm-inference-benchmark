@@ -1,7 +1,7 @@
 [project]
 name = "llm-inference-benchmark-lab"
 version = "0.1.0"
-description = "568 Systems and Machine Learning portfolio repo for LLM inference benchmarking."
+description = "Controlled vLLM experiments for KV-cache behavior, scheduling, and serving performance."
 requires-python = ">=3.11"
 dependencies = []
 
