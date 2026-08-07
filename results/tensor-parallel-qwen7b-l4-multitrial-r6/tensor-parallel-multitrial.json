@@ -1,0 +1,212 @@
+{
+  "capacity_trials": [
+    {
+      "scenario_seed": 4409,
+      "single_kv_cache_tokens": 81785.0,
+      "single_max_model_len": 3653,
+      "tensor_custom_all_reduce_disabled": true,
+      "tensor_div_single_kv_cache_tokens": 5.445142752338448,
+      "tensor_kv_cache_tokens": 445331.0,
+      "tensor_max_model_len": 3653,
+      "tensor_p2p_unavailable": true
+    },
+    {
+      "scenario_seed": 4509,
+      "single_kv_cache_tokens": 81784.0,
+      "single_max_model_len": 3637,
+      "tensor_custom_all_reduce_disabled": true,
+      "tensor_div_single_kv_cache_tokens": 5.445135967915484,
+      "tensor_kv_cache_tokens": 445325.0,
+      "tensor_max_model_len": 3637,
+      "tensor_p2p_unavailable": true
+    }
+  ],
+  "independent_trial_count": 2,
+  "markdown": "# Replicated Tensor-Parallel Serving Study\n\n`Qwen/Qwen2.5-7B-Instruct` on one NVIDIA L4 versus two tensor-parallel L4s, with cache disabled on both execution paths.\n\nProtocol: `shared_prefix_mega_long_no_repeat_variant`, n=16, output tokens=8, scheduler budget=8192. The aggregate contains 2 independent run/seed trials and 6 paired repeats.\n\n## Capacity by independent trial\n\n| Seed | TP1 KV tokens | TP2 KV tokens | TP2 / TP1 | TP2 interconnect |\n| ---: | ---: | ---: | ---: | --- |\n| 4409 | 81785 | 445331 | 5.445x | NCCL fallback; no P2P/custom all-reduce |\n| 4509 | 81784 | 445325 | 5.445x | NCCL fallback; no P2P/custom all-reduce |\n\n## Replicated request-path results\n\n| Backend | Metric | TP1 median | TP2 median | TP2 / TP1 | Hierarchical 90% interval | Trial-median range |\n| --- | --- | ---: | ---: | ---: | ---: | ---: |\n| `server` | `throughput` | 7.952 | 10.307 | 1.294x | [1.240, 1.361] | [1.242, 1.356] |\n| `server` | `p95_ttft` | 15645.021 | 12218.105 | 0.780x | [0.741, 0.813] | [0.743, 0.813] |\n| `server` | `p95_latency` | 16098.742 | 12464.965 | 0.774x | [0.735, 0.806] | [0.737, 0.805] |\n| `server` | `p95_tpot` | 1895.159 | 1489.959 | 0.788x | [0.743, 0.824] | [0.746, 0.820] |\n| `async_llm` | `throughput` | 7.977 | 10.188 | 1.276x | [1.206, 1.376] | [1.236, 1.354] |\n| `async_llm` | `p95_ttft` | 15176.083 | 12206.139 | 0.805x | [0.741, 0.840] | [0.742, 0.820] |\n| `async_llm` | `p95_latency` | 15880.409 | 12455.005 | 0.784x | [0.726, 0.832] | [0.737, 0.813] |\n| `async_llm` | `p95_tpot` | 2024.025 | 1511.389 | 0.747x | [0.684, 0.779] | [0.693, 0.767] |\n\nThroughput ratios above 1.0 favor TP2; latency-style ratios below 1.0 favor TP2.\n\n## Interpretation boundary\n\nThe hierarchical bootstrap resamples independent Modal run/seed trials and then repeats within each trial. The artifacts do not expose physical host identity. Two trials check whether the effect replicates, but they do not characterize the full Modal L4 fleet or other interconnect topologies. This remains a controlled serving study, not a production-traffic benchmark.\n",
+  "mode": "tensor-parallel-multitrial-comparison",
+  "paired_observation_count": 6,
+  "protocol": {
+    "async_enable_prefix_caching_configured": false,
+    "gpu_memory_utilization": 0.9,
+    "max_num_batched_tokens": 8192,
+    "max_num_seqs": 16,
+    "model_id": "Qwen/Qwen2.5-7B-Instruct",
+    "output_tokens": [
+      8
+    ],
+    "phase_order": "async_first",
+    "prompt_profiles": [
+      "shared_prefix_mega_long_no_repeat_variant"
+    ],
+    "repeats": 3,
+    "request_counts": [
+      16
+    ],
+    "server_prefix_caching_configured": "off",
+    "vllm_version": "0.21.0",
+    "warmup_runs": 1
+  },
+  "rows": [
+    {
+      "backend": "server",
+      "favorable": true,
+      "favorable_direction": "higher",
+      "independent_trials": 2,
+      "metric": "throughput",
+      "paired_observations": 6,
+      "percent_change": 29.39617542645696,
+      "scenario_id": "shared_prefix_mega_long_no_repeat_variant_out8_n16",
+      "single_median": 7.952213503424985,
+      "tensor_div_single_hierarchical_bootstrap_90_high": 1.3605867208472735,
+      "tensor_div_single_hierarchical_bootstrap_90_low": 1.2404321830883362,
+      "tensor_div_single_median": 1.2939617542645696,
+      "tensor_median": 10.306847881425373,
+      "trial_median_ratio_max": 1.3558813358732718,
+      "trial_median_ratio_min": 1.2416225909100438,
+      "unit": "output tokens/s"
+    },
+    {
+      "backend": "server",
+      "favorable": true,
+      "favorable_direction": "lower",
+      "independent_trials": 2,
+      "metric": "p95_ttft",
+      "paired_observations": 6,
+      "percent_change": -21.987758328944086,
+      "scenario_id": "shared_prefix_mega_long_no_repeat_variant_out8_n16",
+      "single_median": 15645.020894499994,
+      "tensor_div_single_hierarchical_bootstrap_90_high": 0.8134559371964207,
+      "tensor_div_single_hierarchical_bootstrap_90_low": 0.7405848112022386,
+      "tensor_div_single_median": 0.7801224167105592,
+      "tensor_median": 12218.105457000009,
+      "trial_median_ratio_max": 0.812750740494932,
+      "trial_median_ratio_min": 0.7432450110255854,
+      "unit": "ms"
+    },
+    {
+      "backend": "server",
+      "favorable": true,
+      "favorable_direction": "lower",
+      "independent_trials": 2,
+      "metric": "p95_latency",
+      "paired_observations": 6,
+      "percent_change": -22.64976699170228,
+      "scenario_id": "shared_prefix_mega_long_no_repeat_variant_out8_n16",
+      "single_median": 16098.742197999969,
+      "tensor_div_single_hierarchical_bootstrap_90_high": 0.8062406120553707,
+      "tensor_div_single_hierarchical_bootstrap_90_low": 0.734858996543285,
+      "tensor_div_single_median": 0.7735023300829772,
+      "tensor_median": 12464.96472450002,
+      "trial_median_ratio_max": 0.8054767358912657,
+      "trial_median_ratio_min": 0.7374051748699555,
+      "unit": "ms"
+    },
+    {
+      "backend": "server",
+      "favorable": true,
+      "favorable_direction": "lower",
+      "independent_trials": 2,
+      "metric": "p95_tpot",
+      "paired_observations": 6,
+      "percent_change": -21.208233445174386,
+      "scenario_id": "shared_prefix_mega_long_no_repeat_variant_out8_n16",
+      "single_median": 1895.1594442142884,
+      "tensor_div_single_hierarchical_bootstrap_90_high": 0.8237879186679056,
+      "tensor_div_single_hierarchical_bootstrap_90_low": 0.7425362542704206,
+      "tensor_div_single_median": 0.7879176655482562,
+      "tensor_median": 1489.958523214288,
+      "trial_median_ratio_max": 0.8203989581449378,
+      "trial_median_ratio_min": 0.7456407673121477,
+      "unit": "ms/token"
+    },
+    {
+      "backend": "async_llm",
+      "favorable": true,
+      "favorable_direction": "higher",
+      "independent_trials": 2,
+      "metric": "throughput",
+      "paired_observations": 6,
+      "percent_change": 27.578457713775517,
+      "scenario_id": "shared_prefix_mega_long_no_repeat_variant_out8_n16",
+      "single_median": 7.976600520415568,
+      "tensor_div_single_hierarchical_bootstrap_90_high": 1.3758840263687273,
+      "tensor_div_single_hierarchical_bootstrap_90_low": 1.2060137058930216,
+      "tensor_div_single_median": 1.2757845771377552,
+      "tensor_median": 10.18756461751711,
+      "trial_median_ratio_max": 1.3543393640840267,
+      "trial_median_ratio_min": 1.2362146064610302,
+      "unit": "output tokens/s"
+    },
+    {
+      "backend": "async_llm",
+      "favorable": true,
+      "favorable_direction": "lower",
+      "independent_trials": 2,
+      "metric": "p95_ttft",
+      "paired_observations": 6,
+      "percent_change": -19.517479437795604,
+      "scenario_id": "shared_prefix_mega_long_no_repeat_variant_out8_n16",
+      "single_median": 15176.082645000008,
+      "tensor_div_single_hierarchical_bootstrap_90_high": 0.8395444483785193,
+      "tensor_div_single_hierarchical_bootstrap_90_low": 0.7413489267156654,
+      "tensor_div_single_median": 0.804825205622044,
+      "tensor_median": 12206.138729000002,
+      "trial_median_ratio_max": 0.820213574691629,
+      "trial_median_ratio_min": 0.7423121013630383,
+      "unit": "ms"
+    },
+    {
+      "backend": "async_llm",
+      "favorable": true,
+      "favorable_direction": "lower",
+      "independent_trials": 2,
+      "metric": "p95_latency",
+      "paired_observations": 6,
+      "percent_change": -21.560704379277972,
+      "scenario_id": "shared_prefix_mega_long_no_repeat_variant_out8_n16",
+      "single_median": 15880.408858500004,
+      "tensor_div_single_hierarchical_bootstrap_90_high": 0.8322406456498905,
+      "tensor_div_single_hierarchical_bootstrap_90_low": 0.7263414109165796,
+      "tensor_div_single_median": 0.7843929562072203,
+      "tensor_median": 12455.004619999982,
+      "trial_median_ratio_max": 0.8128585540154323,
+      "trial_median_ratio_min": 0.7366021688526497,
+      "unit": "ms"
+    },
+    {
+      "backend": "async_llm",
+      "favorable": true,
+      "favorable_direction": "lower",
+      "independent_trials": 2,
+      "metric": "p95_tpot",
+      "paired_observations": 6,
+      "percent_change": -25.345183593593656,
+      "scenario_id": "shared_prefix_mega_long_no_repeat_variant_out8_n16",
+      "single_median": 2024.0250118571441,
+      "tensor_div_single_hierarchical_bootstrap_90_high": 0.7789092150375285,
+      "tensor_div_single_hierarchical_bootstrap_90_low": 0.6843407584267067,
+      "tensor_div_single_median": 0.7465481640640634,
+      "tensor_median": 1511.3886829285711,
+      "trial_median_ratio_max": 0.7672647443006103,
+      "trial_median_ratio_min": 0.6932299777452483,
+      "unit": "ms/token"
+    }
+  ],
+  "scenario_seeds": [
+    4409,
+    4509
+  ],
+  "schema_version": 1,
+  "sources": [
+    {
+      "scenario_seed": 4409,
+      "single": "results/modal-vllm-qwen7b-l4-tp1-batched8192-r3-seed4409/paired-server-async.json",
+      "tensor": "results/modal-vllm-qwen7b-l4x2-tp2-batched8192-r3-seed4409/paired-server-async.json"
+    },
+    {
+      "scenario_seed": 4509,
+      "single": "results/modal-vllm-qwen7b-l4-tp1-batched8192-r3-seed4509/paired-server-async.json",
+      "tensor": "results/modal-vllm-qwen7b-l4x2-tp2-batched8192-r3-seed4509/paired-server-async.json"
+    }
+  ]
+}
